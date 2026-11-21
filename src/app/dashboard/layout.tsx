@@ -4,9 +4,8 @@ import { Inter, Playfair_Display } from 'next/font/google';
 import { MARCA } from '@/lib/marca';
 import Sidebar from '@/components/dashboard/Sidebar';
 import Reloj from '@/components/dashboard/Reloj';
+import TablasMovil from '@/components/dashboard/TablasMovil';
 import './dashboard.css';
-
-
 
 const sans = Inter({ subsets: ['latin'], variable: '--d-sans', display: 'swap' });
 const serif = Playfair_Display({
@@ -40,6 +39,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
         {children}
       </div>
+
+      {/* Activa tablas en tarjetas y secciones colapsables en el celular */}
+      <TablasMovil />
     </div>
   );
 }

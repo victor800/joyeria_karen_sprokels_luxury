@@ -317,3 +317,477 @@
   }
 }
 
+/* 📁 src/app/dashboard/dashboard.css  → PEGAR AL FINAL */
+
+/* ═════════════ MÓVIL: dashboard optimizado (la web no se toca) ═════════════ */
+@media (max-width: 900px) {
+
+  /* Nada se sale del ancho de la pantalla */
+  .dash { overflow-x: clip; }
+  .dash .d-main { overflow-x: clip; }
+
+  /* ── Menú lateral: cajón con ancho adaptable y objetivos táctiles grandes ── */
+  .dash .d-side {
+    width: min(300px, 86vw);
+    padding: max(22px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+  .dash .d-side.abierto { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55), 12px 0 40px rgba(0, 0, 0, 0.5); }
+  .dash .d-sello { width: 78px; height: 78px; }
+  .dash .d-logo { padding-bottom: 16px; margin-bottom: 12px; }
+  .dash .d-nav a { padding: 14px; font-size: 14px; }
+  .dash .d-salir { padding: 14px; }
+
+  /* ── Botón hamburguesa ── */
+  .dash .d-burger {
+    top: max(12px, env(safe-area-inset-top));
+    left: 12px;
+    width: 44px;
+    height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Barra superior fija y compacta ── */
+  .dash .d-top {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    gap: 10px;
+    min-height: 68px;
+    padding: max(12px, env(safe-area-inset-top)) 14px 12px 68px;
+    background: rgba(251, 248, 241, 0.94);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  .dash .d-top-der { gap: 10px; }
+  .dash .d-reloj { padding: 0 10px; border-right: 0; }
+  .dash .d-reloj strong { font-size: 15px; }
+  .dash .d-campana { width: 42px; height: 42px; }
+  .dash .d-avatar { width: 40px; height: 40px; }
+
+  /* ── Hero ── */
+  .dash .d-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 20px 16px 86px;
+    min-height: 0;
+    align-items: start;
+  }
+  .dash .d-hero small { font-size: 9px; letter-spacing: 0.22em; line-height: 1.5; display: block; }
+  .dash .d-hero h1 { font-size: 28px; line-height: 1.15; margin: 8px 0 6px; max-width: none; }
+  .dash .d-hero p { font-size: 13px; line-height: 1.55; margin-bottom: 14px; max-width: none; }
+
+  /* Botones: el principal a todo el ancho, los otros dos en fila */
+  .dash .d-acciones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .dash .d-acciones .d-btn {
+    height: auto;
+    min-height: 46px;
+    padding: 10px 12px;
+    justify-content: center;
+    text-align: center;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    line-height: 1.25;
+  }
+  .dash .d-acciones .d-btn:first-child { grid-column: 1 / -1; min-height: 50px; font-size: 11px; }
+
+  /* Precio del oro a todo el ancho */
+  .dash .d-precios {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    padding: 12px 14px;
+  }
+  .dash .d-precios > div { gap: 6px; margin: 8px 0 10px; }
+  .dash .d-precios span { padding: 8px; min-width: 0; }
+  .dash .d-precios em { font-size: 9.5px; letter-spacing: 0.1em; }
+  .dash .d-precios strong { font-size: 13.5px; white-space: nowrap; }
+  .dash .d-precios a { display: inline-block; padding: 6px 0; font-size: 10px; }
+
+  /* ── Contenido ── */
+  .dash .d-hero ~ .d-cont:not(.simple) { margin-top: -58px; }
+  .dash .d-cont {
+    padding: 0 14px calc(28px + env(safe-area-inset-bottom));
+    gap: 14px;
+  }
+  .dash .d-cont.simple { padding-top: 20px; }
+  .dash .d-cab { flex-direction: column; align-items: stretch; gap: 10px; }
+  .dash .d-cab h1 { font-size: 26px; }
+
+  .dash .d-card { padding: 16px; border-radius: 14px; }
+  .dash .d-card h3 { font-size: 17px; margin-bottom: 12px; }
+
+  /* KPIs: 2 columnas compactas */
+  .dash .d-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash .d-kpi { padding: 14px 14px 14px 16px; }
+  .dash .d-kpi small { font-size: 9px; letter-spacing: 0.14em; line-height: 1.35; }
+  .dash .d-kpi strong { font-size: 22px; margin: 6px 0 2px; }
+  .dash .d-nada { font-size: 10.5px; }
+
+  /* Secciones en una columna */
+  .dash .d-duo,
+  .dash .d-duo.inv,
+  .dash .d-trio,
+  .dash .d-grid,
+  .dash .d-web { grid-template-columns: 1fr; gap: 12px; }
+
+  /* Gráfica y categorías */
+  .dash .d-barras { height: 130px; gap: 8px; }
+  .dash .d-cats { gap: 12px; }
+
+  /* Lista "Por atender": filas cómodas para el dedo */
+  .dash .d-atender a { padding: 15px 0; font-size: 14px; }
+  .dash .d-atender b { min-width: 32px; padding: 4px 10px; }
+
+  /* Estados vacíos más ajustados */
+  .dash .d-vacio { padding: 20px 8px; }
+  .dash .d-vacio a { padding: 8px 0; }
+
+  /* ── Tablas: scroll horizontal suave ── */
+  .dash .d-tabla-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .dash .d-tabla { min-width: 600px; font-size: 13px; }
+  .dash .d-tabla th,
+  .dash .d-tabla td { padding: 12px 14px; }
+
+  /* Barra de búsqueda/filtros de cada tabla */
+  .dash .d-barra { padding: 12px 14px; gap: 10px; }
+  .dash .d-barra .d-buscar { flex: 1 1 100%; max-width: none; min-width: 0; height: 44px; font-size: 16px; }
+  .dash .d-filtro { flex: 1 1 calc(50% - 5px); height: 44px; font-size: 16px; }
+  .dash .d-conteo { margin-left: 0; width: 100%; }
+
+  /* ── Formularios: 1 columna y sin zoom automático en iPhone ── */
+  .dash .d-form { grid-template-columns: 1fr; gap: 14px; }
+  .dash .d-form input,
+  .dash .d-form select { height: 48px; font-size: 16px; }
+  .dash .d-btn-sm { height: 42px; }
+  .dash .d-prev { height: 120px; }
+}
+
+/* Teléfonos pequeños (iPhone SE, Android compactos) */
+@media (max-width: 380px) {
+  .dash .d-hero h1 { font-size: 25px; }
+  .dash .d-kpi strong { font-size: 19px; }
+  .dash .d-kpi small { letter-spacing: 0.08em; }
+  .dash .d-precios em { letter-spacing: 0.04em; }
+  .dash .d-precios strong { font-size: 12.5px; }
+  .dash .d-reloj { display: none; }
+}
+
+/* 📁 src/app/dashboard/dashboard.css  → PEGAR AL FINAL */
+
+/* ═════════════ MÓVIL: tablas en tarjetas, detalle colapsable, todas las pestañas ═════════════ */
+@media (max-width: 900px) {
+
+  /* ── Tablas → tarjetas ── */
+  .dash .d-tabla-wrap { overflow: visible; }
+  .dash .d-card.d-tabla-wrap {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  .dash .d-tabla,
+  .dash .d-tabla tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .dash .d-tabla thead { display: none; }
+
+  .dash .d-tabla tbody tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 10px;
+    margin: 0 0 10px;
+    padding: 14px 16px;
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(10, 46, 36, 0.06);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dash .d-tabla tbody tr:hover { background: var(--papel); }
+  .dash .d-tabla tbody tr[data-abierta='true'] {
+    border-color: rgba(201, 162, 74, 0.55);
+    box-shadow: 0 10px 26px rgba(10, 46, 36, 0.1);
+  }
+  .dash .d-tabla tbody tr[data-simple='true'] { cursor: default; }
+
+  .dash .d-tabla td {
+    display: none;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Siempre visibles: nombre, dato clave y estado */
+  .dash .d-tabla td[data-rol='titulo'] {
+    display: block;
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .dash .d-tabla td[data-rol='estado'] {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .dash .d-tabla td[data-rol='subtitulo'] {
+    display: block;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--tenue);
+  }
+  .dash .d-tabla td[data-rol='subtitulo']::before {
+    content: attr(data-label) ': ';
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .dash .d-tabla td[data-rol='vacio'] {
+    display: block;
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 6px 0;
+    color: var(--tenue);
+  }
+
+  /* Flecha que indica que se puede desplegar */
+  .dash .d-tabla tbody tr::after {
+    content: '';
+    grid-column: 3;
+    grid-row: 1;
+    width: 8px;
+    height: 8px;
+    margin: -3px 2px 0 4px;
+    border-right: 2px solid var(--oro);
+    border-bottom: 2px solid var(--oro);
+    transform: rotate(45deg);
+    transition: transform 0.25s;
+  }
+  .dash .d-tabla tbody tr[data-abierta='true']::after {
+    margin-top: 3px;
+    transform: rotate(-135deg);
+  }
+  .dash .d-tabla tbody tr[data-simple='true']::after { display: none; }
+
+  /* Detalle: aparece al tocar la tarjeta */
+  .dash .d-tabla tbody tr[data-abierta='true'] td[data-rol='detalle'] {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px dashed var(--linea);
+    font-size: 13px;
+  }
+  .dash .d-tabla tbody tr[data-abierta='true'] td[data-rol='detalle']:first-of-type { margin-top: 12px; }
+  .dash .d-tabla td[data-rol='detalle']::before {
+    content: attr(data-label);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tenue);
+  }
+
+  /* Botones de acción: fila completa al final del detalle */
+  .dash .d-tabla tbody tr[data-abierta='true'] td[data-rol='acciones'] {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--linea);
+  }
+  .dash .d-tabla td[data-rol='acciones'] > * {
+    flex: 1 1 120px;
+    min-height: 42px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* ── Barra de búsqueda/filtros encima de las tarjetas ── */
+  .dash .d-barra {
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+
+  /* ── Secciones colapsables (título tocable) ── */
+  .dash .d-card[data-colapsable] > h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 32px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dash .d-card[data-colapsable] > h3::after {
+    content: '';
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-right: 4px;
+    border-right: 2px solid var(--oro);
+    border-bottom: 2px solid var(--oro);
+    transform: rotate(-135deg);
+    transition: transform 0.25s;
+  }
+  .dash .d-card[data-cerrada='true'] > h3 { margin-bottom: 0; }
+  .dash .d-card[data-cerrada='true'] > h3::after { transform: rotate(45deg); }
+  .dash .d-card[data-cerrada='true'] > :not(h3) { display: none; }
+
+  /* ── Cabeceras de cada pestaña (título + botón "Nuevo...") ── */
+  .dash .d-cab > .d-btn,
+  .dash .d-cab > a.d-btn { width: 100%; justify-content: center; min-height: 46px; }
+
+  /* ── Listas con miniatura (prendas, pedidos, etc.) ── */
+  .dash .d-lista li { gap: 10px; padding: 12px 0; }
+  .dash .d-lista .der { max-width: 40%; overflow-wrap: anywhere; }
+  .dash .d-thumb { width: 46px; height: 46px; }
+
+  /* ── Chips que no se rompan ── */
+  .dash .chip { white-space: nowrap; padding: 4px 10px; font-size: 10.5px; }
+
+  /* ── Tienda web ── */
+  .dash .d-web { grid-template-columns: 1fr; }
+
+  /* ── Botones de los formularios a todo el ancho ── */
+  .dash .d-form .d-btn,
+  .dash .d-form button { width: 100%; min-height: 48px; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash .d-tabla tbody tr::after,
+  .dash .d-card[data-colapsable] > h3::after { transition: none; }
+}
+/* 📁 src/app/dashboard/dashboard.css  → PEGAR AL FINAL */
+
+@media (max-width: 900px) {
+  /* Con el menú abierto, el botón pasa por encima y se vuelve una ✕ */
+  .dash:has(.d-side.abierto) .d-burger {
+    z-index: 60;
+    left: calc(min(300px, 86vw) - 56px);
+    top: max(12px, env(safe-area-inset-top));
+    background: transparent;
+    border-color: rgba(201, 162, 74, 0.5);
+    color: transparent;
+  }
+  .dash:has(.d-side.abierto) .d-burger > * {
+    opacity: 0;
+  }
+  .dash:has(.d-side.abierto) .d-burger::before {
+    content: '✕';
+    grid-area: 1 / 1;
+    color: var(--oro2);
+    font-size: 17px;
+    line-height: 1;
+  }
+}
+/* 📁 src/app/dashboard/dashboard.css  → PEGAR AL FINAL (reemplaza el fix anterior de la ✕) */
+
+@media (max-width: 900px) {
+
+  /* Cajón: franja superior reservada para la ✕, logo centrado debajo */
+  .dash .d-side {
+    padding-top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+  }
+  .dash .d-logo {
+    padding-top: 4px;
+    padding-bottom: 18px;
+    margin-bottom: 12px;
+  }
+  .dash .d-sello {
+    margin-inline: auto;
+  }
+
+  /* Con el menú abierto, el botón pasa por encima y se vuelve una ✕ redonda,
+     alineada al borde derecho del cajón */
+  .dash:has(.d-side.abierto) .d-burger {
+    z-index: 60;
+    width: 40px;
+    height: 40px;
+    top: max(12px, env(safe-area-inset-top));
+    left: calc(min(300px, 86vw) - 52px);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(201, 162, 74, 0.5);
+    color: transparent;
+  }
+  .dash:has(.d-side.abierto) .d-burger > * {
+    opacity: 0;
+  }
+  .dash:has(.d-side.abierto) .d-burger::before {
+    content: '✕';
+    grid-area: 1 / 1;
+    color: var(--oro2);
+    font-size: 16px;
+    line-height: 1;
+  }
+}
+
+/* 📁 src/app/dashboard/dashboard.css  → PEGAR AL FINAL (reemplaza los bloques anteriores de la ✕) */
+
+@media (max-width: 900px) {
+
+  /* Logo más arriba: ya no hay franja reservada, la ✕ queda a la derecha */
+  .dash .d-side {
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+  .dash .d-logo {
+    padding-top: 0;
+    padding-bottom: 16px;
+    margin-bottom: 12px;
+  }
+  .dash .d-sello {
+    margin-inline: auto;
+  }
+
+  /* Con el menú abierto: botón circular con la ✕ perfectamente centrada */
+  .dash:has(.d-side.abierto) .d-burger {
+    position: fixed;
+    z-index: 60;
+    width: 40px;
+    height: 40px;
+    top: max(12px, env(safe-area-inset-top));
+    left: calc(min(300px, 86vw) - 52px);
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(201, 162, 74, 0.5);
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+  }
+  /* Se elimina el icono original para que no ocupe espacio */
+  .dash:has(.d-side.abierto) .d-burger > * {
+    display: none;
+  }
+  .dash:has(.d-side.abierto) .d-burger::before {
+    content: '✕';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--oro2);
+  }
+}
+
