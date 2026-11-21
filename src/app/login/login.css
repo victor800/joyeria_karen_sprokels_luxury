@@ -636,41 +636,10 @@
   }
 }
 
-/* ═════════════ Asesor VIP y pie cifrado ═════════════ */
+/* ═════════════ Pie cifrado ═════════════ */
+/* "Solicitar membresía / Asesor VIP" eliminado. Esta regla lo oculta aunque el markup siga en PanelAcceso. */
 .jks-asesor {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  text-align: center;
-}
-.jks-asesor-enlace {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #9fd6b4;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.jks-asesor-enlace:hover {
-  color: var(--oro);
-}
-.jks-asesor-sub {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
-  font-size: 10px;
-  color: #7b857d;
-}
-.jks-asesor-sub svg {
-  color: var(--oro);
+  display: none !important;
 }
 
 .jks-seguro {
@@ -678,7 +647,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin: 18px 0 0;
+  margin: 22px 0 0;
   font-size: 8.5px;
   letter-spacing: 0.14em;
   color: #5d675f;
@@ -733,12 +702,8 @@
   .jks-boton-oro {
     height: 44px;
   }
-  .jks-asesor {
-    margin-top: 12px;
-    padding-top: 10px;
-  }
   .jks-seguro {
-    margin-top: 12px;
+    margin-top: 14px;
   }
 }
 
@@ -760,21 +725,97 @@
   }
   .jks-escena {
     height: auto;
-    min-height: 70dvh;
-    padding: 18px;
+    min-height: 0;
+    padding: max(16px, env(safe-area-inset-top)) 16px 22px;
+  }
+  .jks-cabecera {
+    justify-content: center;
   }
   .jks-pastilla {
     display: none;
   }
+  .jks-vitrina {
+    flex: none;
+    padding: 16px 0 0;
+  }
+  .jks-vitrina > .jks-card {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    aspect-ratio: 5 / 4;
+  }
+  .jks-card {
+    padding: 5px;
+    border-radius: 20px;
+  }
+  .jks-card-vista {
+    border-radius: 15px;
+  }
   .jks-garantias {
     grid-template-columns: 1fr;
   }
+
   .jks-acceso {
     height: auto;
     overflow: visible;
     border-left: 0;
     border-top: 1px solid var(--linea);
-    padding: 28px 18px;
+    padding: 28px 20px calc(28px + env(safe-area-inset-bottom));
+  }
+  .jks-acceso-col {
+    max-width: 440px;
+  }
+  .jks-logo-panel-sello {
+    width: 96px;
+    height: 96px;
+  }
+
+  /* Táctil: objetivos de 44-50px y 16px en inputs (evita el zoom de iOS) */
+  .jks-input {
+    height: 50px;
+    font-size: 16px;
+  }
+  .jks-boton-oro,
+  .jks-boton-apple,
+  .jks-boton-google {
+    height: 50px;
+  }
+  .jks-ojo {
+    width: 40px;
+    height: 40px;
+    right: 6px;
+  }
+  .jks-enlace {
+    padding: 8px 0;
+  }
+  .jks-check {
+    min-height: 32px;
+  }
+  .jks-texto {
+    font-size: 13px;
+  }
+  .jks-etiqueta {
+    font-size: 10px;
+  }
+  .jks-pie {
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(var(--alto-pie) + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) {
+  .jks-marca {
+    gap: 10px;
+  }
+  .jks-sello {
+    width: 48px;
+    height: 48px;
+  }
+  .jks-marca-texto h1 {
+    font-size: 19px;
+  }
+  .jks-fila-opciones {
+    flex-wrap: wrap;
   }
 }
 
@@ -784,9 +825,10 @@
   .jks-spinner {
     animation: none;
   }
-  .jks *,
-  .jks *::before,
-  .jks *::after {
+  /* Solo el formulario/escena: la bóveda de entrada conserva su animación */
+  .jks-layout *,
+  .jks-layout *::before,
+  .jks-layout *::after {
     transition: none !important;
   }
 }
@@ -880,9 +922,411 @@
     0 0 24px rgba(224, 183, 63, 0.35);
 }
 
-/* En pantallas táctiles no hay cursor, se desactiva */
+/* Táctil: la lupa también funciona. Se arrastra el dedo sobre la foto
+   (sin que la página haga scroll ni se abra el menú de "guardar imagen"). */
+.jks-card-vista {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.jks-card-vista img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
 @media (hover: none) {
-  .jks-lupa {
-    display: none;
+  .jks-card-vista {
+    cursor: default;
   }
+}
+
+/* ═════════════════════════════════════════════════════════════
+   BÓVEDA (intro): la puerta se abre y revela el logo
+   ═════════════════════════════════════════════════════════════ */
+.jks-boveda {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(22px, 5vh, 40px);
+  padding: 24px 24px max(24px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 38%, #17130a 0%, #060504 55%, #000 100%);
+  transition: opacity 0.9s ease, visibility 0.9s;
+}
+.jks-boveda[data-fase='abierta'] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Marco circular de acero y oro */
+.jks-boveda-marco {
+  --d: min(76vmin, 500px);
+  position: relative;
+  width: var(--d);
+  height: var(--d);
+  flex: none;
+  border-radius: 50%;
+  perspective: 1500px;
+  background: radial-gradient(circle at 50% 30%, #2c2613, #0b0905 70%);
+  box-shadow:
+    0 0 0 3px #8a6414,
+    0 0 0 10px #17120a,
+    0 0 0 12px rgba(224, 183, 63, 0.5),
+    0 30px 90px rgba(0, 0, 0, 0.9),
+    0 0 90px rgba(224, 183, 63, 0.1);
+}
+.jks-boveda[data-fase='abriendo'] .jks-boveda-marco {
+  animation: jks-temblor 3s 0s linear both;
+}
+@keyframes jks-temblor {
+  0%, 100% { transform: translate(0, 0); }
+  32.1% { transform: translate(0, 0); }
+  33.3% { transform: translate(-2px, 1px); }
+  34.3% { transform: translate(2px, -1px); }
+  35.3% { transform: translate(-1px, 1px); }
+  36.5% { transform: translate(0, 0); }
+  43.8% { transform: translate(0, 0); }
+  45.0% { transform: translate(-2px, 1px); }
+  46.0% { transform: translate(2px, -1px); }
+  47.0% { transform: translate(-1px, 1px); }
+  48.2% { transform: translate(0, 0); }
+  55.5% { transform: translate(0, 0); }
+  56.7% { transform: translate(-2px, 1px); }
+  57.7% { transform: translate(2px, -1px); }
+  58.7% { transform: translate(-1px, 1px); }
+  59.9% { transform: translate(0, 0); }
+  67.1% { transform: translate(0, 0); }
+  68.3% { transform: translate(-2px, 1px); }
+  69.3% { transform: translate(2px, -1px); }
+  70.3% { transform: translate(-1px, 1px); }
+  71.5% { transform: translate(0, 0); }
+  85.5% { transform: translate(0, 0); }
+  86.7% { transform: translate(-3px, 2px); }
+  87.7% { transform: translate(3px, -2px); }
+  88.7% { transform: translate(-1px, 1px); }
+  89.9% { transform: translate(0, 0); }
+}
+
+/* Interior: oculto hasta abrir */
+.jks-boveda-interior {
+  position: absolute;
+  inset: 7%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1f1808 0%, #050402 75%);
+  box-shadow: inset 0 0 50px #000;
+}
+.jks-boveda-rayos {
+  position: absolute;
+  inset: -50%;
+  opacity: 0;
+  background: repeating-conic-gradient(from 0deg, rgba(224, 183, 63, 0.4) 0 5deg, transparent 5deg 15deg);
+  -webkit-mask-image: radial-gradient(circle, #000 8%, transparent 52%);
+  mask-image: radial-gradient(circle, #000 8%, transparent 52%);
+  animation: jks-rayos 16s linear infinite;
+  transition: opacity 1.4s ease 3.1s;
+}
+@keyframes jks-rayos {
+  to { transform: rotate(360deg); }
+}
+.jks-boveda-logo {
+  position: relative;
+  width: 64%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid var(--oro-suave);
+  background: #04120c;
+  opacity: 0.12;
+  transform: scale(0.78);
+  filter: brightness(0.4);
+  box-shadow: 0 0 20px rgba(224, 183, 63, 0.1);
+  transition: opacity 1.6s ease 3.2s, transform 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 3.2s,
+    filter 1.6s ease 3.2s, box-shadow 1.8s ease 3.2s;
+}
+.jks-boveda-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-boveda-rayos {
+  opacity: 1;
+}
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-boveda-logo {
+  opacity: 1;
+  transform: scale(1);
+  filter: none;
+  box-shadow: 0 0 60px rgba(224, 183, 63, 0.55), 0 0 140px rgba(224, 183, 63, 0.25);
+}
+
+/* Bisagras */
+.jks-bisagra {
+  position: absolute;
+  left: 3.2%;
+  width: 5.5%;
+  height: 9%;
+  z-index: 2;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #6b5320, #f0d67e 45%, #8a6414);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Puerta */
+.jks-boveda-puerta {
+  position: absolute;
+  inset: 7%;
+  z-index: 3;
+  border-radius: 50%;
+  transform-origin: 0% 50%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.7));
+  transition: transform 2.4s cubic-bezier(0.55, 0, 0.2, 1) 2.6s;
+}
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-boveda-puerta {
+  transform: rotateY(-104deg);
+}
+.jks-puerta-cara {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Pernos: se retraen antes de abrir */
+.jks-bol {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--a));
+  pointer-events: none;
+}
+.jks-bol i {
+  position: absolute;
+  left: 50%;
+  top: -3.4%;
+  width: 7%;
+  height: 8.5%;
+  margin-left: -3.5%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #6b5320, #f0d67e 45%, #8a6414);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  transition: transform 0.8s cubic-bezier(0.3, 0.9, 0.3, 1) calc(0.3s + var(--s, 0) * 0.35s);
+}
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-bol i {
+  transform: translateY(80%);
+}
+
+/* Rueda interactiva */
+.jks-rueda {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 47%;
+  aspect-ratio: 1;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: translate(-50%, -50%) rotate(calc(var(--giro) * 1deg));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+}
+.jks-rueda svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.jks-rueda[data-arrastrando='true'] {
+  cursor: grabbing;
+}
+.jks-rueda:focus-visible {
+  outline: 2px solid var(--oro);
+  outline-offset: 6px;
+}
+.jks-boveda[data-fase='abriendo'] .jks-rueda,
+.jks-boveda[data-fase='abierta'] .jks-rueda {
+  transition: transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  cursor: default;
+}
+.jks-rueda[data-reposo='true'] {
+  animation: jks-latido 2.4s ease-in-out infinite;
+}
+@keyframes jks-latido {
+  0%, 100% { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7)); }
+  50% { filter: drop-shadow(0 0 14px rgba(224, 183, 63, 0.75)); }
+}
+
+/* Destello al abrir */
+.jks-boveda-destello {
+  position: absolute;
+  inset: 7%;
+  z-index: 4;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 236, 170, 0.85), rgba(224, 183, 63, 0) 65%);
+}
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-boveda-destello {
+  animation: jks-destello 1.8s ease-out 3.4s both;
+}
+@keyframes jks-destello {
+  0% { opacity: 0; transform: scale(0.6); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+/* Textos y progreso */
+.jks-boveda-textos {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.jks-boveda-textos small {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  color: var(--oro);
+}
+.jks-boveda-estado {
+  margin: 0;
+  font-family: var(--jks-serif), serif;
+  font-size: clamp(18px, 4.6vw, 24px);
+  color: #f4efdc;
+}
+.jks-boveda-estado em {
+  color: var(--oro);
+  font-style: italic;
+}
+.jks-boveda-barra {
+  width: min(260px, 70vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.jks-boveda-barra i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+  background: linear-gradient(90deg, #8a6414, #f3d77a);
+  transition: transform 0.25s ease;
+}
+.jks-boveda-saltar {
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: #d6d1bd;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--linea);
+  transition: color 0.2s, border-color 0.2s, opacity 0.3s;
+}
+.jks-boveda-saltar:hover:not(:disabled) {
+  color: var(--oro);
+  border-color: var(--oro-suave);
+}
+.jks-boveda-saltar:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+/* Pantallas bajas (celular horizontal / laptops chicas): bóveda más compacta */
+@media (max-height: 620px) {
+  .jks-boveda-marco {
+    --d: min(56vmin, 340px);
+  }
+  .jks-boveda {
+    gap: 12px;
+  }
+  .jks-boveda-textos {
+    gap: 8px;
+  }
+  .jks-combo-caja {
+    height: 36px;
+    font-size: 18px;
+  }
+}
+
+/* Menos movimiento: sin vibración ni giros largos (el componente además la omite) */
+/* La bóveda se muestra siempre con su animación completa (decisión de diseño). */
+
+
+/* ── Anillo del dial (gira al revés que la rueda) ── */
+.jks-boveda:is([data-fase='abriendo'], [data-fase='abierta']) .jks-anillo {
+  transition: transform 1.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ── Combinación digital ── */
+.jks-boveda-combo {
+  display: flex;
+  gap: 10px;
+}
+.jks-combo-caja {
+  min-width: 58px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font: 600 22px/1 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: #4d5750;
+  background: #040604;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 14px #000;
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.25s, text-shadow 0.25s;
+}
+.jks-combo-caja[data-estado='activo'] {
+  color: var(--oro);
+  border-color: var(--oro-suave);
+  text-shadow: 0 0 8px rgba(224, 183, 63, 0.7);
+  box-shadow: inset 0 0 14px #000, 0 0 16px rgba(224, 183, 63, 0.25);
+}
+.jks-combo-caja[data-estado='bloqueado'] {
+  color: var(--exito);
+  border-color: rgba(143, 214, 168, 0.5);
+  text-shadow: 0 0 8px rgba(143, 214, 168, 0.65);
+  box-shadow: inset 0 0 14px #000, 0 0 14px rgba(143, 214, 168, 0.18);
+}
+
+/* ── Botón de sonido ── */
+.jks-boveda-sonido {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 5;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #d6d1bd;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--linea);
+  transition: color 0.2s, border-color 0.2s;
+}
+.jks-boveda-sonido:hover {
+  color: var(--oro);
+  border-color: var(--oro-suave);
 }

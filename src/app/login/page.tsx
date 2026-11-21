@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Suspense } from 'react';
 import { connection } from 'next/server';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Image from 'next/image';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { MARCA } from '@/lib/marca';
 import PanelAcceso from '@/components/auth/PanelAcceso';
 import AnilloPiezas from '@/components/auth/AnilloPiezas';
+import BovedaIntro from '@/components/auth/BovedaIntro';
 import './login.css';
 
 const sans = Inter({ subsets: ['latin'], variable: '--jks-sans', display: 'swap' });
@@ -23,6 +24,14 @@ const serif = Playfair_Display({
 export const metadata: Metadata = {
   title: `Acceso · ${MARCA.nombre}`,
   description: `${MARCA.titulo} ${MARCA.acento}`,
+};
+
+/** Móvil: ocupa toda la pantalla (incluida la zona del notch) y la barra del navegador queda en negro. */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#000000',
 };
 
 // Coincide con: pieza.jpeg, pieza1.jpeg, pieza2.jpeg ... pieza6.jpeg
@@ -54,6 +63,9 @@ export default function LoginPage() {
 
   return (
     <main className={`jks ${sans.variable} ${serif.variable}`}>
+      {/* Intro: la bóveda se abre y revela el logo (una vez por sesión) */}
+      <BovedaIntro />
+
       <div className="jks-layout">
         {/* ── Izquierda: escena ── */}
         <section className="jks-escena" aria-label="Colección patrimonial">
