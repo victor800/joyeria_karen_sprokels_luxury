@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/auth';
 
-export const dynamic = 'force-dynamic';
 
 export async function GET() {
   // Lectura pública o privada según el módulo; aquí se conectará con Google Sheets.
