@@ -1,0 +1,40 @@
+/* 📁 RUTA: src/components/dashboard/modulo.css */
+.mod { display: flex; flex-direction: column; gap: 22px; }
+
+.mod-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.mod-head h1 { margin: 0; font-size: 1.6rem; color: #12372e; }
+.mod-head p { margin: 4px 0 0; color: #5d6f68; font-size: 0.9rem; }
+
+.mod-btn {
+  padding: 11px 20px; border: 0; border-radius: 999px; cursor: pointer;
+  background: #12372e; color: #f3e7c3; font-weight: 600; letter-spacing: 0.03em;
+}
+.mod-btn:hover { background: #1b4d41; }
+
+.mod-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.mod-kpis article {
+  background: #fff; border-radius: 16px; padding: 18px 20px;
+  border: 1px solid rgba(18, 55, 46, 0.08); box-shadow: 0 6px 18px rgba(18, 55, 46, 0.05);
+}
+.mod-kpis small { display: block; color: #5d6f68; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.mod-kpis b { display: block; margin-top: 6px; font-size: 1.5rem; color: #12372e; }
+
+.mod-card {
+  background: #fff; border-radius: 18px; padding: 18px;
+  border: 1px solid rgba(18, 55, 46, 0.08); box-shadow: 0 6px 18px rgba(18, 55, 46, 0.05);
+}
+.mod-tools { margin-bottom: 14px; }
+.mod-tools input {
+  width: 100%; max-width: 320px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid #d5dfda; outline: none; font: inherit;
+}
+.mod-tools input:focus { border-color: #12372e; }
+
+.mod-scroll { overflow-x: auto; }
+.mod table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.mod th {
+  text-align: left; padding: 12px 10px; font-size: 0.72rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #5d6f68; border-bottom: 1px solid #e3ebe7;
+}
+.mod td { padding: 12px 10px; border-bottom: 1px solid #f0f4f2; }
+.mod-vacio { text-align: center; color: #8a9a94; padding: 38px 10px !important; }

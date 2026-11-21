@@ -1,0 +1,461 @@
+/* 📁 src/components/dashboard/sidebar.css  (REEMPLAZA TODO EL ARCHIVO) */
+
+.dash {
+  --sb-bg: #0a2e24;      /* fondo del menú */
+  --sb-activo: #f4eee2;  /* = --crema, el fondo del contenido */
+  --sb-texto: #c9d3cb;
+  --sb-oro: #c9a24a;
+  --sb-mini-w: 88px;     /* ancho de la barra de íconos */
+  --sb-tile: 48px;       /* tamaño del cuadro de cada ícono */
+}
+
+/* ── Contenedor del menú ── */
+.d-side.sb {
+  background: var(--sb-bg);
+  border-right: 0;
+  padding: 0 0 18px 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+.d-side.sb .d-logo { padding-top: 26px; margin-right: 18px; }
+.d-side.sb .d-salir { margin: 12px 18px 0 0; }
+.d-salir svg {
+  display: none;
+  width: 22px; height: 22px;
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ── Navegación ── */
+.sb-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 30px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.sb-grupo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 16px 18px 6px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--sb-oro);
+  opacity: 0.85;
+}
+.sb-grupo:hover { opacity: 1; }
+.sb-grupo svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.2s;
+}
+.sb-grupo[aria-expanded='false'] .sb-chev { transform: rotate(-90deg); }
+
+/* Grupo colapsado: se ocultan sus pestañas por completo */
+.sb-bloque.compacto a { display: none; }
+
+.sb-nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+  padding: 13px 18px;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--sb-texto);
+  text-decoration: none;
+  border-radius: 30px 0 0 30px;
+  transition: color 0.2s, background 0.2s;
+}
+.sb-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.sb-nav svg {
+  width: 20px; height: 20px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ── Pestaña activa: pastilla curva que se funde con el contenido ── */
+.sb-nav a[aria-current='page'] {
+  background: var(--sb-activo);
+  color: var(--sb-bg);
+  font-weight: 600;
+}
+.sb-nav a[aria-current='page']::before,
+.sb-nav a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  pointer-events: none;
+}
+.sb-nav a[aria-current='page']::before {
+  top: -30px;
+  border-bottom-right-radius: 30px;
+  box-shadow: 15px 15px 0 15px var(--sb-activo);
+}
+.sb-nav a[aria-current='page']::after {
+  bottom: -30px;
+  border-top-right-radius: 30px;
+  box-shadow: 15px -15px 0 15px var(--sb-activo);
+}
+
+/* ── INICIO: la pastilla toma el verde del hero y el texto va en dorado ── */
+.d-side.sb.en-inicio { --sb-activo: #0b3127; }
+.d-side.sb.en-inicio .sb-nav a[aria-current='page'] { color: var(--oro2); }
+
+/* ═══════════ ESCRITORIO: hamburguesa + barra de íconos ═══════════ */
+@media (min-width: 901px) {
+  .dash { transition: grid-template-columns 0.25s ease; }
+
+  .dash .d-burger {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    z-index: 60;
+    top: 15px;
+    left: 284px; /* a la derecha del menú abierto (268px) */
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--oro);
+    background: var(--verde);
+    color: var(--oro2);
+    font-size: 18px;
+    cursor: pointer;
+    transition: left 0.25s ease;
+  }
+  .dash .d-top { padding-left: 76px; position: sticky; top: 0; z-index: 30; }
+
+  /* ── Modo íconos ── */
+  .dash.dash-mini { grid-template-columns: var(--sb-mini-w) 1fr; }
+  .dash.dash-mini .d-burger { left: calc(var(--sb-mini-w) + 16px); }
+
+  .dash.dash-mini .d-side.sb { padding: 0 0 14px; }
+
+  /* Logo reducido, sin textos */
+  .dash.dash-mini .d-logo { margin: 0 14px; padding: 18px 0 14px; }
+  .dash.dash-mini .d-logo b,
+  .dash.dash-mini .d-logo small { display: none; }
+  .dash.dash-mini .d-sello {
+    width: 52px; height: 52px; margin: 0 auto;
+    box-shadow: 0 0 0 3px rgba(201, 162, 74, 0.12);
+  }
+
+  /* Lista de íconos centrada y sin barra de scroll visible */
+  .dash.dash-mini .sb-nav {
+    padding: 10px 0;
+    scrollbar-width: none;
+  }
+  .dash.dash-mini .sb-nav::-webkit-scrollbar { display: none; }
+  .dash.dash-mini .sb-bloque {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Los títulos de grupo pasan a ser una línea divisoria */
+  .dash.dash-mini .sb-grupo {
+    width: calc(var(--sb-tile) - 8px);
+    padding: 12px 0 10px;
+    pointer-events: none;
+  }
+  .dash.dash-mini .sb-grupo span,
+  .dash.dash-mini .sb-grupo svg { display: none; }
+  .dash.dash-mini .sb-grupo::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 1px;
+    background: rgba(201, 162, 74, 0.3);
+  }
+
+  /* Cada pestaña = cuadro con solo el ícono (se ven todas, aunque su grupo esté colapsado) */
+  .dash.dash-mini .sb-bloque.compacto a,
+  .dash.dash-mini .sb-nav a {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    width: var(--sb-tile);
+    height: var(--sb-tile);
+    margin: 0 0 6px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid transparent;
+  }
+  .dash.dash-mini .sb-nav a .sb-t { display: none; }
+  .dash.dash-mini .sb-nav a svg { width: 22px; height: 22px; }
+
+  /* Activa: cuadro dorado, sin la curva */
+  .dash.dash-mini .sb-nav a[aria-current='page'] {
+    background: linear-gradient(135deg, rgba(201, 162, 74, 0.3), rgba(201, 162, 74, 0.08));
+    border-color: rgba(201, 162, 74, 0.5);
+    color: var(--oro2);
+  }
+  .dash.dash-mini .sb-nav a[aria-current='page']::before,
+  .dash.dash-mini .sb-nav a[aria-current='page']::after { display: none; }
+
+  /* Cerrar sesión como ícono */
+  .dash.dash-mini .d-salir {
+    display: grid;
+    place-items: center;
+    width: var(--sb-tile);
+    height: var(--sb-tile);
+    margin: 8px auto 0;
+    padding: 0;
+    border-radius: 14px;
+  }
+  .dash.dash-mini .d-salir svg { display: block; }
+  .dash.dash-mini .d-salir .sb-t { display: none; }
+}
+/* ═══════════ LOGO: caja fuerte que se abre, giro y destello ═══════════ */
+.d-side.sb .d-sello {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+
+
+/* ── Puerta de la caja fuerte ── */
+.d-side.sb .d-boveda {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  transform-origin: left center;
+  background: radial-gradient(circle at 30% 25%, #1f6350 0%, #0f3b2e 45%, #071f18 100%);
+  border: 2px solid var(--sb-oro);
+  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.35), inset 0 0 14px rgba(0, 0, 0, 0.7);
+  animation: sello-puerta 12s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Pernos de cierre alrededor del borde */
+.d-side.sb .d-boveda::before {
+  content: '';
+  position: absolute;
+  inset: 5%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(var(--sb-oro) 0 5deg, transparent 5deg 30deg);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 84%, #000 85%);
+  mask: radial-gradient(circle closest-side, transparent 84%, #000 85%);
+  opacity: 0.9;
+}
+
+/* Dial con marcas */
+.d-side.sb .d-boveda::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(rgba(201, 162, 74, 0.95) 0 1.5deg, transparent 1.5deg 9deg);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 80%, #000 81%);
+  mask: radial-gradient(circle closest-side, transparent 80%, #000 81%);
+}
+
+/* Manija: rueda con rayos y centro dorado */
+.d-side.sb .d-manija {
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  border: 2px solid var(--sb-oro);
+  background:
+    radial-gradient(circle, var(--sb-oro) 0 16%, transparent 17%),
+    repeating-conic-gradient(from -2deg, var(--sb-oro) 0 4deg, transparent 4deg 60deg);
+  box-shadow: 0 0 6px rgba(201, 162, 74, 0.5);
+  animation: sello-manija 12s ease-in-out infinite;
+}
+
+/* Barrido de luz */
+.d-side.sb .d-sello::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 0;
+  width: 35%;
+  height: 140%;
+  z-index: 3;
+  background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.65) 50%, transparent 100%);
+  transform: translateX(-200%) skewX(-15deg);
+  animation: sello-brillo 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Chispa en la esquina */
+.d-side.sb .d-sello::before {
+  content: '';
+  position: absolute;
+  top: 14%;
+  right: 16%;
+  width: 18px;
+  height: 18px;
+  z-index: 4;
+  background: #fff;
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  filter: drop-shadow(0 0 4px #fff);
+  opacity: 0;
+  transform: scale(0) rotate(0deg);
+  animation: sello-chispa 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ── Animaciones ── */
+@keyframes sello-manija {
+  0%, 8%    { transform: rotate(0deg); }
+  22%, 70%  { transform: rotate(360deg); }
+  82%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes sello-puerta {
+  0%, 22%   { transform: perspective(500px) rotateY(0deg); opacity: 1; }
+  35%       { transform: perspective(500px) rotateY(80deg); opacity: 1; }
+  36%, 68%  { transform: perspective(500px) rotateY(80deg); opacity: 0; }
+  69%       { transform: perspective(500px) rotateY(80deg); opacity: 1; }
+  80%, 100% { transform: perspective(500px) rotateY(0deg); opacity: 1; }
+}
+
+
+
+@keyframes sello-brillo {
+  0%, 56%   { transform: translateX(-200%) skewX(-15deg); }
+  72%, 100% { transform: translateX(400%) skewX(-15deg); }
+}
+
+@keyframes sello-chispa {
+  0%, 58%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  63%       { opacity: 1; transform: scale(1.1) rotate(45deg); }
+  70%, 100% { opacity: 0; transform: scale(0) rotate(90deg); }
+}
+
+/* Sin animación si el usuario lo prefiere: se ve el logo directo */
+@media (prefers-reduced-motion: reduce) {
+  
+  .d-side.sb .d-sello::before,
+  .d-side.sb .d-sello::after,
+  .d-side.sb .d-boveda,
+  .d-side.sb .d-manija { animation: none; }
+  .d-side.sb .d-boveda { display: none; }
+}
+
+/* ═════════ Botón cerrar sesión (ahora es <button>) ═════════ */
+button.d-salir {
+  background: none;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+}
+
+/* ═════════ POPUP DE CONFIRMACIÓN ═════════ */
+.sb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 26, 20, 0.55);
+  backdrop-filter: blur(6px);
+  animation: sb-fade 0.2s ease;
+}
+
+.sb-modal-caja {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 28px 26px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid rgba(201, 162, 74, 0.5);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  animation: sb-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.sb-modal-icono {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  color: var(--oro2);
+  background: radial-gradient(circle at 30% 25%, #1f6350, #0a2e24);
+  box-shadow: 0 0 0 5px rgba(201, 162, 74, 0.15);
+}
+.sb-modal-icono svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sb-modal-caja h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  color: var(--verde);
+}
+.sb-modal-caja p {
+  margin: 0 0 24px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--tenue);
+}
+
+.sb-modal-acciones {
+  display: flex;
+  gap: 10px;
+}
+.sb-modal-acciones button {
+  flex: 1;
+  height: 44px;
+  border-radius: 999px;
+  font: 600 10.5px var(--d-sans), sans-serif;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+}
+.sb-modal-acciones button:active { transform: scale(0.97); }
+
+.sb-modal-cancelar {
+  color: var(--verde);
+  background: #fff;
+  border: 1px solid var(--linea);
+}
+.sb-modal-cancelar:hover { background: #f7f4ec; }
+
+.sb-modal-ok {
+  color: var(--verde);
+  border: 1px solid var(--oro);
+  background: linear-gradient(180deg, var(--oro2), var(--oro));
+}
+.sb-modal-ok:hover { box-shadow: 0 6px 18px rgba(201, 162, 74, 0.45); }
+
+@keyframes sb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sb-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-modal, .sb-modal-caja { animation: none; }
+}

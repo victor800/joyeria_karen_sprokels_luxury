@@ -24,3 +24,134 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* JKS-THEME · sistema de diseño de la joyería (verde esmeralda + oro) */
+@theme {
+  --color-primary: #f2ca50;
+  --color-primary-container: #d4af37;
+  --color-primary-fixed: #ffe088;
+  --color-primary-fixed-dim: #e9c349;
+  --color-on-primary: #3c2f00;
+  --color-on-primary-container: #554300;
+  --color-on-primary-fixed: #241a00;
+  --color-on-primary-fixed-variant: #574500;
+  --color-inverse-primary: #735c00;
+
+  --color-secondary: #9fd2b5;
+  --color-secondary-container: #22523c;
+  --color-secondary-fixed: #bbeed1;
+  --color-secondary-fixed-dim: #9fd2b5;
+  --color-on-secondary: #023824;
+  --color-on-secondary-container: #91c3a8;
+  --color-on-secondary-fixed: #002113;
+  --color-on-secondary-fixed-variant: #1f4f3a;
+
+  --color-tertiary: #dccf96;
+  --color-tertiary-container: #c0b37d;
+  --color-tertiary-fixed: #f1e3a9;
+  --color-tertiary-fixed-dim: #d4c78f;
+  --color-on-tertiary: #383006;
+  --color-on-tertiary-container: #4e451a;
+  --color-on-tertiary-fixed: #211b00;
+  --color-on-tertiary-fixed-variant: #4f471b;
+
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error: #690005;
+  --color-on-error-container: #ffdad6;
+
+  --color-surface: #0c1511;
+  --color-surface-dim: #0c1511;
+  --color-surface-bright: #323b36;
+  --color-surface-tint: #e9c349;
+  --color-surface-variant: #2d3732;
+  --color-surface-container-lowest: #07100c;
+  --color-surface-container-low: #141d19;
+  --color-surface-container: #18221d;
+  --color-surface-container-high: #232c27;
+  --color-surface-container-highest: #2d3732;
+  --color-on-surface: #dbe5de;
+  --color-on-surface-variant: #d0c5af;
+  --color-on-background: #dbe5de;
+  --color-inverse-surface: #dbe5de;
+  --color-inverse-on-surface: #29322e;
+  --color-outline: #99907c;
+  --color-outline-variant: #4d4635;
+
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-mobile: 1rem;
+  --spacing-margin: 3rem;
+  --spacing-margin-mobile: 1.25rem;
+
+  --text-label-sm: 10px;
+  --text-label-sm--line-height: 12px;
+  --text-label-sm--letter-spacing: 0.14em;
+  --text-label-sm--font-weight: 700;
+  --text-label-md: 11px;
+  --text-label-md--line-height: 14px;
+  --text-label-md--letter-spacing: 0.12em;
+  --text-label-md--font-weight: 600;
+  --text-label-lg: 13px;
+  --text-label-lg--line-height: 16px;
+  --text-label-lg--letter-spacing: 0.08em;
+  --text-label-lg--font-weight: 600;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 18px;
+  --text-body-sm--font-weight: 400;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 22px;
+  --text-body-md--font-weight: 400;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 26px;
+  --text-body-lg--font-weight: 400;
+  --text-title-md: 16px;
+  --text-title-md--line-height: 24px;
+  --text-title-md--letter-spacing: 0.01em;
+  --text-title-md--font-weight: 600;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+  --text-headline-sm--font-weight: 500;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 500;
+  --text-headline-lg: 36px;
+  --text-headline-lg--line-height: 44px;
+  --text-headline-lg--letter-spacing: -0.01em;
+  --text-headline-lg--font-weight: 600;
+  --text-headline-lg-mobile: 28px;
+  --text-headline-lg-mobile--line-height: 36px;
+  --text-headline-lg-mobile--font-weight: 600;
+  --text-display-lg: 56px;
+  --text-display-lg--line-height: 64px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 600;
+  --text-display-lg-mobile: 38px;
+  --text-display-lg-mobile--line-height: 46px;
+  --text-display-lg-mobile--letter-spacing: -0.01em;
+  --text-display-lg-mobile--font-weight: 600;
+}
+
+/* Familias tipográficas (cargadas con next/font en layout.tsx) */
+@theme inline {
+  --font-display-lg: var(--font-playfair), Georgia, serif;
+  --font-display-lg-mobile: var(--font-playfair), Georgia, serif;
+  --font-headline-lg: var(--font-playfair), Georgia, serif;
+  --font-headline-lg-mobile: var(--font-playfair), Georgia, serif;
+  --font-headline-md: var(--font-playfair), Georgia, serif;
+  --font-headline-sm: var(--font-playfair), Georgia, serif;
+  --font-title-md: var(--font-jakarta), system-ui, sans-serif;
+  --font-body-lg: var(--font-jakarta), system-ui, sans-serif;
+  --font-body-md: var(--font-jakarta), system-ui, sans-serif;
+  --font-body-sm: var(--font-jakarta), system-ui, sans-serif;
+  --font-label-lg: var(--font-jakarta), system-ui, sans-serif;
+  --font-label-md: var(--font-jakarta), system-ui, sans-serif;
+  --font-label-sm: var(--font-jakarta), system-ui, sans-serif;
+}
