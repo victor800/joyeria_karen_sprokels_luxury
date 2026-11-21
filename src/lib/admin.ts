@@ -1,11 +1,20 @@
 // 📁 RUTA: src/lib/admin.ts
 import 'server-only';
+import { cookies } from 'next/headers';
+import { adminAuth } from '@/lib/firebase/admin';
+import { SESSION_COOKIE, esAdminEmail } from '@/lib/auth';
 
 /**
- * ⚠️ SEGURIDAD: devolver true solo si hay una sesión de administradora válida.
- * Lo usan la página de configuración y /api/configuracion.
+ * true solo si hay una sesión de Firebase válida (no revocada)
+ * y el correo pertenece a una administradora.
  */
 export async function autorizada(_req?: Request): Promise<boolean> {
-  // TODO: validar sesión real
-  return process.env.NODE_ENV !== 'production';
+  try {
+    const cookie = (await cookies()).get(SESSION_COOKIE)?.value;
+    if (!cookie) return false;
+    const decoded = await adminAuth.verifySessionCookie(cookie, true);
+    return esAdminEmail(decoded.email);
+  } catch {
+    return false;
+  }
 }
