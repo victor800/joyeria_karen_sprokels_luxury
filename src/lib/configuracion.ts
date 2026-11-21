@@ -32,24 +32,35 @@ export function urlTienda(origen: string, slug: string) {
   return `${origen.replace(/\/$/, '')}${RUTA_TIENDA}/${slug}`;
 }
 
-function slugify(t: string) {
+export function slugify(t: string) {
   return t
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/['’`]/g, '') // quita apóstrofes sin dejar guion
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
 }
 
 async function leerFilas(): Promise<Config> {
-  await asegurarPestana(HOJA_CONFIG);
-  const { data } = await hojas().spreadsheets.values.get({
-    spreadsheetId: SHEET_ID(),
-    range: `${HOJA_CONFIG}!A:B`,
-  });
+  const leer = () =>
+    hojas().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID(),
+      range: `${HOJA_CONFIG}!A:B`,
+    });
+
+  let res;
+  try {
+    res = await leer();
+  } catch {
+    // La pestaña quizá no existe todavía: la crea y reintenta
+    await asegurarPestana(HOJA_CONFIG);
+    res = await leer();
+  }
+
   const cfg: Config = {};
-  (data.values ?? []).slice(1).forEach(([k, v]) => {
+  (res.data.values ?? []).slice(1).forEach(([k, v]) => {
     if (k) cfg[String(k)] = String(v ?? '');
   });
   return cfg;

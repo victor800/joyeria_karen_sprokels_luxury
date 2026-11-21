@@ -17,8 +17,11 @@ function auth() {
   });
 }
 
+let cliente: ReturnType<typeof google.sheets> | null = null;
+
+/** Reutiliza el cliente para no autenticarse en cada lectura */
 export function hojas() {
-  return google.sheets({ version: 'v4', auth: auth() });
+  return (cliente ??= google.sheets({ version: 'v4', auth: auth() }));
 }
 
 export const SHEET_ID = () => process.env.GOOGLE_SHEET_ID as string;
