@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
-
   // Imágenes: permite quality 75 (por defecto) y 95
   images: {
     qualities: [75, 95],
