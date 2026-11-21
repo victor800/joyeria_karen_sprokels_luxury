@@ -14,8 +14,8 @@ const VACIO: Form = {
 export default function Configuracion() {
   const [f, setF] = useState<Form>(VACIO);
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
-  const [msg, setMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [estado, setEstado] = useState<'idle' | 'guardando' | 'ok' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Cargar lo que ya está guardado en la hoja
   useEffect(() => {
@@ -30,7 +30,8 @@ export default function Configuracion() {
           return next;
         });
       } catch (e) {
-        setMsg({ tipo: 'error', texto: e instanceof Error ? e.message : 'Error al cargar' });
+        setEstado('error');
+        setErrorMsg(e instanceof Error ? e.message : 'Error al cargar');
       } finally {
         setCargando(false);
       }
@@ -39,12 +40,12 @@ export default function Configuracion() {
 
   const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setF((prev) => ({ ...prev, [campo]: e.target.value }));
-    setMsg(null);
+    if (estado === 'error') setEstado('idle');
   };
 
   async function guardar() {
-    setGuardando(true);
-    setMsg(null);
+    setEstado('guardando');
+    setErrorMsg('');
     try {
       const res = await fetch('/api/configuracion', {
         method: 'PUT',
@@ -53,11 +54,11 @@ export default function Configuracion() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo guardar');
-      setMsg({ tipo: 'ok', texto: '✅ Datos guardados con éxito' });
+      setEstado('ok');
+      setTimeout(() => setEstado('idle'), 2000);
     } catch (e) {
-      setMsg({ tipo: 'error', texto: e instanceof Error ? e.message : 'Error al guardar' });
-    } finally {
-      setGuardando(false);
+      setEstado('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Error al guardar');
     }
   }
 
@@ -75,25 +76,35 @@ export default function Configuracion() {
           <h1>Configuración</h1>
           <p>Datos de la joyería, precios del oro y entregas.</p>
         </div>
-        <button type="button" className="d-btn" onClick={guardar} disabled={guardando || cargando}>
-          {guardando ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {estado === 'error' && (
+            <span role="alert" style={{ color: '#a12622', fontSize: 13 }}>{errorMsg}</span>
+          )}
+          <button
+            type="button"
+            className="d-btn"
+            onClick={guardar}
+            disabled={estado === 'guardando' || cargando}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minWidth: 190 }}
+          >
+            {estado === 'guardando' && <span className="spin" aria-hidden />}
+            {estado === 'ok' && <span aria-hidden>✓</span>}
+            {estado === 'guardando' ? 'GUARDANDO' : estado === 'ok' ? 'GUARDADO' : 'GUARDAR CAMBIOS'}
+          </button>
+        </div>
       </div>
 
-      {msg && (
-        <div
-          role="status"
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            marginBottom: 16,
-            background: msg.tipo === 'ok' ? '#e6f4ea' : '#fdecea',
-            color: msg.tipo === 'ok' ? '#1e6b34' : '#a12622',
-          }}
-        >
-          {msg.texto}
-        </div>
-      )}
+      <style>{`
+        .spin {
+          width: 14px; height: 14px;
+          border: 2px solid currentColor;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: giro .7s linear infinite;
+        }
+        @keyframes giro { to { transform: rotate(360deg); } }
+      `}</style>
 
       <section className="d-card">
         <h3>Datos de la joyería</h3>
