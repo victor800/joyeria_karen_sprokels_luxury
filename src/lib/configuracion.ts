@@ -25,6 +25,13 @@ export type Config = Record<string, string>;
 
 const MAX = 300;
 
+/** Ruta pública de la tienda: https://dominio.com/t/<slug> */
+export const RUTA_TIENDA = '/t';
+
+export function urlTienda(origen: string, slug: string) {
+  return `${origen.replace(/\/$/, '')}${RUTA_TIENDA}/${slug}`;
+}
+
 function slugify(t: string) {
   return t
     .normalize('NFD')
@@ -49,7 +56,7 @@ async function leerFilas(): Promise<Config> {
 }
 
 async function escribir(cfg: Config) {
-  const orden = [...FIJOS, ...CAMPOS, 'actualizado'];
+  const orden = [...FIJOS, ...CAMPOS, 'url_tienda', 'actualizado'];
   const filas = [['clave', 'valor'], ...orden.map((k) => [k, cfg[k] ?? ''])];
   const api = hojas();
   await api.spreadsheets.values.clear({ spreadsheetId: SHEET_ID(), range: `${HOJA_CONFIG}!A:B` });
@@ -90,12 +97,13 @@ function limpiar(campo: Campo, valor: unknown): string {
   return v;
 }
 
-/** Guarda solo los campos permitidos; id y slug nunca cambian */
-export async function guardarConfig(entrada: Record<string, unknown>): Promise<Config> {
+/** Guarda solo los campos permitidos; id y slug nunca cambian. Guarda también la URL corta. */
+export async function guardarConfig(entrada: Record<string, unknown>, origen: string): Promise<Config> {
   const cfg = await leerConfig();
   for (const c of CAMPOS) {
     if (c in entrada) cfg[c] = limpiar(c, entrada[c]);
   }
+  cfg.url_tienda = urlTienda(origen, cfg.slug);
   cfg.actualizado = new Date().toISOString();
   await escribir(cfg);
   return cfg;
