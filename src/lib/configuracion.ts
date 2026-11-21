@@ -32,6 +32,15 @@ export function urlTienda(origen: string, slug: string) {
   return `${origen.replace(/\/$/, '')}${RUTA_TIENDA}/${slug}`;
 }
 
+const DOMINIO = 'https://joyeria-karen-sprokels-luxury-five.vercel.app';
+
+/** Dominio público para armar el enlace y el QR (ignora valores de ejemplo y localhost) */
+export function origenSitio() {
+  const env = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim();
+  if (!env || /tudominio\.com|localhost/i.test(env)) return DOMINIO;
+  return env;
+}
+
 export function slugify(t: string) {
   return t
     .normalize('NFD')

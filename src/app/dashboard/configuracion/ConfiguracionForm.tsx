@@ -3,20 +3,23 @@
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import TiendaPreview from './TiendaPreview';
 
 type Form = Record<string, string>;
-type TabId = 'joyeria' | 'oro' | 'entregas';
+type TabId = 'joyeria' | 'oro' | 'entregas' | 'vista';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'joyeria', label: 'Joyería' },
   { id: 'oro', label: 'Precio del oro' },
   { id: 'entregas', label: 'Entregas' },
+  { id: 'vista', label: 'Vista previa' },
 ];
 
 /** Todo lo que cuenta para la barra de progreso */
 const CAMPOS_UI: { id: string; label: string; tab: TabId }[] = [
   { id: 'nombre', label: 'Nombre', tab: 'joyeria' },
   { id: 'logo_url', label: 'Logo o foto', tab: 'joyeria' },
+  { id: 'encabezado', label: 'Lema', tab: 'joyeria' },
   { id: 'nit', label: 'NIT', tab: 'joyeria' },
   { id: 'telefono', label: 'Teléfono', tab: 'joyeria' },
   { id: 'correo', label: 'Correo', tab: 'joyeria' },
@@ -259,7 +262,9 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
               aria-selected={tab === t.id} onClick={() => setTab(t.id)}
             >
               {t.label}
-              <span className={`cfg-badge ${p.ok === p.total ? 'ok' : ''}`}>{p.ok}/{p.total}</span>
+              {p.total > 0 && (
+                <span className={`cfg-badge ${p.ok === p.total ? 'ok' : ''}`}>{p.ok}/{p.total}</span>
+              )}
             </button>
           );
         })}
@@ -311,6 +316,7 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
 
           <div className="d-form">
             {campo('nombre', 'Nombre', { placeholder: 'Nombre comercial' })}
+            {campo('encabezado', 'Lema o encabezado', { placeholder: 'Ej.: Joyería fina en oro 18K' })}
             {campo('nit', 'NIT', { placeholder: '000.000.000-0' })}
             {campo('telefono', 'Teléfono / WhatsApp', { placeholder: '+57 300 000 0000' })}
             {campo('correo', 'Correo de contacto', { type: 'email', placeholder: 'contacto@sudominio.com' })}
@@ -341,6 +347,16 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
             {campo('cobertura', 'Zonas de cobertura', { placeholder: 'Ej.: Medellín, Envigado, Sabaneta' })}
             {campo('seguro', 'Seguro por envío (%)', { inputMode: 'decimal', placeholder: '0' })}
           </div>
+        </section>
+      )}
+
+      {tab === 'vista' && (
+        <section className="d-card" role="tabpanel">
+          <h3>Vista previa de tu tienda</h3>
+          <p style={{ fontSize: 13, opacity: .7, margin: '0 0 16px' }}>
+            Se actualiza mientras escribes en las otras pestañas, sin necesidad de guardar.
+          </p>
+          <TiendaPreview f={f} url={url} />
         </section>
       )}
 
