@@ -14,7 +14,7 @@ const CLAVE_SONIDO = 'jks-boveda-silencio';
 const UMBRAL = 220; // grados de giro necesarios para abrir
 const T_PUERTA = 6300; // ms hasta que la puerta termina de abrirse
 const T_FIN = 7300; // ms hasta quitar el overlay
-const T_AUTO = 4500; // ms de inactividad → se abre sola
+const T_AUTO = 1100; // ms: se abre sola, sin tocar nada
 /** Combinación nueva en cada apertura: 3 números distintos entre 10 y 99 */
 function nuevaCombinacion(): number[] {
   const lista: number[] = [];
@@ -292,7 +292,7 @@ export default function BovedaIntro() {
   const estado =
     fase === 'cerrada' ? (
       <>
-        Gira la rueda para <em>abrir la bóveda</em>
+        Verificando <em>acceso…</em>
       </>
     ) : fase === 'abriendo' ? (
       <>
