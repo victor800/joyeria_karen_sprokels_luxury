@@ -5,8 +5,8 @@
 .jks {
   --oro: #e0b73f;
   --oro-suave: #c9a24a;
-  --fondo: #060a08;
-  --panel: #0a100d;
+  --fondo: #000;
+  --panel: #050505;
   --campo: #0d1511;
   --linea: rgba(224, 183, 63, 0.18);
   --linea-suave: rgba(255, 255, 255, 0.07);
@@ -14,11 +14,12 @@
   --texto-tenue: #6f7a72;
   --error: #ff8a80;
   --exito: #8fd6a8;
+  --alto-pie: 44px;
 
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(120% 80% at 30% 0%, #0f1a14 0%, var(--fondo) 60%);
+  background: #000;
   color: var(--texto);
   font-family: var(--jks-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -36,10 +37,13 @@
   outline-offset: 2px;
 }
 
+/* El layout ocupa justo la ventana (menos el footer): nada se sale a 100% de zoom */
 .jks-layout {
   flex: 1;
+  height: calc(100dvh - var(--alto-pie));
+  min-height: 560px;
   display: grid;
-  grid-template-columns: minmax(0, 1.75fr) minmax(360px, 1fr);
+  grid-template-columns: minmax(0, 2.2fr) minmax(360px, 1fr);
 }
 
 /* ═════════════ Escena (izquierda) ═════════════ */
@@ -47,14 +51,17 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 22px 28px 24px;
-  min-height: 640px;
+  min-height: 0;
+  height: 100%;
+  padding: 18px 24px 22px;
   overflow: hidden;
+  background: #000;
 }
 
 .jks-cabecera {
   position: relative;
   z-index: 3;
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -132,7 +139,34 @@
   color: var(--oro);
 }
 
-/* Pieza */
+/* ── Vitrina: ocupa todo el espacio libre y centra la card ── */
+.jks-vitrina {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 0;
+  background: #000;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+/* Lo que renderiza AnilloPiezas se estira al máximo del espacio disponible */
+.jks-vitrina > .jks-card {
+  width: auto;
+  height: min(100%, 520px);   /* ← altura máxima de la card (baja a 440px para hacerla aún más chica) */
+  max-width: 100%;
+  aspect-ratio: 5 / 4;
+  min-height: 0;
+  margin: auto;
+}
+.jks-vitrina img {
+  object-fit: contain;
+}
+
+/* Piezas sueltas (si se usan fuera del anillo) */
 .jks-pieza {
   position: relative;
   flex: 1;
@@ -141,15 +175,6 @@
 .jks-pieza-img {
   object-fit: contain;
   object-position: center top;
-}
-.jks-pieza::after {
-  /* funde la base de la pieza con el fondo */
-  content: '';
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 45%;
-  background: linear-gradient(to bottom, transparent, var(--fondo) 92%);
-  pointer-events: none;
 }
 
 /* Tarjetas inferiores */
@@ -200,15 +225,40 @@
 /* ═════════════ Panel derecho ═════════════ */
 .jks-acceso {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 36px;
-  background: linear-gradient(180deg, var(--panel), #070b09);
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px 36px;
+  background: linear-gradient(180deg, #050505, #000);
   border-left: 1px solid var(--linea);
 }
-.jks-acceso > * {
+/* margin:auto centra si cabe y permite scroll si no cabe (sin cortar arriba) */
+.jks-acceso-col {
   width: 100%;
   max-width: 400px;
+  margin: auto;
+}
+
+/* Logo protagonista del panel */
+.jks-logo-panel {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.jks-logo-panel-sello {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  border: 2px solid var(--oro-suave);
+  box-shadow: 0 0 34px rgba(224, 183, 63, 0.28);
+  background: #04120c;
+}
+.jks-logo-panel-sello img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .jks-panel {
@@ -230,7 +280,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .jks-mini-sello {
   width: 28px;
@@ -268,7 +318,7 @@
   font-size: 12px;
   line-height: 1.6;
   color: var(--texto-tenue);
-  margin: 0 0 22px;
+  margin: 0 0 18px;
 }
 
 /* ═════════════ Formulario ═════════════ */
@@ -276,7 +326,7 @@
   display: block;
 }
 .jks-grupo {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 .jks-etiqueta {
   display: block;
@@ -354,7 +404,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 2px 0 16px;
+  margin: 2px 0 14px;
   font-size: 11px;
   color: #aeb5ac;
 }
@@ -411,7 +461,7 @@
 }
 .jks-form > .jks-check {
   display: flex;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   align-items: flex-start;
 }
 
@@ -503,7 +553,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 18px 0 14px;
+  margin: 16px 0 12px;
 }
 .jks-divisor::before,
 .jks-divisor::after {
@@ -521,26 +571,47 @@
   background: var(--campo);
 }
 
+/* ═════════════ Botón social: Apple ═════════════ */
+.jks-sociales {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.jks-boton-apple,
 .jks-boton-google {
   width: 100%;
-  height: 44px;
+  height: 46px;
   border-radius: 10px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 9px;
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
-  color: var(--texto);
-  background: var(--campo);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: border-color 0.2s;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
 }
+.jks-boton-apple {
+  color: #fff;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.jks-boton-google {
+  color: #1f1f1f;
+  background: #fff;
+  border: 1px solid #fff;
+}
+.jks-boton-apple:hover:not(:disabled),
 .jks-boton-google:hover:not(:disabled) {
-  border-color: var(--linea);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.12);
 }
+.jks-boton-apple:active:not(:disabled),
+.jks-boton-google:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.jks-boton-apple:disabled,
 .jks-boton-google:disabled {
   opacity: 0.7;
   cursor: progress;
@@ -567,8 +638,8 @@
 
 /* ═════════════ Asesor VIP y pie cifrado ═════════════ */
 .jks-asesor {
-  margin-top: 22px;
-  padding-top: 18px;
+  margin-top: 18px;
+  padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   text-align: center;
 }
@@ -607,7 +678,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin: 28px 0 0;
+  margin: 18px 0 0;
   font-size: 8.5px;
   letter-spacing: 0.14em;
   color: #5d675f;
@@ -618,7 +689,10 @@
 
 /* ═════════════ Footer ═════════════ */
 .jks-pie {
-  padding: 14px;
+  height: var(--alto-pie);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 11px;
   color: #6d766f;
@@ -627,6 +701,45 @@
 .jks-pie b {
   color: var(--oro);
   font-weight: 500;
+}
+
+/* ═════════════ Pantallas bajas (laptops a 100% de zoom) ═════════════ */
+@media (min-width: 901px) and (max-height: 820px) {
+  .jks-acceso {
+    padding: 16px 32px;
+  }
+  .jks-logo-panel {
+    margin-bottom: 10px;
+  }
+  .jks-logo-panel-sello {
+    width: 96px;
+    height: 96px;
+  }
+  .jks-panel-marca {
+    margin-bottom: 10px;
+  }
+  .jks-titulo-panel {
+    font-size: 23px;
+  }
+  .jks-texto {
+    margin-bottom: 14px;
+  }
+  .jks-grupo {
+    margin-bottom: 11px;
+  }
+  .jks-input {
+    height: 42px;
+  }
+  .jks-boton-oro {
+    height: 44px;
+  }
+  .jks-asesor {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  .jks-seguro {
+    margin-top: 12px;
+  }
 }
 
 /* ═════════════ Responsive ═════════════ */
@@ -641,10 +754,13 @@
 
 @media (max-width: 900px) {
   .jks-layout {
+    height: auto;
+    min-height: 0;
     grid-template-columns: 1fr;
   }
   .jks-escena {
-    min-height: 520px;
+    height: auto;
+    min-height: 70dvh;
     padding: 18px;
   }
   .jks-pastilla {
@@ -654,6 +770,8 @@
     grid-template-columns: 1fr;
   }
   .jks-acceso {
+    height: auto;
+    overflow: visible;
     border-left: 0;
     border-top: 1px solid var(--linea);
     padding: 28px 18px;
@@ -670,5 +788,101 @@
   .jks *::before,
   .jks *::after {
     transition: none !important;
+  }
+}
+
+/* 📁 RUTA: src/app/login/login.css  (pegar al final del archivo) */
+
+/* ═════════════ CARD DE PIEZAS: negro puro + marco dorado ═════════════ */
+.jks-card {
+  /* ── Ajustes rápidos de la foto ── */
+  --zoom: 1.25;   /* más alto = más cerca (1 = sin zoom) */
+  --pos-y: 12%;   /* más bajo = la foto sube más (0% = pegada arriba) */
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #f3d77a, #b8892a 45%, #e9c552 70%, #8a6414);
+  box-shadow: 0 0 40px rgba(224, 183, 63, 0.12);
+}
+
+.jks-card-vista {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #000;
+}
+
+.jks-card-img {
+  object-fit: cover;
+  object-position: 50% var(--pos-y);
+  transform: scale(var(--zoom));
+  transform-origin: 50% var(--pos-y);
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.jks-card-img[data-activa='true'] {
+  opacity: 1;
+}
+
+.jks-card-puntos {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.jks-card-puntos button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background 0.2s, transform 0.2s;
+}
+.jks-card-puntos button[data-activa='true'] {
+  background: #e0b73f;
+  transform: scale(1.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jks-card-img {
+    transition: none;
+  }
+}
+
+/* 📁 RUTA: src/app/login/login.css  (reemplaza el bloque LUPA) */
+
+/* ═════════════ LUPA ═════════════ */
+.jks-card-vista {
+  cursor: crosshair;
+}
+
+.jks-lupa {
+  position: absolute;
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  background-color: #000;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 2px #e0b73f,
+    0 10px 30px rgba(0, 0, 0, 0.7),
+    0 0 24px rgba(224, 183, 63, 0.35);
+}
+
+/* En pantallas táctiles no hay cursor, se desactiva */
+@media (hover: none) {
+  .jks-lupa {
+    display: none;
   }
 }

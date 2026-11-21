@@ -1,271 +1,185 @@
 // 📁 RUTA: src/components/auth/AnilloPiezas.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import Image from 'next/image';
-import './anillo-piezas.css';
 
-/** Grados por segundo. 3 ≈ una vuelta cada 2 minutos. */
-const VELOCIDAD = 3;
-/** Ancho máximo de cada pieza en px. */
-const ANCHO_MAX = 360;
-/** Proporción alto/ancho de cada pieza. */
-const PROPORCION = 1.15;
-/** Aumento de la lupa. */
-const ZOOM = 2.8;
-/** Diámetro máximo de la lupa en px. */
-const LENTE_MAX = 190;
-/** Espacio extra dentro de la vitrina (arriba + piso). */
-const EXTRA = 96;
-/** Altura del piso de la vitrina. */
-const PISO = 56;
+/** Encuadre de la foto en la card */
+const ZOOM = 1;  // más alto = más cerca (1 = sin zoom)
+const POS_Y = 0.2;  // más bajo = la foto sube más (0 = pegada arriba, 0.5 = centrada)
 
-export default function AnilloPiezas({ piezas }: { piezas: string[] }) {
-  const cajaRef = useRef<HTMLDivElement>(null);
-  const anilloRef = useRef<HTMLDivElement>(null);
-  const capaRef = useRef<HTMLDivElement>(null);
-  const lenteRef = useRef<HTMLDivElement>(null);
-  const itemsRef = useRef<(HTMLDivElement | null)[]>([]);
+/** Lupa */
+const RADIO = 70;        // radio del círculo en px
+const AUMENTO_MIN = 1.6; // aumento mínimo
+const AUMENTO_MAX = 4;   // tope; solo se alcanza con fotos de alta resolución
 
-  const angRef = useRef(0);
-  const selRef = useRef<number | null>(null);
-  const listoRef = useRef(false);
-  const natRef = useRef<{ w: number; h: number } | null>(null);
-  const punteroRef = useRef<{ x: number; y: number } | null>(null);
+type Cursor = { x: number; y: number; w: number; h: number };
+type Dim = { w: number; h: number };
 
-  const [ancho, setAncho] = useState(ANCHO_MAX);
-  const [sel, setSel] = useState<number | null>(null);
-  const [listo, setListo] = useState(false);
+const VACIO: string[] = [];
 
-  const n = piezas.length;
-  const paso = 360 / n;
-  const alto = Math.round(ancho * PROPORCION);
-  const escenaAlto = alto + EXTRA;
-  // Las piezas se apoyan justo sobre el piso
-  const arriba = escenaAlto - PISO - alto + 6;
-  const lente = Math.min(LENTE_MAX, Math.round(ancho * 0.5));
-  const radio = n > 1 ? Math.round((ancho / 2 / Math.tan(Math.PI / n)) * 1.08) : 0;
+export default function AnilloPiezas({ piezas = VACIO }: { piezas?: string[] }) {
+  const lista = Array.isArray(piezas) ? piezas : VACIO;
+  const total = lista.length;
 
-  // Ajusta el tamaño al ancho disponible
+  const [activa, setActiva] = useState(0);
+  const [pausa, setPausa] = useState(false);
+  const [cursor, setCursor] = useState<Cursor | null>(null);
+  const [dims, setDims] = useState<Record<string, Dim>>({});
+  const vista = useRef<HTMLDivElement>(null);
+
+  // Carga las fotos ORIGINALES: dan el tamaño real y quedan en caché para la lupa
   useEffect(() => {
-    const caja = cajaRef.current;
-    if (!caja) return;
-    const medir = () => setAncho(Math.min(ANCHO_MAX, Math.round(caja.clientWidth * 0.6)));
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(caja);
-    return () => ro.disconnect();
-  }, []);
+    lista.forEach((src) => {
+      const im = new window.Image();
+      im.onload = () =>
+        setDims((p) => (p[src] ? p : { ...p, [src]: { w: im.naturalWidth, h: im.naturalHeight } }));
+      im.src = src;
+    });
+  }, [lista]);
 
-  // Carga el tamaño real de la imagen (para calcular la lupa)
   useEffect(() => {
-    natRef.current = null;
-    if (sel === null) return;
-    const im = new window.Image();
-    im.onload = () => {
-      natRef.current = { w: im.naturalWidth, h: im.naturalHeight };
-      pintarLupa();
+    if (total < 2 || pausa) return;
+    const t = setInterval(() => setActiva((v) => (v + 1) % total), 4500);
+    return () => clearInterval(t);
+  }, [total, pausa]);
+
+  if (total === 0) return null;
+
+  function mover(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== 'mouse') return; // sin lupa en pantallas táctiles
+    const el = vista.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setCursor({ x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height });
+  }
+
+  function salir() {
+    setCursor(null);
+    setPausa(false);
+  }
+
+  /** Replica el encuadre de la card (cover + posición + zoom) y lo amplía con la foto original */
+  function estiloLupa(): { caja: CSSProperties; imagen: CSSProperties } | null {
+    const src = lista[activa];
+    const d = src ? dims[src] : undefined;
+    if (!cursor || !d) return null;
+
+    const { x, y, w: W, h: H } = cursor;
+
+    // Tamaño y posición de la foto con object-fit: cover y object-position: 50% POS_Y
+    const s = Math.max(W / d.w, H / d.h);
+    const w0 = d.w * s;
+    const h0 = d.h * s;
+    const x0 = (W - w0) / 2;
+    const y0 = (H - h0) * POS_Y;
+
+    // El zoom de la card se aplica desde el punto (50%, POS_Y)
+    const ox = W / 2;
+    const oy = H * POS_Y;
+    const dx0 = ox + ZOOM * (x0 - ox);
+    const dy0 = oy + ZOOM * (y0 - oy);
+
+    // Aumento para que 1 píxel de la foto = 1 píxel físico de la pantalla (máxima nitidez real)
+    const dpr = window.devicePixelRatio || 1;
+    const pxFotoPorPxCss = d.w / (w0 * ZOOM);
+    const aumento = Math.min(AUMENTO_MAX, Math.max(AUMENTO_MIN, pxFotoPorPxCss / dpr));
+
+    return {
+      caja: {
+        position: 'absolute',
+        zIndex: 5,
+        overflow: 'hidden',
+        borderRadius: '50%',
+        pointerEvents: 'none',
+        background: '#000',
+        boxShadow: '0 0 0 2px #e0b73f, 0 10px 30px rgba(0,0,0,.7), 0 0 24px rgba(224,183,63,.35)',
+        width: RADIO * 2,
+        height: RADIO * 2,
+        left: x - RADIO,
+        top: y - RADIO,
+      },
+      imagen: {
+        position: 'absolute',
+        inset: 0,
+        backgroundRepeat: 'no-repeat',
+        backgroundImage: `url("${src}")`,
+        backgroundSize: `${w0 * ZOOM * aumento}px ${h0 * ZOOM * aumento}px`,
+        backgroundPosition: `${RADIO + aumento * (dx0 - x)}px ${RADIO + aumento * (dy0 - y)}px`,
+        // (se quitó el filtro SVG: era lo que dejaba la lupa en negro)
+      },
     };
-    im.src = piezas[sel];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, piezas]);
+  }
 
-  // Animación: giro continuo lento; al pasar el cursor frena y centra la pieza
-  useEffect(() => {
-    const anillo = anilloRef.current;
-    if (!anillo || n < 1) return;
-
-    let raf = 0;
-    let ultimo = performance.now();
-
-    const tick = (ahora: number) => {
-      const dt = Math.min((ahora - ultimo) / 1000, 0.1);
-      ultimo = ahora;
-
-      if (selRef.current === null) {
-        angRef.current = (angRef.current + VELOCIDAD * dt) % 360;
-      } else {
-        const objetivo = selRef.current * paso;
-        const d = ((objetivo - angRef.current + 540) % 360) - 180;
-        if (Math.abs(d) < 0.3) {
-          angRef.current = objetivo;
-          if (!listoRef.current) {
-            listoRef.current = true;
-            setListo(true);
-          }
-        } else {
-          angRef.current = (((angRef.current + d * (1 - Math.exp(-9 * dt))) % 360) + 360) % 360;
-        }
-      }
-
-      const ang = angRef.current;
-      anillo.style.transform = `translateZ(${-radio}px) rotateY(${-ang}deg)`;
-
-      for (let i = 0; i < n; i++) {
-        const el = itemsRef.current[i];
-        if (!el) continue;
-        const diff = ((i * paso - ang + 540) % 360) - 180;
-        const c = Math.max(0, Math.cos((diff * Math.PI) / 180));
-        el.style.opacity = String(0.3 + 0.7 * c);
-        el.style.filter = `brightness(${0.45 + 0.55 * c})`;
-      }
-
-      raf = requestAnimationFrame(tick);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [n, paso, radio]);
-
-  // Dibuja el lente en la última posición conocida del cursor
-  const pintarLupa = () => {
-    const lens = lenteRef.current;
-    const capa = capaRef.current;
-    const nat = natRef.current;
-    const p = punteroRef.current;
-    const i = selRef.current;
-    if (!lens || !capa || !nat || !p || i === null || !listoRef.current) return;
-
-    // La capa cubre toda la escena; la pieza central está centrada en ella
-    const r = capa.getBoundingClientRect();
-    const mx = p.x - r.left;
-    const my = p.y - r.top;
-    const px = mx - (r.width - ancho) / 2; // posición dentro de la pieza
-    const py = my - arriba;
-
-    // Si el cursor está fuera de la pieza central, se oculta el lente
-    if (px < 0 || px > ancho || py < 0 || py > alto) {
-      lens.style.display = 'none';
-      capa.style.cursor = 'default';
-      return;
-    }
-
-    // Tamaño real con el que se ve la imagen (object-fit: cover)
-    const s = Math.max(ancho / nat.w, alto / nat.h);
-    const w = nat.w * s;
-    const h = nat.h * s;
-    const ox = (ancho - w) / 2;
-    const oy = (alto - h) / 2;
-
-    capa.style.cursor = 'none';
-    lens.style.display = 'block';
-    lens.style.left = `${mx - lente / 2}px`;
-    lens.style.top = `${my - lente / 2}px`;
-    lens.style.backgroundImage = `url("${piezas[i]}")`;
-    lens.style.backgroundSize = `${w * ZOOM}px ${h * ZOOM}px`;
-    lens.style.backgroundPosition = `${-((px - ox) * ZOOM - lente / 2)}px ${-((py - oy) * ZOOM - lente / 2)}px`;
-  };
-
-  // Cuando la pieza termina de centrarse, muestra la lupa si el cursor está encima
-  useEffect(() => {
-    if (listo) pintarLupa();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listo]);
-
-  const entrar = (e: React.PointerEvent<HTMLDivElement>) => {
-    punteroRef.current = { x: e.clientX, y: e.clientY };
-    if (selRef.current !== null) return;
-    const i = Math.round(angRef.current / paso) % n;
-    selRef.current = i;
-    listoRef.current = false;
-    setListo(false);
-    setSel(i);
-  };
-
-  const mover = (e: React.PointerEvent<HTMLDivElement>) => {
-    punteroRef.current = { x: e.clientX, y: e.clientY };
-    // Por si el evento de entrada no llegó (p. ej. táctil)
-    if (selRef.current === null) entrar(e);
-    pintarLupa();
-  };
-
-  const salir = () => {
-    punteroRef.current = null;
-    selRef.current = null;
-    listoRef.current = false;
-    setListo(false);
-    setSel(null);
-    if (lenteRef.current) lenteRef.current.style.display = 'none';
-    if (capaRef.current) capaRef.current.style.cursor = 'default';
-  };
-
-  if (n === 0) return null;
-
-  // Posición exacta y centrada de la pieza frontal
-  const posicion = {
-    width: ancho,
-    height: alto,
-    left: `calc(50% - ${ancho / 2}px)`,
-    top: arriba,
-  } as const;
+  const lupa = estiloLupa();
 
   return (
-    <div className="anillo" ref={cajaRef}>
-      <div className="vitrina">
-        {/* Marco dorado metálico */}
-        <div className="vitrina-marco">
-          {/* Bisel oscuro */}
-          <div className="vitrina-bisel">
-            {/* Ventana de cristal */}
-            <div className="anillo-escena" style={{ height: escenaAlto }}>
-              <div className="vitrina-lampara" aria-hidden />
-              <div className="vitrina-foco" aria-hidden />
+    <div
+      className="jks-card"
+      style={{ '--zoom': ZOOM, '--pos-y': `${POS_Y * 100}%` } as CSSProperties}
+      onMouseEnter={() => setPausa(true)}
+      onMouseLeave={salir}
+      aria-roledescription="carrusel"
+      aria-label="Piezas de la colección"
+    >
+      {/* Filtro de nitidez (ya no se usa en la lupa; se deja para no alterar el resto) */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+        <filter id="jks-nitidez" colorInterpolationFilters="sRGB">
+          <feConvolveMatrix
+            order="3"
+            preserveAlpha="true"
+            kernelMatrix="0 -0.4 0  -0.4 2.6 -0.4  0 -0.4 0"
+          />
+        </filter>
+      </svg>
 
-              <div
-                className="anillo-giro"
-                ref={anilloRef}
-                style={{ ...posicion, transform: `translateZ(${-radio}px)` }}
-              >
-                {piezas.map((src, i) => (
-                  <div
-                    key={src}
-                    ref={(el) => {
-                      itemsRef.current[i] = el;
-                    }}
-                    className="anillo-pieza"
-                    style={{
-                      width: ancho,
-                      height: alto,
-                      transform: `rotateY(${i * paso}deg) translateZ(${radio}px)`,
-                    }}
-                  >
-                    <Image
-                      src={src}
-                      alt={`Pieza ${i + 1}`}
-                      fill
-                      sizes={`${ancho}px`}
-                      quality={95}
-                      priority={i < 2}
-                      draggable={false}
-                    />
-                  </div>
-                ))}
-              </div>
+      <div
+        ref={vista}
+        className="jks-card-vista"
+        style={{ cursor: 'crosshair' }}
+        onPointerMove={mover}
+      >
+        {lista.map((src, i) => (
+          <Image
+            key={src}
+            src={src}
+            alt={`Pieza ${i + 1}`}
+            fill
+            quality={95}
+            priority={i === 0}
+            sizes="(max-width: 900px) 100vw, 1400px"
+            className="jks-card-img"
+            data-activa={i === activa}
+            style={{
+              objectFit: 'cover',
+              objectPosition: `50% ${POS_Y * 100}%`,
+              transform: `scale(${ZOOM})`,
+              transformOrigin: `50% ${POS_Y * 100}%`,
+            }}
+          />
+        ))}
 
-              <div className="vitrina-piso" style={{ height: PISO }} aria-hidden>
-                <span className="vitrina-sombra" style={{ width: ancho * 0.9 }} />
-              </div>
-
-              {/* Capa que cubre toda la escena: al pasar el cursor frena el giro,
-                  centra la pieza más cercana y muestra la lupa sobre ella */}
-              <div
-                ref={capaRef}
-                className="anillo-lupa-capa"
-                onPointerEnter={entrar}
-                onPointerMove={mover}
-                onPointerLeave={salir}
-              >
-                <div ref={lenteRef} className="anillo-lente" style={{ width: lente, height: lente }} />
-              </div>
-
-              {/* Reflejo del cristal */}
-              <div className="vitrina-cristal" aria-hidden />
-            </div>
+        {lupa && (
+          <div aria-hidden="true" style={lupa.caja}>
+            <div style={lupa.imagen} />
           </div>
-        </div>
+        )}
 
-        {/* Base / pedestal */}
-        <div className="vitrina-base" aria-hidden />
+        {total > 1 && (
+          <div className="jks-card-puntos" role="tablist" aria-label="Seleccionar pieza">
+            {lista.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                role="tab"
+                aria-selected={i === activa}
+                aria-label={`Ver pieza ${i + 1}`}
+                data-activa={i === activa}
+                onClick={() => setActiva(i)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
