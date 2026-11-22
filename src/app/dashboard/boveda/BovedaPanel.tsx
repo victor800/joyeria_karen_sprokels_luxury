@@ -412,8 +412,8 @@ const CSS = `
 .bv-dlg-b button:disabled { opacity: .7; cursor: wait; }
 
 @media (max-width: 760px) {
-  main.d-cont.simple { padding-bottom: 96px; }
-  .bv-nueva { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 60; height: 52px; padding: 0 22px; border-radius: 99px; box-shadow: 0 12px 28px rgba(5,28,19,.35); }
+  main.d-cont.simple { padding-bottom: 150px; }
+  .bv-nueva { position: fixed; right: 16px; bottom: calc(var(--bi-h) + 34px + env(safe-area-inset-bottom, 0px)); z-index: 60; height: 52px; padding: 0 22px; border-radius: 99px; box-shadow: 0 12px 28px rgba(5,28,19,.35); }
   .bv-aviso { position: sticky; top: 8px; z-index: 70; box-shadow: 0 8px 22px rgba(0,0,0,.15); }
   .bv-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
   .bv-stats > div { padding: 12px 14px; border-radius: 14px; }
