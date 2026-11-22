@@ -41,7 +41,7 @@ const GRUPOS: Grupo[] = [
     items: [
       { href: '/dashboard', t: 'Inicio', i: 'inicio' },
       { href: '/dashboard/pedidos', t: 'Pedidos', i: 'pedidos', contador: 'pedidos' },
-      { href: '/dashboard/domiciliarios', t: 'Domiciliarios', i: 'domi' },
+      { href: '/dashboard/domiciliarios', t: 'Domiciliarios', i: 'domi', contador: 'domiciliarios' },
       { href: '/dashboard/pagos', t: 'Pagos', i: 'pagos' },
     ],
   },

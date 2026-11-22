@@ -1,15 +1,10 @@
-// 📁 RUTA: src/app/dashboard/domiciliarios/page.tsx
-import PaginaTabla from '@/components/dashboard/PaginaTabla';
-import { domiciliarios } from '@/lib/datos-dashboard';
+import DomiciliariosVista from '@/components/dashboard/domiciliarios/DomiciliariosVista';
+import { listar } from '@/lib/domiciliarios-store';
+import { obtenerLocales } from '@/lib/locales';
 
-export default function Domiciliarios() {
-  return (
-    <PaginaTabla
-      titulo="Domiciliarios"
-      sub="Equipo de entregas: zona, vehículo y estado en tiempo real."
-      accion="Nuevo domiciliario"
-      cols={['Nombre', 'Zona', 'Vehículo', 'Entregas hoy', 'Estado']}
-      filas={domiciliarios}
-    />
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function Domiciliarios() {
+  const [filas, locales] = await Promise.all([listar(), obtenerLocales()]);
+  return <DomiciliariosVista filas={filas} locales={locales} />;
 }

@@ -1,15 +1,10 @@
 // 📁 RUTA: src/app/dashboard/clientes/page.tsx
-import PaginaTabla from '@/components/dashboard/PaginaTabla';
-import { clientes } from '@/lib/datos-dashboard';
+import ClientesVista from '@/components/dashboard/clientes/ClientesVista';
+import { listar } from '@/lib/clientes-store';
 
-export default function Clientes() {
-  return (
-    <PaginaTabla
-      titulo="Clientes VIP"
-      sub="Socios del club, su cédula y el oro que tienen en custodia."
-      accion="Nuevo socio"
-      cols={['Socio', 'Cédula', 'Piezas en bóveda', 'Gramos', 'Estado']}
-      filas={clientes}
-    />
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function Clientes() {
+  const filas = await listar();
+  return <ClientesVista filas={filas} />;
 }

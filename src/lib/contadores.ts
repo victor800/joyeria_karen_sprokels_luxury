@@ -2,6 +2,7 @@
 import 'server-only';
 import { listarPrendas } from './prendas';
 import { listarInventario } from './inventario';
+import { listar as listarDomiciliarios } from './domiciliarios-store';
 
 /**
  * Números que aparecen en los círculos del menú lateral.
@@ -18,6 +19,9 @@ const FUENTES: Record<string, () => Promise<number>> = {
   // Para avisar solo de lo urgente (stock bajo o agotado), usa en su lugar:
   // (await listarInventario()).filter((it) => it.existencias <= it.minimo).length
   inventario: async () => (await listarInventario()).length,
+
+  // Total de domiciliarios registrados.
+  domiciliarios: async () => (await listarDomiciliarios()).length,
 
   // pedidos: async () => (await listarPedidos()).filter((x) => x.estado === 'pendiente').length,
 };
