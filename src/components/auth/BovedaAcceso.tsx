@@ -1,146 +1,43 @@
-// 📁 RUTA: src/components/auth/BovedaAcceso.tsx
-'use client';
+// 📁 RUTA: src/lib/boveda-acceso.ts
+// Acceso a la bóveda: el código se valida SIEMPRE en el servidor y se guarda una cookie firmada (30 min).
+import 'server-only';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { cookies } from 'next/headers';
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import Image from 'next/image';
-import { MARCA } from '@/lib/marca';
+export const COOKIE = 'boveda_acceso';
+export const DURACION_SEG = 30 * 60;
 
-/**
- * cerrada  → solo se ve el logo como puerta de bóveda
- * girando  → la rueda gira y los pernos se retraen
- * abriendo → la puerta se abre y sale la luz
- * abierta  → el logo queda pequeño y aparece el formulario
- */
-type Fase = 'cerrada' | 'girando' | 'abriendo' | 'abierta';
+// BOVEDA_SECRET es opcional pero recomendado (una cadena larga y aleatoria). Si no existe, se usa el código.
+const secreto = () => process.env.BOVEDA_SECRET || process.env.BOVEDA_CODIGO || '';
+const firmar = (exp: string) => createHmac('sha256', secreto()).update(`boveda.${exp}`).digest('hex');
 
-const PERNOS = [0, 45, 90, 135, 180, 225, 270, 315];
+export function crearToken() {
+  const exp = String(Date.now() + DURACION_SEG * 1000);
+  return `${exp}.${firmar(exp)}`;
+}
 
-const sinMovimiento = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const punteroFino = () => window.matchMedia('(pointer: fine)').matches;
+export function tokenValido(token?: string | null) {
+  if (!token || !secreto()) return false;
+  const [exp, firma] = token.split('.');
+  if (!exp || !firma || !(Number(exp) > Date.now())) return false;
+  const a = Buffer.from(firma);
+  const b = Buffer.from(firmar(exp));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
-export default function BovedaAcceso({ children }: { children: ReactNode }) {
-  const [fase, setFase] = useState<Fase>('cerrada');
-  const timers = useRef<number[]>([]);
-  const puertaRef = useRef<HTMLButtonElement>(null);
-  const contenidoRef = useRef<HTMLDivElement>(null);
+export function codigoConfigurado() {
+  return Boolean(process.env.BOVEDA_CODIGO);
+}
 
-  const limpiar = () => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
-  };
-  const programar = (fn: () => void, ms: number) => {
-    timers.current.push(window.setTimeout(fn, ms));
-  };
+/** Comparación en tiempo constante del código ingresado con BOVEDA_CODIGO */
+export function codigoCorrecto(ingresado: string) {
+  const real = process.env.BOVEDA_CODIGO || '';
+  if (!real) return false;
+  const h = (s: string) => createHash('sha256').update(s).digest();
+  return timingSafeEqual(h(ingresado), h(real));
+}
 
-  useEffect(
-    () => () => {
-      timers.current.forEach((t) => window.clearTimeout(t));
-    },
-    [],
-  );
-
-  const enfocarCampo = () => {
-    // En celular no enfocamos para que no salte el teclado solo
-    if (!punteroFino()) return;
-    programar(() => {
-      contenidoRef.current?.querySelector<HTMLElement>('input')?.focus({ preventScroll: true });
-    }, 150);
-  };
-
-  const abrir = () => {
-    if (fase !== 'cerrada') return;
-    limpiar();
-    if (sinMovimiento()) {
-      setFase('abierta');
-      enfocarCampo();
-      return;
-    }
-    setFase('girando');
-    programar(() => setFase('abriendo'), 900);
-    programar(() => {
-      setFase('abierta');
-      enfocarCampo();
-    }, 2000);
-  };
-
-  const cerrar = () => {
-    if (fase !== 'abierta') return;
-    limpiar();
-    if (sinMovimiento()) {
-      setFase('cerrada');
-      puertaRef.current?.focus({ preventScroll: true });
-      return;
-    }
-    setFase('abriendo');
-    programar(() => setFase('girando'), 500);
-    programar(() => {
-      setFase('cerrada');
-      puertaRef.current?.focus({ preventScroll: true });
-    }, 1400);
-  };
-
-  const abierta = fase === 'abierta';
-
-  return (
-    <div className="jks-boveda" data-fase={fase}>
-      <div className="jks-boveda-zona">
-        <div className="jks-boveda-luz" aria-hidden />
-
-        {/* Logo pequeño: aparece al abrir y sirve para cerrar */}
-        <button
-          type="button"
-          className="jks-boveda-mini"
-          onClick={cerrar}
-          tabIndex={abierta ? 0 : -1}
-          aria-label="Cerrar la bóveda"
-        >
-          <Image src={MARCA.logo} alt="" width={1536} height={1024} sizes="92px" />
-        </button>
-
-        {/* Puerta: el logo grande */}
-        <button
-          ref={puertaRef}
-          type="button"
-          className="jks-boveda-puerta"
-          onClick={abrir}
-          aria-disabled={fase !== 'cerrada'}
-          tabIndex={fase === 'cerrada' ? 0 : -1}
-          aria-label="Abrir la bóveda de acceso"
-        >
-          <span className="jks-boveda-borde" aria-hidden />
-          <span className="jks-boveda-aro" aria-hidden />
-          {PERNOS.map((a) => (
-            <i key={a} className="jks-boveda-perno" style={{ '--a': `${a}deg` } as CSSProperties} aria-hidden />
-          ))}
-          <Image
-            src={MARCA.logo}
-            alt={MARCA.nombre}
-            width={1536}
-            height={1024}
-            priority
-            sizes="230px"
-            className="jks-boveda-logo"
-          />
-        </button>
-
-        <p className="jks-boveda-pista" aria-hidden>
-          TOQUE PARA ABRIR LA BÓVEDA
-        </p>
-      </div>
-
-      {/* Contenido: tu PanelAcceso, sin modificar */}
-      <div className="jks-boveda-contenido" ref={contenidoRef}>
-        <div className="jks-boveda-interior">
-          {children}
-          <button type="button" className="jks-boveda-cerrar" onClick={cerrar}>
-            CERRAR BÓVEDA
-          </button>
-        </div>
-      </div>
-
-      <span className="jks-sr" role="status">
-        {abierta ? 'Bóveda abierta' : ''}
-      </span>
-    </div>
-  );
+/** true si la petición actual trae la cookie de bóveda abierta (para proteger las APIs) */
+export async function bovedaAbierta() {
+  return tokenValido((await cookies()).get(COOKIE)?.value);
 }

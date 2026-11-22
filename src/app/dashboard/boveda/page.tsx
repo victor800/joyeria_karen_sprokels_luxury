@@ -1,15 +1,16 @@
 // 📁 RUTA: src/app/dashboard/boveda/page.tsx
-import PaginaTabla from '@/components/dashboard/PaginaTabla';
-import { boveda } from '@/lib/datos-dashboard';
+import { bovedaAbierta, codigoConfigurado } from '@/lib/boveda-acceso';
+import CajaFuerte from '@/components/boveda/CajaFuerte';
+import BovedaContenido from './BovedaContenido';
 
-export default function Boveda() {
+export const dynamic = 'force-dynamic';
+
+export default async function Page() {
+  const abierta = await bovedaAbierta();
+  // sinCodigo = true mientras no exista BOVEDA_CODIGO: la bóveda abre sin pedir código (modo temporal)
   return (
-    <PaginaTabla
-      titulo="Bóveda de oro"
-      sub="Piezas en custodia y solicitudes de retiro de los socios."
-      accion="Registrar custodia"
-      cols={['Socio', 'Pieza', 'Peso', 'Ingreso', 'Estado']}
-      filas={boveda}
-    />
+    <CajaFuerte abierta={abierta} sinCodigo={!codigoConfigurado()}>
+      {abierta ? <BovedaContenido /> : null}
+    </CajaFuerte>
   );
 }

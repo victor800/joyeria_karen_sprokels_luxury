@@ -49,7 +49,7 @@ const GRUPOS: Grupo[] = [
     titulo: 'Catálogo',
     items: [
       { href: '/dashboard/prendas', t: 'Prendas', i: 'prendas', contador: 'prendas' },
-      { href: '/dashboard/inventario', t: 'Inventario', i: 'inventario' },
+      { href: '/dashboard/inventario', t: 'Inventario', i: 'inventario', contador: 'inventario' },
       { href: '/dashboard/boveda', t: 'Bóveda de oro', i: 'boveda' },
     ],
   },
@@ -167,6 +167,15 @@ export default function Sidebar() {
   return (
     <>
       <style>{`
+        /* Menú expandido: todos los círculos pegados al borde derecho, con el mismo ancho y alineados en columna */
+        .dash:not(.dash-mini) .sb-nav a .sb-t { flex: 1 1 auto; min-width: 0; }
+        .dash:not(.dash-mini) .sb-nav a .sb-ins {
+          margin-left: auto !important; margin-right: 20px !important; flex: 0 0 auto;
+          min-width: 26px !important; height: 26px !important; padding: 0 6px !important;
+          display: inline-flex !important; align-items: center; justify-content: center;
+          box-sizing: border-box; text-align: center; font-variant-numeric: tabular-nums;
+        }
+
         /* Menú reducido (solo íconos): el círculo pasa a la esquina del ícono */
         .dash-mini .sb-nav a { position: relative; }
         .dash-mini .sb-nav a .sb-ins { position: absolute !important; top: 3px; right: 4px; margin: 0 !important;

@@ -1,6 +1,7 @@
 // 📁 RUTA: src/lib/contadores.ts
 import 'server-only';
 import { listarPrendas } from './prendas';
+import { listarInventario } from './inventario';
 
 /**
  * Números que aparecen en los círculos del menú lateral.
@@ -12,6 +13,11 @@ const FUENTES: Record<string, () => Promise<number>> = {
   // Total de prendas en el catálogo. Para contar solo las publicadas:
   // (await listarPrendas()).filter((p) => p.activo === 'true').length
   prendas: async () => (await listarPrendas()).length,
+
+  // Referencias (piezas distintas) registradas en el inventario.
+  // Para avisar solo de lo urgente (stock bajo o agotado), usa en su lugar:
+  // (await listarInventario()).filter((it) => it.existencias <= it.minimo).length
+  inventario: async () => (await listarInventario()).length,
 
   // pedidos: async () => (await listarPedidos()).filter((x) => x.estado === 'pendiente').length,
 };

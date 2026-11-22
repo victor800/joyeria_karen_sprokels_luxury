@@ -20,6 +20,13 @@ const waHref = (wa: string, p: PrendaP, v: VarianteP) => {
   return wa === '#' ? '#' : `${wa}?text=${encodeURIComponent(msg)}`;
 };
 
+/* Pase automático de fotos: lento y con fundido suave */
+const PASE_MS = 5600;      // tiempo que se queda cada foto en la tarjeta
+const PASE_MODAL_MS = 6000; // tiempo en la vista rápida
+const MAX_FOTOS = 6;
+const sinMovimiento = () =>
+  typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 /* ---------- Iconos ---------- */
 const ic = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
 const Chev = ({ d }: { d: 'l' | 'r' }) => (<svg {...ic}><path d={d === 'l' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} /></svg>);
@@ -54,26 +61,43 @@ function BotonLike({ liked, onClick, nombre }: { liked: boolean; onClick: () => 
 }
 
 /* ---------- Tarjeta del catálogo ---------- */
-function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: string; delay: number; onAbrir: (vi: number) => void; liked: boolean; onLike: () => void }) {
+function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: string; delay: number; onAbrir: (vi: number, fi: number) => void; liked: boolean; onLike: () => void }) {
   const [vi, setVi] = useState(0);
-  const [visto, setVisto] = useState(false);
+  const [fi, setFi] = useState(0);
+  const [visto, setVisto] = useState(false);   // ya apareció alguna vez (animación de entrada)
+  const [viendo, setViendo] = useState(false); // está en pantalla ahora mismo (el pase de fotos solo corre si se ve)
   const item = useRef<HTMLDivElement>(null);
 
   const v = p.variantes[Math.min(vi, p.variantes.length - 1)];
   const multi = p.variantes.length > 1;
-  const fotos = v.fotos;
+  const fotos = v.fotos.slice(0, MAX_FOTOS);
+  const n = fotos.length;
+  const k0 = n ? Math.min(fi, n - 1) : 0;
   const agotada = v.stock <= 0;
   const est = estadoDe(v.stock);
   const spec = [v.peso ? `${v.peso} g` : '', v.tamano].filter(Boolean).join('  ·  ');
 
-  // Aparece con un suave desplazamiento al entrar en pantalla
+  const elegir = (k: number) => { setVi(k); setFi(0); };
+
+  // Aparece con un suave desplazamiento al entrar en pantalla, y avisa si la tarjeta está a la vista
   useEffect(() => {
     const el = item.current;
-    if (!el || typeof IntersectionObserver === 'undefined') { setVisto(true); return; }
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisto(true); io.disconnect(); } }, { threshold: 0.12 });
+    if (!el || typeof IntersectionObserver === 'undefined') { setVisto(true); setViendo(true); return; }
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) setVisto(true);
+      setViendo(e.isIntersecting);
+    }, { threshold: 0.12 });
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  // Pase automático: una foto cada PASE_MS, con un pequeño desfase por tarjeta para que no cambien todas a la vez
+  useEffect(() => {
+    if (n < 2 || !viendo || sinMovimiento()) return;
+    const espera = PASE_MS + (fi === 0 ? (delay % 4) * 700 : 0);
+    const t = setTimeout(() => setFi((k) => (k + 1) % n), espera);
+    return () => clearTimeout(t);
+  }, [fi, n, viendo, delay]);
 
   // Inclinación 3D suave + luz que sigue el cursor (solo mouse; no re-renderiza)
   const mover = (e: React.PointerEvent<HTMLElement>) => {
@@ -98,21 +122,22 @@ function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: str
   return (
     <div ref={item} className={`cp-item ${visto ? 'vis' : ''}`} style={{ transitionDelay: `${Math.min(delay, 6) * 70}ms` }}>
       <article className={`cp-card ${agotada ? 'ago' : ''}`} onPointerMove={mover} onPointerLeave={salir}>
-        <button type="button" className="cp-foto" onClick={() => onAbrir(vi)} aria-haspopup="dialog" aria-label={`Vista rápida de ${p.nombre}`}>
-          {fotos[0] ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="cp-img a" src={fotos[0]} alt="" loading="lazy" />
-              {fotos[1] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="cp-img b" src={fotos[1]} alt="" loading="lazy" />
-              )}
-            </>
+        <button type="button" className={`cp-foto ${n > 1 ? 'multi' : ''}`} onClick={() => onAbrir(vi, k0)} aria-haspopup="dialog" aria-label={`Vista rápida de ${p.nombre}`}>
+          {n ? (
+            fotos.map((u, k) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={`${vi}-${k}`} className={`cp-img ${k === k0 ? 'on' : ''}`} src={u} alt="" loading="lazy" />
+            ))
           ) : (
             <span className="cp-vacio"><Gema /></span>
           )}
           <span className="cp-luz" aria-hidden="true" />
           <span className="cp-ley"><Ok /> ORO {p.quilate}K</span>
+          {n > 1 && (
+            <span className="cp-prog" aria-hidden="true">
+              {fotos.map((_, k) => (<i key={k} className={k === k0 ? 'on' : ''} />))}
+            </span>
+          )}
           <span className="cp-rapida"><Ojo /> Vista rápida</span>
         </button>
 
@@ -126,7 +151,7 @@ function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: str
           {multi && (
             <div className="cp-tams" role="group" aria-label="Tamaño">
               {p.variantes.map((x, k) => (
-                <button key={k} type="button" aria-pressed={k === vi} onClick={() => setVi(k)}>{x.tamano || `Opción ${k + 1}`}</button>
+                <button key={k} type="button" aria-pressed={k === vi} onClick={() => elegir(k)}>{x.tamano || `Opción ${k + 1}`}</button>
               ))}
             </div>
           )}
@@ -147,11 +172,12 @@ function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: str
 }
 
 /* ---------- Vista rápida: ficha a pantalla completa con galería y zoom ---------- */
-function VistaRapida({ p, wa, logo, vi0, onCerrar, liked, onLike }: { p: PrendaP; wa: string; logo?: string; vi0: number; onCerrar: () => void; liked: boolean; onLike: () => void }) {
+function VistaRapida({ p, wa, logo, vi0, fi0, onCerrar, liked, onLike }: { p: PrendaP; wa: string; logo?: string; vi0: number; fi0: number; onCerrar: () => void; liked: boolean; onLike: () => void }) {
   const [vi, setVi] = useState(Math.min(vi0, p.variantes.length - 1));
-  const [fi, setFi] = useState(0);
+  const [fi, setFi] = useState(fi0);
+  const [pausa, setPausa] = useState(false); // el pase automático se detiene mientras el cursor está sobre la foto (zoom)
   const v = p.variantes[vi];
-  const fotos = v.fotos;
+  const fotos = v.fotos.slice(0, MAX_FOTOS);
   const n = fotos.length;
   const i = n ? Math.min(fi, n - 1) : 0;
   const est = estadoDe(v.stock);
@@ -183,6 +209,13 @@ function VistaRapida({ p, wa, logo, vi0, onCerrar, liked, onLike }: { p: PrendaP
     return () => window.removeEventListener('keydown', key);
   });
 
+  // Pase automático lento; al cambiar de foto a mano el reloj vuelve a empezar
+  useEffect(() => {
+    if (n < 2 || pausa || sinMovimiento()) return;
+    const t = setTimeout(() => setFi((i + 1) % n), PASE_MODAL_MS);
+    return () => clearTimeout(t);
+  }, [i, n, pausa, vi]);
+
   const zoom = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'mouse') return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -196,10 +229,17 @@ function VistaRapida({ p, wa, logo, vi0, onCerrar, liked, onLike }: { p: PrendaP
         <button type="button" className="cp-m-x" onClick={onCerrar} aria-label="Cerrar" autoFocus><Cerrar /></button>
 
         <div className="cp-m-gal">
-          <div className="cp-m-foto" onPointerMove={zoom}>
+          <div
+            className="cp-m-foto"
+            onPointerMove={zoom}
+            onPointerEnter={(e) => { if (e.pointerType === 'mouse') setPausa(true); }}
+            onPointerLeave={(e) => { if (e.pointerType === 'mouse') setPausa(false); }}
+          >
             {n ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={`${vi}-${i}`} className="cp-m-img" src={fotos[i]} alt={n > 1 ? `${p.nombre} (${i + 1} de ${n})` : p.nombre} />
+              fotos.map((u, k) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={`${vi}-${k}`} className={`cp-m-img ${k === i ? 'on' : ''}`} src={u} alt={k === i ? (n > 1 ? `${p.nombre} (${i + 1} de ${n})` : p.nombre) : ''} aria-hidden={k !== i} />
+              ))
             ) : (
               <span className="cp-vacio"><Gema /></span>
             )}
@@ -271,7 +311,7 @@ function VistaRapida({ p, wa, logo, vi0, onCerrar, liked, onLike }: { p: PrendaP
 /* ---------- Catálogo ---------- */
 export default function CatalogoPublico({ prendas, wa, logo }: { prendas: PrendaP[]; wa: string; logo?: string }) {
   const [cat, setCat] = useState('todas');
-  const [rapida, setRapida] = useState<{ id: string; vi: number } | null>(null);
+  const [rapida, setRapida] = useState<{ id: string; vi: number; fi: number } | null>(null);
   const [mios, setMios] = useState<Set<string>>(() => new Set());
   const pendientes = useRef<Set<string>>(new Set());
 
@@ -333,12 +373,12 @@ export default function CatalogoPublico({ prendas, wa, logo }: { prendas: Prenda
 
       <div className="cp-grid">
         {lista.map((p, k) => (
-          <Tarjeta key={p.id} p={p} wa={wa} delay={k} onAbrir={(vi) => setRapida({ id: p.id, vi })} liked={mios.has(p.id)} onLike={() => alternarLike(p.id)} />
+          <Tarjeta key={p.id} p={p} wa={wa} delay={k} onAbrir={(vi, fi) => setRapida({ id: p.id, vi, fi })} liked={mios.has(p.id)} onLike={() => alternarLike(p.id)} />
         ))}
       </div>
 
       {abierta && rapida && (
-        <VistaRapida key={abierta.id} p={abierta} wa={wa} logo={logo} vi0={rapida.vi} onCerrar={() => setRapida(null)} liked={mios.has(abierta.id)} onLike={() => alternarLike(abierta.id)} />
+        <VistaRapida key={abierta.id} p={abierta} wa={wa} logo={logo} vi0={rapida.vi} fi0={rapida.fi} onCerrar={() => setRapida(null)} liked={mios.has(abierta.id)} onLike={() => alternarLike(abierta.id)} />
       )}
     </>
   );
@@ -372,15 +412,25 @@ const CSS = `
 
   .cp-foto { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1.1; padding: 0; border: 0; background: #050d09; cursor: pointer; overflow: hidden; }
   .cp-foto::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; z-index: 2; pointer-events: none; background: linear-gradient(to top, #0a2619 0%, rgba(10,38,25,0)); }
-  .cp-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 38%; transition: transform 1.2s cubic-bezier(.2,.8,.2,1), opacity .6s; }
-  .cp-img.b { opacity: 0; }
-  .cp-card:hover .cp-img { transform: scale(1.06); }
-  .cp-card:hover .cp-img.b { opacity: 1; }
+
+  /* Fotos apiladas: la activa se funde sobre la anterior, despacio, con un acercamiento casi imperceptible */
+  .cp-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 38%; opacity: 0; transform: scale(1);
+    transition: opacity 1.8s ease-in-out, transform 0s linear 1.8s; }
+  .cp-img.on { opacity: 1; transition: opacity 1.8s ease-in-out, transform 0s; }
+  .cp-foto.multi .cp-img.on { transform: scale(1.07); transition: opacity 1.8s ease-in-out, transform 9s ease-out; }
+
   .cp-vacio { position: absolute; inset: 0; display: grid; place-items: center; color: #b08d3c; }
   /* luz que sigue al cursor, como un foco de vitrina */
   .cp-luz { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .4s; mix-blend-mode: screen;
     background: radial-gradient(240px circle at var(--mx) var(--my), rgba(255,236,170,.26), transparent 62%); }
   .cp-card:hover .cp-luz { opacity: 1; }
+
+  /* indicador discreto de cuántas fotos tiene la pieza y cuál se ve */
+  .cp-prog { position: absolute; left: 50%; bottom: 62px; z-index: 4; transform: translateX(-50%); display: flex; gap: 5px; pointer-events: none; transition: opacity .3s; }
+  .cp-prog i { display: block; width: 12px; height: 2px; border-radius: 2px; background: rgba(243,234,210,.4); transition: width 1s ease, background 1s ease; }
+  .cp-prog i.on { width: 26px; background: #ecd07a; }
+  .cp-card:hover .cp-prog { opacity: 0; }
+  @media (hover: none) { .cp-card:hover .cp-prog { opacity: 1; } }
 
   .cp-ley { position: absolute; top: 14px; left: 14px; z-index: 4; pointer-events: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border-radius: 99px;
     font-size: 10.5px; font-weight: 600; letter-spacing: .14em; white-space: nowrap; color: #f3ead2; background: rgba(6,24,17,.55); border: 1px solid rgba(236,208,122,.5); backdrop-filter: blur(8px); }
@@ -389,7 +439,7 @@ const CSS = `
     font-size: 10.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #f3ead2; background: rgba(6,24,17,.6); border: 1px solid rgba(236,208,122,.5); backdrop-filter: blur(8px);
     opacity: 0; transform: translate(-50%, 10px); transition: opacity .3s, transform .3s; }
   .cp-card:hover .cp-rapida, .cp-foto:focus-visible .cp-rapida { opacity: 1; transform: translate(-50%, 0); }
-  @media (hover: none) { .cp-rapida { opacity: 1; transform: translate(-50%, 0); } }
+  @media (hover: none) { .cp-rapida { opacity: 1; transform: translate(-50%, 0); } .cp-prog { bottom: 94px; } }
 
   .cp-cuerpo { position: relative; z-index: 5; flex: 1; display: flex; flex-direction: column; margin-top: -30px; padding: 0 22px 22px; }
   .cp-ey { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: #d8b95f; }
@@ -422,7 +472,8 @@ const CSS = `
   .cp-pedir.off { background: rgba(255,255,255,.08); color: rgba(243,234,210,.55) !important; cursor: default; }
   .cp-pedir.off::after { display: none; }
   .cp-pedir.grande { height: 52px; font-size: 12px; margin-top: 4px; }
-  .cp-card.ago .cp-img { filter: grayscale(.8); opacity: .65; }
+  .cp-card.ago .cp-img { filter: grayscale(.8); }
+  .cp-card.ago .cp-img.on { opacity: .65; }
 
   /* ---------- Corazón "me encanta" ---------- */
   .cp-like { position: absolute; top: 12px; right: 12px; z-index: 6; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
@@ -448,14 +499,16 @@ const CSS = `
   .cp-m-x:hover { background: #d8b95f; color: #0b2d1f; border-color: #d8b95f; }
   .cp-m-gal { display: flex; flex-direction: column; min-width: 0; background: #050a08; }
   .cp-m-foto { position: relative; flex: 1; min-height: 460px; overflow: hidden; cursor: zoom-in; }
-  .cp-m-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: var(--zx, 50%) var(--zy, 50%); transition: transform .5s cubic-bezier(.2,.8,.2,1); animation: cpfade .4s both; }
-  @media (hover: hover) { .cp-m-foto:hover .cp-m-img { transform: scale(1.9); } }
+  /* mismas fotos apiladas con fundido largo; el zoom del cursor solo aplica a la foto visible */
+  .cp-m-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform-origin: var(--zx, 50%) var(--zy, 50%); transition: opacity 1.4s ease-in-out, transform .5s cubic-bezier(.2,.8,.2,1); }
+  .cp-m-img.on { opacity: 1; }
+  @media (hover: hover) { .cp-m-foto:hover .cp-m-img.on { transform: scale(1.9); } }
   .cp-m-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer;
     border: 1px solid rgba(216,185,95,.55); background: rgba(6,24,17,.6); color: #ecd07a; backdrop-filter: blur(6px); transition: .2s; }
   .cp-m-nav.prev { left: 14px; } .cp-m-nav.next { right: 14px; }
   .cp-m-nav:hover { background: #d8b95f; color: #0b2d1f; }
   .cp-m-tiras { display: flex; gap: 8px; padding: 12px 14px; overflow-x: auto; border-top: 1px solid rgba(255,255,255,.06); }
-  .cp-m-tiras button { flex-shrink: 0; width: 58px; height: 58px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; opacity: .55; background: #0e1a15; border: 1px solid rgba(255,255,255,.14); transition: .2s; }
+  .cp-m-tiras button { flex-shrink: 0; width: 58px; height: 58px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; opacity: .55; background: #0e1a15; border: 1px solid rgba(255,255,255,.14); transition: .4s; }
   .cp-m-tiras button:hover { opacity: .9; }
   .cp-m-tiras button.on { opacity: 1; border-color: #ecd07a; }
   .cp-m-tiras img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -490,7 +543,8 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) {
     .cp-item { opacity: 1; transform: none; transition: none; }
     .cp-card { transform: none !important; }
-    .cp-card::before, .cp-m, .cp-m-hoja, .cp-m-img, .cp-like.pop svg, .cp-like.pop .cp-like-aro { animation: none !important; }
-    .cp-img, .cp-m-img, .cp-linea { transition: none; }
+    .cp-card::before, .cp-m, .cp-m-hoja, .cp-like.pop svg, .cp-like.pop .cp-like-aro { animation: none !important; }
+    .cp-img, .cp-m-img, .cp-linea, .cp-prog i { transition: none !important; }
+    .cp-foto.multi .cp-img.on { transform: none; }
   }
 `;
