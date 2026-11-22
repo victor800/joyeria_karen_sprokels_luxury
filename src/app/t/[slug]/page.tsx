@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
 import { leerConfigPublica } from '@/lib/configuracion';
+import { leerPrendasPublicas } from '@/lib/prendas';
 
 const serif = Playfair_Display({
   subsets: ['latin'],
@@ -16,9 +17,7 @@ export const revalidate = 60;
 
 type Params = { params: Promise<{ slug: string }> };
 
-/** Cuando exista el catálogo, llénalo aquí y las tarjetas se rellenan solas */
-type Producto = { nombre: string; precio?: string; foto?: string; categoria?: string };
-const PRODUCTOS: Producto[] = [];
+type Producto = { nombre: string; precio?: string; foto?: string; categoria?: string; detalle?: string };
 
 const cop = (v?: string) => {
   const n = Number(String(v ?? '').replace(/[.,\s]/g, ''));
@@ -87,6 +86,7 @@ export default async function TiendaPublica({ params }: Params) {
   const { slug } = await params;
   const f = await leerConfigPublica(slug).catch(() => null);
   if (!f) notFound();
+  const PRODUCTOS: Producto[] = await leerPrendasPublicas().catch(() => []);
 
   const nombre = f.nombre || 'Joyería';
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
@@ -285,7 +285,9 @@ export default async function TiendaPublica({ params }: Params) {
                 <div key={i} className="mw-p">
                   <div className="mw-pf">{p.foto && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.foto} alt={p.nombre} />}</div>
                   <span className="co"><Ic n="heart" s={18} /></span>
-                  <b>{p.nombre}</b><span>{p.precio ?? ''}</span>
+                 <b>{p.nombre}</b>
+<small style={{ display: 'block', color: '#6b7a72', fontSize: 11, margin: '2px 0' }}>{p.detalle}</small>
+<span>{p.precio ?? ''}</span>
                 </div>
               ) : (
                 <div key={i} className="mw-p">
