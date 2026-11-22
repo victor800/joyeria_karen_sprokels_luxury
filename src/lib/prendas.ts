@@ -185,12 +185,24 @@ export async function eliminarPrenda(id: string): Promise<void> {
   });
 }
 
-/** Solo lo que ve el cliente: prendas activadas, sin ids ni datos internos */
+/** Solo lo que ve el cliente: prendas activadas y los datos que necesita el catálogo (sin fechas internas) */
 export async function leerPrendasPublicas() {
   const lista = await listarPrendas();
   return lista
     .filter((p) => p.activo === 'true')
     .map((p) => ({
+      // Los usa el catálogo: tamaños (variantes), stock, precio por tamaño y el id para los "me encanta"
+      id: p.id,
+      codigo: p.codigo,
+      quilate: p.quilate,
+      peso: p.peso,
+      tamano: p.tamano,
+      descripcion: p.descripcion,
+      foto_url: p.foto_url,
+      precio_manual: p.precio_manual,
+      stock: p.stock,
+      activo: p.activo,
+      // Campos de siempre (compatibilidad)
       nombre: p.nombre,
       categoria: p.categoria,
       foto: p.foto_url,

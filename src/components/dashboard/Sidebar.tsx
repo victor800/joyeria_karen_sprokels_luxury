@@ -1,3 +1,4 @@
+// 📁 RUTA: tu Sidebar.tsx actual (el mismo archivo, junto a sidebar.css)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +7,8 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { MARCA } from '@/lib/marca';
 import './sidebar.css';
+import CargandoNavegacion from '@/components/CargandoNavegacion';
+import { Insignia, useContadores } from '@/components/InsigniaContador';
 
 const ICONOS: Record<string, string> = {
   inicio: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -28,12 +31,16 @@ const ICONOS: Record<string, string> = {
   salir: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 };
 
-const GRUPOS = [
+// contador: clave del número que se muestra en el círculo (se define en src/lib/contadores.ts)
+type Item = { href: string; t: string; i: string; contador?: string };
+type Grupo = { titulo: string; items: Item[] };
+
+const GRUPOS: Grupo[] = [
   {
     titulo: 'Principal',
     items: [
       { href: '/dashboard', t: 'Inicio', i: 'inicio' },
-      { href: '/dashboard/pedidos', t: 'Pedidos', i: 'pedidos' },
+      { href: '/dashboard/pedidos', t: 'Pedidos', i: 'pedidos', contador: 'pedidos' },
       { href: '/dashboard/domiciliarios', t: 'Domiciliarios', i: 'domi' },
       { href: '/dashboard/pagos', t: 'Pagos', i: 'pagos' },
     ],
@@ -41,7 +48,7 @@ const GRUPOS = [
   {
     titulo: 'Catálogo',
     items: [
-      { href: '/dashboard/prendas', t: 'Prendas', i: 'prendas' },
+      { href: '/dashboard/prendas', t: 'Prendas', i: 'prendas', contador: 'prendas' },
       { href: '/dashboard/inventario', t: 'Inventario', i: 'inventario' },
       { href: '/dashboard/boveda', t: 'Bóveda de oro', i: 'boveda' },
     ],
@@ -85,6 +92,7 @@ export default function Sidebar() {
   const [compactos, setCompactos] = useState<string[]>([]);
   const [destino, setDestino] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false); // popup de cerrar sesión
+  const contadores = useContadores(); // números de los círculos del menú
 
   useEffect(() => {
     try {
@@ -158,6 +166,13 @@ export default function Sidebar() {
 
   return (
     <>
+      <style>{`
+        /* Menú reducido (solo íconos): el círculo pasa a la esquina del ícono */
+        .dash-mini .sb-nav a { position: relative; }
+        .dash-mini .sb-nav a .sb-ins { position: absolute !important; top: 3px; right: 4px; margin: 0 !important;
+          min-width: 16px !important; height: 16px !important; padding: 0 4px !important; font-size: 9px !important; }
+      `}</style>
+
       <button
         type="button"
         className="d-burger"
@@ -199,25 +214,29 @@ export default function Sidebar() {
                     <path d="M6 9l6 6 6-6" />
                   </svg>
                 </button>
-                {g.items.map((e) => (
-                  <Link
-                    key={e.href}
-                    href={e.href}
-                    title={e.t}
-                    aria-label={e.t}
-                    prefetch
-                    onClick={() => {
-                      setDestino(e.href);
-                      setAbierto(false);
-                    }}
-                    aria-current={esActivo(e.href) ? 'page' : undefined}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden>
-                      <path d={ICONOS[e.i]} />
-                    </svg>
-                    <span className="sb-t">{e.t}</span>
-                  </Link>
-                ))}
+                {g.items.map((e) => {
+                  const n = e.contador ? contadores[e.contador] : 0;
+                  return (
+                    <Link
+                      key={e.href}
+                      href={e.href}
+                      title={e.t}
+                      aria-label={n > 0 ? `${e.t}, ${n}` : e.t}
+                      prefetch
+                      onClick={() => {
+                        setDestino(e.href);
+                        setAbierto(false);
+                      }}
+                      aria-current={esActivo(e.href) ? 'page' : undefined}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden>
+                        <path d={ICONOS[e.i]} />
+                      </svg>
+                      <span className="sb-t">{e.t}</span>
+                      {e.contador && <Insignia className="sb-ins" n={n} titulo={e.t} />}
+                    </Link>
+                  );
+                })}
               </div>
             );
           })}
@@ -239,6 +258,9 @@ export default function Sidebar() {
           <span className="sb-t">CERRAR SESIÓN</span>
         </button>
       </aside>
+
+      {/* Pantalla de carga al navegar: anillo hasta 100 % con el logo */}
+      <CargandoNavegacion />
 
       {/* Popup FUERA del <aside>: así no depende del menú deslizable en móvil */}
       {confirmar && (

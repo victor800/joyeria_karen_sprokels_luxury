@@ -14,6 +14,7 @@ const LEY: Record<string, string> = { '24': '999', '18': '750', '14': '585' };
 const PUREZA: Record<string, string> = { '24': '99.9', '18': '75.0', '14': '58.5' };
 const estadoDe = (stock: number) =>
   stock <= 0 ? { t: 'Agotada', c: 'ag' } : stock === 1 ? { t: 'Última unidad', c: 'ul' } : { t: 'Disponible', c: 'ok' };
+const LIKES_KEY = 'jks_me_encanta'; // ids que este visitante ya marcó (solo en su navegador)
 const waHref = (wa: string, p: PrendaP, v: VarianteP) => {
   const msg = `Hola, me interesa ${p.nombre} (${p.codigo})${v.tamano ? ` en tamaño ${v.tamano}` : ''}. ¿Está disponible?`;
   return wa === '#' ? '#' : `${wa}?text=${encodeURIComponent(msg)}`;
@@ -26,10 +27,34 @@ const Cerrar = () => (<svg {...ic}><path d="M6 6l12 12M18 6L6 18" /></svg>);
 const Ojo = () => (<svg {...ic}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>);
 const Chat = () => (<svg {...ic}><path d="M21 12a8 8 0 0 1-11.7 7L4 20l1.1-4.2A8 8 0 1 1 21 12z" /></svg>);
 const Ok = () => (<svg {...ic} width={13} height={13}><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.7 2.7L16 9.5" /></svg>);
+const Corazon = ({ on }: { on: boolean }) => (
+  <svg width="21" height="21" viewBox="0 0 24 24" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
+  </svg>
+);
 const Gema = () => (<svg {...ic} width={44} height={44} strokeWidth={1.3}><path d="M6 4h12l4 5-10 11L2 9z" /><path d="M2 9h20M9 4l-2 5 5 11 5-11-2-5" /></svg>);
 
+/* ---------- Corazón "me encanta": blanco → rojo ---------- */
+function BotonLike({ liked, onClick, nombre }: { liked: boolean; onClick: () => void; nombre: string }) {
+  const [pop, setPop] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`cp-like ${liked ? 'on' : ''} ${pop ? 'pop' : ''}`}
+      aria-pressed={liked}
+      aria-label={liked ? `Quitar me encanta de ${nombre}` : `Me encanta ${nombre}`}
+      title={liked ? 'Quitar de mis favoritas' : 'Me encanta'}
+      onClick={(e) => { e.stopPropagation(); if (!liked) setPop(true); onClick(); }}
+      onAnimationEnd={() => setPop(false)}
+    >
+      <Corazon on={liked} />
+      <span className="cp-like-aro" aria-hidden="true" />
+    </button>
+  );
+}
+
 /* ---------- Tarjeta del catálogo ---------- */
-function Tarjeta({ p, wa, delay, onAbrir }: { p: PrendaP; wa: string; delay: number; onAbrir: (vi: number) => void }) {
+function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: string; delay: number; onAbrir: (vi: number) => void; liked: boolean; onLike: () => void }) {
   const [vi, setVi] = useState(0);
   const [visto, setVisto] = useState(false);
   const item = useRef<HTMLDivElement>(null);
@@ -91,6 +116,8 @@ function Tarjeta({ p, wa, delay, onAbrir }: { p: PrendaP; wa: string; delay: num
           <span className="cp-rapida"><Ojo /> Vista rápida</span>
         </button>
 
+        <BotonLike liked={liked} onClick={onLike} nombre={p.nombre} />
+
         <div className="cp-cuerpo">
           <div className="cp-ey"><span>{p.categoria}</span><b>{p.codigo}</b></div>
           <h3 className="cp-nom" title={p.nombre}>{p.nombre}</h3>
@@ -120,7 +147,7 @@ function Tarjeta({ p, wa, delay, onAbrir }: { p: PrendaP; wa: string; delay: num
 }
 
 /* ---------- Vista rápida: ficha a pantalla completa con galería y zoom ---------- */
-function VistaRapida({ p, wa, logo, vi0, onCerrar }: { p: PrendaP; wa: string; logo?: string; vi0: number; onCerrar: () => void }) {
+function VistaRapida({ p, wa, logo, vi0, onCerrar, liked, onLike }: { p: PrendaP; wa: string; logo?: string; vi0: number; onCerrar: () => void; liked: boolean; onLike: () => void }) {
   const [vi, setVi] = useState(Math.min(vi0, p.variantes.length - 1));
   const [fi, setFi] = useState(0);
   const v = p.variantes[vi];
@@ -177,6 +204,7 @@ function VistaRapida({ p, wa, logo, vi0, onCerrar }: { p: PrendaP; wa: string; l
               <span className="cp-vacio"><Gema /></span>
             )}
             <span className="cp-ley"><Ok /> ORO {p.quilate}K{ley ? ` · LEY ${ley}` : ''}</span>
+            <BotonLike liked={liked} onClick={onLike} nombre={p.nombre} />
             {n > 1 && (
               <>
                 <button type="button" className="cp-m-nav prev" onClick={() => ir(-1)} aria-label="Foto anterior"><Chev d="l" /></button>
@@ -244,6 +272,44 @@ function VistaRapida({ p, wa, logo, vi0, onCerrar }: { p: PrendaP; wa: string; l
 export default function CatalogoPublico({ prendas, wa, logo }: { prendas: PrendaP[]; wa: string; logo?: string }) {
   const [cat, setCat] = useState('todas');
   const [rapida, setRapida] = useState<{ id: string; vi: number } | null>(null);
+  const [mios, setMios] = useState<Set<string>>(() => new Set());
+  const pendientes = useRef<Set<string>>(new Set());
+
+  // Recuerda en este navegador qué piezas ya marcó el visitante
+  useEffect(() => {
+    try {
+      const a = JSON.parse(localStorage.getItem(LIKES_KEY) || '[]');
+      if (Array.isArray(a)) setMios(new Set(a.filter((x): x is string => typeof x === 'string')));
+    } catch { /* sin almacenamiento: funciona igual, solo no se recuerda */ }
+  }, []);
+
+  const poner = (id: string, quiere: boolean) =>
+    setMios((cur) => {
+      const sig = new Set(cur);
+      if (quiere) sig.add(id); else sig.delete(id);
+      try { localStorage.setItem(LIKES_KEY, JSON.stringify(Array.from(sig))); } catch { /* ignorar */ }
+      return sig;
+    });
+
+  // El corazón cambia al instante; si el servidor falla, vuelve a como estaba
+  const alternarLike = async (id: string) => {
+    if (pendientes.current.has(id)) return;
+    const quiere = !mios.has(id);
+    pendientes.current.add(id);
+    poner(id, quiere);
+    try {
+      const res = await fetch('/api/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, accion: quiere ? 'like' : 'unlike' }),
+      });
+      if (!res.ok) throw new Error('like');
+    } catch {
+      poner(id, !quiere);
+    } finally {
+      pendientes.current.delete(id);
+    }
+  };
 
   const cats = Array.from(new Set(prendas.map((p) => p.categoria).filter(Boolean)));
   const activa = cat !== 'todas' && cats.includes(cat) ? cat : 'todas';
@@ -267,12 +333,12 @@ export default function CatalogoPublico({ prendas, wa, logo }: { prendas: Prenda
 
       <div className="cp-grid">
         {lista.map((p, k) => (
-          <Tarjeta key={p.id} p={p} wa={wa} delay={k} onAbrir={(vi) => setRapida({ id: p.id, vi })} />
+          <Tarjeta key={p.id} p={p} wa={wa} delay={k} onAbrir={(vi) => setRapida({ id: p.id, vi })} liked={mios.has(p.id)} onLike={() => alternarLike(p.id)} />
         ))}
       </div>
 
       {abierta && rapida && (
-        <VistaRapida key={abierta.id} p={abierta} wa={wa} logo={logo} vi0={rapida.vi} onCerrar={() => setRapida(null)} />
+        <VistaRapida key={abierta.id} p={abierta} wa={wa} logo={logo} vi0={rapida.vi} onCerrar={() => setRapida(null)} liked={mios.has(abierta.id)} onLike={() => alternarLike(abierta.id)} />
       )}
     </>
   );
@@ -358,6 +424,19 @@ const CSS = `
   .cp-pedir.grande { height: 52px; font-size: 12px; margin-top: 4px; }
   .cp-card.ago .cp-img { filter: grayscale(.8); opacity: .65; }
 
+  /* ---------- Corazón "me encanta" ---------- */
+  .cp-like { position: absolute; top: 12px; right: 12px; z-index: 6; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    color: #fff; background: rgba(6,24,17,.5); border: 1px solid rgba(255,255,255,.38); backdrop-filter: blur(8px);
+    transition: transform .25s, background .25s, border-color .25s, color .25s; }
+  .cp-like:hover { transform: scale(1.08); background: rgba(6,24,17,.72); border-color: rgba(255,255,255,.7); }
+  .cp-like.on { color: #ff4d5a; border-color: rgba(255,77,90,.65); }
+  .cp-like.pop svg { animation: cplatido .6s cubic-bezier(.2,.9,.3,1.4); }
+  .cp-like-aro { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #ff4d5a; opacity: 0; pointer-events: none; }
+  .cp-like.pop .cp-like-aro { animation: cparo .6s ease-out; }
+  @keyframes cplatido { 0% { transform: scale(.55); } 45% { transform: scale(1.4); } 100% { transform: scale(1); } }
+  @keyframes cparo { 0% { transform: scale(.7); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+  .cp-m-foto .cp-like { top: 14px; right: 14px; }
+
   /* ---------- Vista rápida ---------- */
   .cp-m { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(3,10,7,.78); backdrop-filter: blur(8px); animation: cpfade .25s both; }
   @keyframes cpfade { from { opacity: 0; } to { opacity: 1; } }
@@ -411,7 +490,7 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) {
     .cp-item { opacity: 1; transform: none; transition: none; }
     .cp-card { transform: none !important; }
-    .cp-card::before, .cp-m, .cp-m-hoja, .cp-m-img { animation: none !important; }
+    .cp-card::before, .cp-m, .cp-m-hoja, .cp-m-img, .cp-like.pop svg, .cp-like.pop .cp-like-aro { animation: none !important; }
     .cp-img, .cp-m-img, .cp-linea { transition: none; }
   }
 `;
