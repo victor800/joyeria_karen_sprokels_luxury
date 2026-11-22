@@ -107,6 +107,7 @@ function FotoLupa({ fotos, alt, onAbrir, children }: { fotos: string[]; alt: str
     <div
       ref={ref}
       className="pr-foto"
+      style={{ touchAction: n > 1 ? 'pan-y' : 'auto' }}
       role="button"
       tabIndex={0}
       aria-label={`Ver ${alt} en grande`}
@@ -196,16 +197,50 @@ function GaleriaForm({ fotos, subiendo, onSubir, onCambio, titulo }: {
   );
 }
 
-/* ---------- Sección por categoría: cuadrícula de tarjetas horizontales ---------- */
+/* ---------- Sección por categoría: cuadrícula en PC, carrusel en móvil ---------- */
 function Categoria({ nombre, total, onNueva, children }: { nombre: string; total: number; onNueva: () => void; children: React.ReactNode }) {
+  const pista = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState(0);
+
+  const paso = () => {
+    const el = pista.current;
+    const c = el?.children[0] as HTMLElement | undefined;
+    if (!el || !c) return 0;
+    return c.offsetWidth + (parseFloat(getComputedStyle(el).columnGap) || 0);
+  };
+  const alDesplazar = () => {
+    const el = pista.current;
+    const p = paso();
+    if (!el || !p) return;
+    setPos(Math.max(0, Math.min(total - 1, Math.round(el.scrollLeft / p))));
+  };
+  const ir = (d: number) => {
+    const el = pista.current;
+    if (!el) return;
+    el.scrollTo({ left: Math.max(0, Math.min(total - 1, pos + d)) * paso(), behavior: 'smooth' });
+  };
+
   return (
     <section className="pr-sec" aria-label={nombre}>
       <header className="pr-sec-h">
         <h2>{nombre}</h2>
         <span className="pr-sec-n">{total} {total === 1 ? 'pieza' : 'piezas'}</span>
         <i className="pr-sec-l" />
+        {total > 1 && (
+          <div className="pc-ctl" aria-label={`Navegar ${nombre}`}>
+            <button type="button" onClick={() => ir(-1)} disabled={pos <= 0} aria-label="Pieza anterior"><IcoChev dir="izq" /></button>
+            {total <= 8 ? (
+              <span className="pc-pts" aria-hidden>
+                {Array.from({ length: total }).map((_, k) => <i key={k} className={k === pos ? 'on' : ''} />)}
+              </span>
+            ) : (
+              <span className="pc-cnt-n">{pos + 1}/{total}</span>
+            )}
+            <button type="button" onClick={() => ir(1)} disabled={pos >= total - 1} aria-label="Pieza siguiente"><IcoChev dir="der" /></button>
+          </div>
+        )}
       </header>
-      <div className="pc-grid">
+      <div className="pc-grid" ref={pista} onScroll={alDesplazar}>
         {children}
         <button type="button" className="pc-nueva" onClick={onNueva}>
           <span><IcoMas /></span>
@@ -237,6 +272,7 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
   const [subiendoEn, setSubiendoEn] = useState<'s' | number | null>(null);
   const [likes, setLikes] = useState<Record<string, number>>({}); // me encanta por id de prenda
   const [detalle, setDetalle] = useState<string | null>(null); // id de la única tarjeta con detalles abiertos
+  const [exp, setExp] = useState<string | null>(null); // móvil: id de la tarjeta con la información desplegada
   const aBorrar = lista.find((x) => x.id === confirmar) || null;
   const portadaBorrar = aBorrar ? parseFotos(aBorrar.foto_url)[0] : '';
   const fotosForm = parseFotos(form.foto_url);
@@ -494,11 +530,16 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
     const fotos = v ? (v.fotos.length ? v.fotos : (vs ?? []).find((x) => x.fotos.length)?.fotos ?? []) : parseFotos(p.foto_url);
     const estado = stock === 0 ? { t: 'Agotada', c: 'ag' } : stock === 1 ? { t: 'Última unidad', c: 'ul' } : { t: `${stock} disponibles`, c: 'ok' };
     const abiertoDet = detalle === p.id;
+    const desplegada = exp === p.id;
     const nLikes = likes[p.id] || 0;
     const insignias = (
       <>
         <span className={`pc-like ${nLikes ? '' : 'cero'}`} title="Me encanta de los clientes" aria-label={`${nLikes} me encanta`}><IcoCorazon /><b key={nLikes}>{nLikes}</b></span>
         <div className="pc-pie"><span>Fotografía real</span><b>{peso ? `${peso} g` : ''}</b></div>
+        <div className="pc-nom-ov">
+          <small>{p.categoria}{peso ? ` · ${peso} g` : ''}</small>
+          <h3>{p.nombre}</h3>
+        </div>
       </>
     );
     return (
@@ -516,15 +557,26 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
           </div>
         )}
 
-        <div className="pc-info">
-          <div className="pc-top">
+        <div className={`pc-info ${desplegada ? 'abre' : ''}`}>
+          {/* Móvil: resumen siempre visible con botón para desplegar el resto */}
+          <div className="pc-resumen">
+            <div>
+              <b>{cop(precio)}{precio > 0 && <small>COP</small>}</b>
+              <span className={`pc-est ${estado.c}`}><i aria-hidden="true" />{estado.t}</span>
+            </div>
+            <button type="button" className="pc-tg" aria-expanded={desplegada} onClick={() => setExp(desplegada ? null : p.id)}>
+              {desplegada ? 'Ocultar' : 'Detalles'} <IcoChev dir="der" />
+            </button>
+          </div>
+
+          <div className="pc-top pc-det">
             <span className="pc-sku" title={p.codigo}>SKU: {p.codigo}</span>
             <span className={`pc-est ${estado.c}`}><i aria-hidden="true" />{estado.t}</span>
           </div>
 
           <h3 className="pc-nom" title={p.nombre}>{p.nombre}</h3>
 
-          <div>
+          <div className="pc-det">
             <p className="pc-desc">{p.descripcion || 'Sin descripción.'}</p>
             <button type="button" className="pc-mas" onClick={() => setDetalle(p.id)} aria-haspopup="dialog" aria-expanded={abiertoDet}>
               Ver ficha completa <IcoChev dir="der" />
@@ -542,12 +594,12 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
             </div>
           )}
 
-          <div className="pc-tiles">
+          <div className="pc-tiles pc-det">
             <div><span>Peso exacto</span><b>{peso ? `${peso} g` : '—'}</b></div>
             <div><span>Tamaño</span><b title={tamano}>{tamano || '—'}</b></div>
           </div>
 
-          <div className="pc-precios">
+          <div className="pc-precios pc-det">
             <div>
               <span>Precio público{manual && <em title="Precio fijado manualmente">Manual</em>}</span>
               <b>{cop(precio)}{precio > 0 && <small>COP</small>}</b>
@@ -558,7 +610,7 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
             </div>
           </div>
 
-          <div className="pc-acc">
+          <div className="pc-acc pc-det">
             <div className="pc-sw">
               <button
                 type="button" role="switch" aria-checked={on} className="pc-tog"
@@ -631,7 +683,6 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
         .pr-main { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; transition: filter .3s, opacity .3s; }
         .pr-foto::after { content: ""; position: absolute; inset: auto 0 0 0; height: 42%; background: linear-gradient(to top, var(--c1) 6%, rgba(11,45,31,0)); pointer-events: none; z-index: 2; }
         .pr-vacio-foto { position: absolute; inset: 0; display: grid; place-items: center; color: ${ORO}; }
-        .pr-foto { touch-action: pan-y; }
         .pr-fade { animation: prfade .35s both; }
         .pr-nav { position: absolute; top: 42%; transform: translateY(-50%); z-index: 5; width: 28px; height: 28px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer;
           border: 1px solid rgba(216,185,95,.55); background: rgba(6,24,17,.55); color: #ecd07a; backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s, background .2s, color .2s; }
@@ -820,6 +871,9 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
           font-size: 10px; letter-spacing: .06em; color: rgba(241,237,224,.72); }
         .pc-pie b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: #f0c14b; }
 
+        /* Solo móvil: nombre sobre la foto, resumen y ctl del carrusel (ocultos en PC) */
+        .pc-nom-ov, .pc-resumen, .pc-ctl { display: none; }
+
         .pc-info { min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 14px; background: linear-gradient(180deg, #0e1a15, #0a130f); }
         .pc-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .pc-sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: .08em; color: #93a09a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -886,11 +940,59 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
         .pc-card.off .pr-bg { filter: blur(22px) grayscale(1) brightness(.6); }
         .pc-card.off .pc-nom, .pc-card.off .pc-precios b { opacity: .6; }
 
+        /* ---------- Móvil: carrusel (80 % pieza actual + 20 % la siguiente), foto a sangre y ficha colapsable ---------- */
         @media (max-width: 640px) {
-          .pc-grid { grid-template-columns: minmax(0, 1fr); }
-          .pc-card { grid-template-columns: minmax(0, 1fr); }
-          .pc-card .pr-foto { height: 300px; min-height: 300px; }
-          .pc-nom { font-size: 18px; }
+          /* controles ‹ ● ● ● › junto al título de la categoría */
+          .pr-sec-h { gap: 8px; margin: 16px 0 4px; flex-wrap: wrap; }
+          .pr-sec-l { display: none; }
+          .pc-ctl { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+          .pc-ctl button { width: 32px; height: 32px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+            border: 1px solid rgba(176,141,60,.55); background: #fff; color: #6f5716; transition: .2s; }
+          .pc-ctl button:active:not(:disabled) { background: #b08d3c; color: #fff; }
+          .pc-ctl button:disabled { opacity: .35; cursor: default; }
+          .pc-pts { display: inline-flex; align-items: center; gap: 5px; }
+          .pc-pts i { width: 6px; height: 6px; border-radius: 99px; background: rgba(11,45,31,.22); transition: width .25s, background .25s; }
+          .pc-pts i.on { width: 18px; background: #b08d3c; }
+          .pc-cnt-n { min-width: 38px; text-align: center; font-size: 12px; font-weight: 600; color: #6f5716; font-variant-numeric: tabular-nums; }
+
+          .pc-grid { display: flex; gap: 10px; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-left: 2px;
+            padding: 6px 2px 18px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+          .pc-grid::-webkit-scrollbar { display: none; }
+          .pc-card { flex: 0 0 80%; min-height: 0; grid-template-columns: minmax(0, 1fr); scroll-snap-align: start; }
+          .pc-card:hover { transform: none; }
+
+          /* foto: ocupa todo el espacio, sin caja ni fondo desenfocado */
+          .pc-card .pr-foto { aspect-ratio: 1 / 1; height: auto; min-height: 0; }
+          .pc-card .pr-bg { display: none; }
+          .pc-card .pr-main { object-fit: cover; }
+          .pc-card .pr-foto::after { height: 62%; background: linear-gradient(to top, rgba(5,12,9,.92) 4%, rgba(5,12,9,0)); }
+          .pc-pie { display: none; }
+          .pc-card .pr-dots { bottom: 10px; }
+
+          /* nombre sobre la foto */
+          .pc-nom-ov { display: block; position: absolute; left: 0; right: 0; bottom: 24px; z-index: 4; padding: 0 14px; pointer-events: none; }
+          .pc-nom-ov small { display: block; margin-bottom: 3px; font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: #ecd07a; font-weight: 600; }
+          .pc-nom-ov h3 { margin: 0; font-family: var(--jks-serif, Georgia), serif; font-weight: 500; font-size: 19px; line-height: 1.15; color: #fff;
+            text-shadow: 0 2px 8px rgba(0,0,0,.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+          .pc-info > .pc-nom { display: none; }
+
+          /* resumen siempre visible + botón de desplegar */
+          .pc-info { padding: 10px 12px 12px; gap: 10px; }
+          .pc-resumen { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+          .pc-resumen > div { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+          .pc-resumen b { display: flex; align-items: baseline; gap: 5px; font-family: var(--jks-serif, Georgia), serif; font-weight: 500; font-size: 20px; color: #fff; }
+          .pc-resumen b small { font-family: system-ui, sans-serif; font-size: 9.5px; letter-spacing: .08em; color: #93a09a; }
+          .pc-tg { flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 99px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 4px; color: #f0c14b; border: 1px solid rgba(240,193,75,.5); background: transparent; transition: .2s; }
+          .pc-tg svg { transition: transform .25s; transform: rotate(90deg); }
+          .pc-tg[aria-expanded="true"] { background: #f0c14b; color: #1b1608; border-color: #f0c14b; }
+          .pc-tg[aria-expanded="true"] svg { transform: rotate(-90deg); }
+
+          /* todo lo demás queda oculto hasta desplegar */
+          .pc-info:not(.abre) .pc-det { display: none; }
+          .pc-info.abre .pc-det { animation: pcentra .3s both; }
+
+          .pc-nueva { flex: 0 0 56%; min-height: 220px; scroll-snap-align: start; align-self: stretch; }
         }
       `}</style>
 
