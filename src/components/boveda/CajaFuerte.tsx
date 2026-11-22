@@ -8,15 +8,28 @@ type Fase = 'cerrada' | 'desbloqueando' | 'abriendo' | 'saliendo' | 'abierta';
 
 const MIN = 4;
 const MAX = 8;
+const SERIE = 'JKS-BV-2026-0417';
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'borrar', '0', 'entrar'] as const;
 
-export default function CajaFuerte({ abierta, sinCodigo = false, children }: { abierta: boolean; sinCodigo?: boolean; children?: React.ReactNode }) {
+export default function CajaFuerte({
+  abierta,
+  sinCodigo = false,
+  logoUrl,
+  children,
+}: {
+  abierta: boolean;
+  sinCodigo?: boolean;
+  /** Logo de la joyería (opcional). Si no se pasa, se muestra el nombre en texto */
+  logoUrl?: string;
+  children?: React.ReactNode;
+}) {
   const router = useRouter();
   const [fase, setFase] = useState<Fase>(abierta ? 'abierta' : 'cerrada');
   const [codigo, setCodigo] = useState('');
   const [msg, setMsg] = useState('');
   const [mal, setMal] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [giro, setGiro] = useState(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -27,20 +40,28 @@ export default function CajaFuerte({ abierta, sinCodigo = false, children }: { a
   const pulsar = (t: string) => {
     if (fase !== 'cerrada' || enviando) return;
     setMsg('');
-    setCodigo((c) => (c.length < MAX ? c + t : c));
+    setCodigo((c) => {
+      if (c.length >= MAX) return c;
+      setGiro((g) => g + 36);
+      return c + t;
+    });
   };
   const borrar = () => {
     if (fase !== 'cerrada' || enviando) return;
     setMsg('');
-    setCodigo((c) => c.slice(0, -1));
+    setCodigo((c) => {
+      if (!c) return c;
+      setGiro((g) => g - 36);
+      return c.slice(0, -1);
+    });
   };
 
   function abrirCaja() {
     setFase('desbloqueando'); // pernos se retiran y gira la rueda
     router.refresh();         // el servidor ya ve la cookie y trae el contenido
     luego(() => setFase('abriendo'), 950);  // la puerta se abre
-    luego(() => setFase('saliendo'), 2150); // la caja se desvanece
-    luego(() => setFase('abierta'), 2700);  // se muestra la bóveda
+    luego(() => setFase('saliendo'), 2400); // la caja se desvanece
+    luego(() => setFase('abierta'), 2950);  // se muestra la bóveda
   }
 
   async function entrar() {
@@ -117,6 +138,7 @@ export default function CajaFuerte({ abierta, sinCodigo = false, children }: { a
   const desbloqueada = fase !== 'cerrada';
   const puertaAbre = fase === 'abriendo' || fase === 'saliendo';
   const led = desbloqueada ? 'verde' : mal ? 'rojo' : 'ambar';
+  const anguloDial = desbloqueada ? giro - 300 : giro;
 
   return (
     <div className="cf-escena">
@@ -129,51 +151,102 @@ export default function CajaFuerte({ abierta, sinCodigo = false, children }: { a
         </header>
 
         <div className="cf-marco">
-          {/* Interior que se ve al abrir la puerta */}
-          <div className="cf-interior" aria-hidden>
-            <span>BÓVEDA<br />ABIERTA</span>
+          {/* Remaches del marco */}
+          <i className="cf-rem a" aria-hidden /><i className="cf-rem b" aria-hidden />
+          <i className="cf-rem c" aria-hidden /><i className="cf-rem d" aria-hidden />
+
+          {/* Placa con número de serie */}
+          <div className="cf-serie" aria-label={`Número de serie ${SERIE}`}>
+            <span>SERIE N.º</span><b>{SERIE}</b>
           </div>
 
-          <div className={`cf-puerta ${puertaAbre ? 'abre' : ''}`} role="group" aria-label="Caja fuerte">
-            {/* Pernos de seguridad: salen de la puerta hacia el marco */}
-            {(['i', 'd'] as const).flatMap((lado) =>
-              [18, 50, 82].map((top) => (
-                <span key={`${lado}${top}`} className={`cf-slot ${lado}`} style={{ top: `${top}%` }} aria-hidden>
+          <div className="cf-hueco">
+            {/* Interior que se ve al abrir la puerta */}
+            <div className="cf-interior" aria-hidden>
+              <div className={`cf-luz ${puertaAbre ? 'on' : ''}`} />
+              {[0, 1, 2].map((n) => (
+                <div className="cf-repisa" key={n}>
+                  {Array.from({ length: n === 1 ? 4 : 3 }).map((_, i) => (
+                    <span key={i} className={`cf-lingote l${(n + i) % 3}`} />
+                  ))}
+                  {n !== 1 && (
+                    <svg className="cf-gema" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4h12l4 5-10 11L2 9z" /><path d="M2 9h20M9 4l-2 5 5 11 5-11-2-5" />
+                    </svg>
+                  )}
+                </div>
+              ))}
+              <div className="cf-abierta-txt">BÓVEDA ABIERTA</div>
+            </div>
+
+            {/* Bisagras (fijas al marco) */}
+            <i className="cf-bisagra h1" aria-hidden /><i className="cf-bisagra h2" aria-hidden /><i className="cf-bisagra h3" aria-hidden />
+
+            <div className={`cf-puerta ${puertaAbre ? 'abre' : ''}`} role="group" aria-label="Caja fuerte">
+              {/* Pernos de seguridad: salen de la puerta hacia el marco */}
+              {[18, 50, 82].map((top) => (
+                <span key={top} className="cf-slot" style={{ top: `${top}%` }} aria-hidden>
                   <span className={`cf-perno ${desbloqueada ? 'suelto' : ''}`} />
                 </span>
-              )),
-            )}
+              ))}
 
-            {/* Rueda / manija */}
-            <div className={`cf-rueda ${desbloqueada ? 'gira' : ''}`} aria-hidden>
-              <span /><span /><span />
-              <b />
-            </div>
+              <div className="cf-panel">
+                {/* Marca */}
+                <div className="cf-marca">
+                  {logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt="Karen Sprockel's Luxury" />
+                  ) : (
+                    <span>KAREN SPROCKEL&apos;S<br /><em>LUXURY</em></span>
+                  )}
+                </div>
 
-            {/* Visor */}
-            <div className={`cf-visor ${mal ? 'mal' : ''}`} aria-live="polite">
-              <span className={`cf-led ${led}`} aria-hidden />
-              <div className="cf-puntos">
-                {codigo ? Array.from({ length: codigo.length }).map((_, i) => <i key={i} />) : <em>Ingresa el código</em>}
+                {/* Dial: gira con cada tecla y se abre al desbloquear */}
+                <div className="cf-dial" aria-hidden>
+                  <svg viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="56" className="d-aro" />
+                    <g style={{ transform: `rotate(${anguloDial}deg)`, transformOrigin: '60px 60px', transition: `transform ${desbloqueada ? '.95s' : '.35s'} cubic-bezier(.3,.8,.3,1)` }}>
+                      {Array.from({ length: 40 }).map((_, i) => (
+                        <line key={i} x1="60" y1="8" x2="60" y2={i % 5 === 0 ? 17 : 13} transform={`rotate(${i * 9} 60 60)`} className="d-tic" />
+                      ))}
+                      <circle cx="60" cy="60" r="38" className="d-cuerpo" />
+                      {[0, 60, 120].map((a) => (
+                        <line key={a} x1="60" y1="24" x2="60" y2="96" transform={`rotate(${a} 60 60)`} className="d-radio" />
+                      ))}
+                      <circle cx="60" cy="60" r="9" className="d-centro" />
+                    </g>
+                    <path d="M60 2 l5 9 h-10z" className="d-flecha" />
+                  </svg>
+                </div>
+
+                {/* Visor */}
+                <div className={`cf-visor ${mal ? 'mal' : ''}`} aria-live="polite">
+                  <span className={`cf-led ${led}`} aria-hidden />
+                  <div className="cf-puntos">
+                    {codigo ? Array.from({ length: codigo.length }).map((_, i) => <i key={i} />) : <em>Ingresa el código</em>}
+                  </div>
+                </div>
+                <p className={`cf-msg ${mal ? 'mal' : ''}`} role="status">
+                  {desbloqueada ? 'Código correcto' : msg || '\u00a0'}
+                </p>
+
+                {/* Teclado */}
+                <div className="cf-teclas">
+                  {TECLAS.map((t) =>
+                    t === 'borrar' ? (
+                      <button key={t} type="button" onClick={borrar} disabled={desbloqueada || enviando} aria-label="Borrar último dígito">⌫</button>
+                    ) : t === 'entrar' ? (
+                      <button key={t} type="button" className="ok" onClick={entrar} disabled={desbloqueada || enviando} aria-label="Abrir bóveda">
+                        {enviando ? <span className="cf-sp" aria-hidden /> : '✓'}
+                      </button>
+                    ) : (
+                      <button key={t} type="button" onClick={() => pulsar(t)} disabled={desbloqueada || enviando}>{t}</button>
+                    ),
+                  )}
+                </div>
+
+                <div className="cf-pie"><span>N.º {SERIE}</span><span>● CERRADURA ELECTRÓNICA</span></div>
               </div>
-            </div>
-            <p className={`cf-msg ${mal ? 'mal' : ''}`} role="status">
-              {desbloqueada ? 'Código correcto' : msg || '\u00a0'}
-            </p>
-
-            {/* Teclado */}
-            <div className="cf-teclas">
-              {TECLAS.map((t) =>
-                t === 'borrar' ? (
-                  <button key={t} type="button" onClick={borrar} disabled={desbloqueada || enviando} aria-label="Borrar último dígito">⌫</button>
-                ) : t === 'entrar' ? (
-                  <button key={t} type="button" className="ok" onClick={entrar} disabled={desbloqueada || enviando} aria-label="Abrir bóveda">
-                    {enviando ? <span className="cf-sp" aria-hidden /> : '✓'}
-                  </button>
-                ) : (
-                  <button key={t} type="button" onClick={() => pulsar(t)} disabled={desbloqueada || enviando}>{t}</button>
-                ),
-              )}
             </div>
           </div>
         </div>
@@ -183,58 +256,80 @@ export default function CajaFuerte({ abierta, sinCodigo = false, children }: { a
 }
 
 const CSS = `
-.cf-escena { min-height: calc(100vh - 150px); display: grid; place-items: center; padding: 20px 12px 40px; }
-.cf-persp { width: min(420px, 100%); perspective: 1500px; transition: opacity .55s ease, transform .55s ease; }
+.cf-escena { min-height: calc(100vh - 150px); display: grid; place-items: center; padding: 28px 12px 40px; }
+.cf-persp { width: min(560px, 100%); transition: opacity .55s ease, transform .55s ease; }
 .cf-persp.fuera { opacity: 0; transform: scale(1.06); }
 
-.cf-titulo { text-align: center; margin-bottom: 18px; }
+.cf-titulo { text-align: center; margin-bottom: 26px; }
 .cf-titulo h1 { margin: 0 0 4px; font-family: var(--jks-serif, Georgia), serif; font-weight: 500; font-size: 28px; color: #14231b; }
 .cf-titulo p { margin: 0; font-size: 13px; color: #6b7a72; }
 
-/* Marco de la caja */
-.cf-marco { position: relative; padding: 26px; border-radius: 30px;
-  background: linear-gradient(145deg, #1d4d37, #0a2619 55%, #07180f);
-  border: 1px solid rgba(216,185,95,.5);
-  box-shadow: 0 40px 80px rgba(5,28,19,.4), inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 6px rgba(0,0,0,.18); }
+/* Marco de acero */
+.cf-marco { position: relative; padding: 30px; border-radius: 32px;
+  background: linear-gradient(145deg, #3a4a42 0%, #1d2a24 42%, #101a15 100%);
+  box-shadow: 0 40px 80px rgba(5,28,19,.42), 0 0 0 2px #0a120e, inset 0 2px 0 rgba(255,255,255,.18), inset 0 -3px 8px rgba(0,0,0,.5); }
+.cf-rem { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #f0d680, #8a6d25); box-shadow: 0 1px 2px #000; }
+.cf-rem.a { top: 12px; left: 12px; } .cf-rem.b { top: 12px; right: 12px; } .cf-rem.c { bottom: 12px; left: 12px; } .cf-rem.d { bottom: 12px; right: 12px; }
+
+/* Placa de serie */
+.cf-serie { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 10px; padding: 7px 18px; border-radius: 8px; white-space: nowrap;
+  background: linear-gradient(180deg, #ebd48e, #b08d3c); color: #2a2008; box-shadow: 0 6px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.6); }
+.cf-serie span { font-size: 9px; letter-spacing: .16em; font-weight: 700; opacity: .8; }
+.cf-serie b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .1em; }
+
+/* Hueco con perspectiva 3D */
+.cf-hueco { position: relative; perspective: 1700px; border-radius: 22px; background: #050b08; box-shadow: inset 0 0 0 3px #0a120e, inset 0 10px 30px #000; }
 
 /* Interior (se ve cuando la puerta se abre) */
-.cf-interior { position: absolute; inset: 26px; border-radius: 18px; display: grid; place-items: center; text-align: center;
-  background: radial-gradient(ellipse at 50% 45%, #f6dd8a 0%, #b08d3c 30%, #0d2418 78%);
-  box-shadow: inset 0 0 40px rgba(0,0,0,.6); }
-.cf-interior span { font-family: var(--jks-serif, Georgia), serif; font-size: 22px; letter-spacing: .24em; line-height: 1.5; color: #1c1608; font-weight: 600; }
+.cf-interior { position: absolute; inset: 6px; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-evenly; padding: 18px 22px 30px;
+  background: linear-gradient(180deg, #0d2a1e, #061610); }
+.cf-luz { position: absolute; inset: 0; opacity: 0; transition: opacity 1.1s ease .4s; background: radial-gradient(ellipse at 50% 30%, rgba(236,208,122,.4), transparent 65%); }
+.cf-luz.on { opacity: 1; }
+.cf-repisa { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 12px; height: 26%; padding-bottom: 4px; border-bottom: 6px solid #1b3a2b; box-shadow: 0 8px 12px -8px rgba(0,0,0,.9); }
+.cf-lingote { display: block; width: 68px; height: 28px; clip-path: polygon(10% 0, 90% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #f6e3a0, #c9a548 55%, #8a6d25); box-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.cf-lingote.l1 { height: 23px; width: 58px; } .cf-lingote.l2 { height: 33px; }
+.cf-gema { color: #8fe3c0; filter: drop-shadow(0 0 8px rgba(143,227,192,.7)); margin-left: 8px; }
+.cf-abierta-txt { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 10px; letter-spacing: .4em; color: #ecd07a; opacity: 0; transition: opacity .6s 1.4s; }
+.cf-luz.on ~ .cf-abierta-txt { opacity: 1; }
+
+/* Bisagras */
+.cf-bisagra { position: absolute; left: -13px; width: 17px; height: 52px; border-radius: 6px; z-index: 4;
+  background: linear-gradient(90deg, #6f5716, #ecd07a 45%, #8a6d25); box-shadow: 0 3px 6px rgba(0,0,0,.6); }
+.cf-bisagra.h1 { top: 11%; } .cf-bisagra.h2 { top: 45%; } .cf-bisagra.h3 { bottom: 11%; }
 
 /* Puerta */
-.cf-puerta { position: relative; z-index: 2; padding: 22px 20px 20px; border-radius: 18px; transform-origin: left center; backface-visibility: hidden;
-  background: linear-gradient(160deg, #265c44 0%, #12392a 45%, #0c2a1d 100%);
-  border: 1px solid rgba(216,185,95,.6);
-  box-shadow: inset 0 0 0 3px rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.12), 0 12px 30px rgba(0,0,0,.4);
-  transition: transform 1.15s cubic-bezier(.6,.05,.2,1), opacity .35s ease .8s; }
+.cf-puerta { position: relative; z-index: 2; padding: 14px; border-radius: 20px; transform-origin: left center; backface-visibility: hidden;
+  background: linear-gradient(150deg, #2a6a4a 0%, #1b4a34 38%, #0f3022 100%);
+  box-shadow: inset 0 0 0 2px #0a291d, inset 0 2px 0 rgba(255,255,255,.18), inset 0 -6px 14px rgba(0,0,0,.45), 0 12px 30px rgba(0,0,0,.4);
+  transition: transform 1.3s cubic-bezier(.55,.05,.2,1), opacity .4s ease 1s; }
 .cf-puerta.abre { transform: rotateY(-100deg); opacity: 0; }
 
-/* Pernos */
-.cf-slot { position: absolute; width: 22px; height: 20px; transform: translateY(-50%); overflow: hidden; }
-.cf-slot.i { left: -22px; border-radius: 10px 0 0 10px; }
-.cf-slot.d { right: -22px; border-radius: 0 10px 10px 0; }
-.cf-perno { display: block; width: 100%; height: 100%;
-  background: linear-gradient(180deg, #f6dd8a, #b08d3c 55%, #6f5716); box-shadow: 0 2px 6px rgba(0,0,0,.55);
-  transition: transform .7s cubic-bezier(.5,0,.2,1); }
-.cf-slot.i .cf-perno.suelto { transform: translateX(24px); }
-.cf-slot.d .cf-perno.suelto { transform: translateX(-24px); }
+.cf-panel { display: grid; gap: 12px; justify-items: center; padding: 20px 22px 14px; border-radius: 14px; border: 1.5px solid rgba(216,185,95,.65);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.18)); }
 
-/* Rueda */
-.cf-rueda { position: relative; width: 92px; height: 92px; margin: 0 auto 16px; border-radius: 50%;
-  border: 3px solid #c9a548; background: radial-gradient(circle at 35% 30%, #1d4d37, #0a2619);
-  box-shadow: 0 6px 16px rgba(0,0,0,.5), inset 0 0 0 5px rgba(0,0,0,.25); transition: transform .95s cubic-bezier(.4,0,.2,1); }
-.cf-rueda.gira { transform: rotate(-300deg); }
-.cf-rueda span { position: absolute; left: 8px; right: 8px; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px;
-  background: linear-gradient(180deg, #f6dd8a, #b08d3c); }
-.cf-rueda span:nth-child(2) { transform: rotate(60deg); }
-.cf-rueda span:nth-child(3) { transform: rotate(120deg); }
-.cf-rueda b { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f6dd8a, #8a6d25); box-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.cf-marca { min-height: 44px; display: grid; place-items: center; text-align: center; }
+.cf-marca img { max-height: 58px; max-width: 160px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+.cf-marca span { font-size: 12px; letter-spacing: .26em; color: #ecd07a; font-weight: 600; line-height: 1.5; }
+.cf-marca em { font-family: var(--jks-serif, Georgia), serif; letter-spacing: .18em; font-size: 13px; }
+
+/* Dial */
+.cf-dial { width: 128px; height: 128px; padding: 4px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #4f8a6c, #14392a 70%); box-shadow: 0 10px 22px rgba(0,0,0,.55), inset 0 2px 3px rgba(255,255,255,.25); }
+.cf-dial svg { width: 100%; height: 100%; display: block; }
+.d-aro { fill: none; stroke: #c9a548; stroke-width: 2; }
+.d-tic { stroke: #ecd07a; stroke-width: 1.3; stroke-linecap: round; }
+.d-cuerpo { fill: #123a29; stroke: #c9a548; stroke-width: 1.5; }
+.d-radio { stroke: #d8b95f; stroke-width: 5; stroke-linecap: round; }
+.d-centro { fill: #ecd07a; stroke: #8a6d25; stroke-width: 2; }
+.d-flecha { fill: #ecd07a; }
+
+/* Pernos (salen del borde derecho de la puerta hacia el marco) */
+.cf-slot { position: absolute; right: -24px; width: 24px; height: 22px; transform: translateY(-50%); overflow: hidden; border-radius: 0 10px 10px 0; z-index: 3; }
+.cf-perno { display: block; width: 100%; height: 100%; background: linear-gradient(180deg, #f6e3a0, #b08d3c 55%, #6f5716); box-shadow: 0 2px 6px rgba(0,0,0,.55); transition: transform .7s cubic-bezier(.5,0,.2,1); }
+.cf-perno.suelto { transform: translateX(-26px); }
 
 /* Visor */
-.cf-visor { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 16px; border-radius: 14px;
+.cf-visor { width: 100%; display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 16px; border-radius: 14px;
   background: #06130c; border: 1px solid rgba(216,185,95,.35); box-shadow: inset 0 3px 10px rgba(0,0,0,.7); }
 .cf-visor.mal { animation: cfsacude .5s ease; }
 @keyframes cfsacude { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
@@ -245,21 +340,24 @@ const CSS = `
 .cf-puntos { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 20px; }
 .cf-puntos i { width: 12px; height: 12px; border-radius: 50%; background: #ecd07a; box-shadow: 0 0 8px rgba(236,208,122,.6); }
 .cf-puntos em { font-style: normal; font-size: 13px; letter-spacing: .06em; color: rgba(236,208,122,.45); }
-.cf-msg { min-height: 20px; margin: 10px 0 12px; text-align: center; font-size: 12.5px; color: rgba(243,234,210,.7); }
+.cf-msg { min-height: 18px; margin: 0; text-align: center; font-size: 12.5px; color: rgba(243,234,210,.7); }
 .cf-msg.mal { color: #ff9a90; }
 
 /* Teclado */
-.cf-teclas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.cf-teclas button { height: 54px; border-radius: 14px; cursor: pointer; font: inherit; font-size: 20px; font-weight: 600; color: #ecd07a;
-  border: 1px solid rgba(216,185,95,.35); background: linear-gradient(180deg, #1d4d37, #0f3324);
-  box-shadow: 0 3px 0 rgba(0,0,0,.4); display: grid; place-items: center; transition: transform .08s, box-shadow .08s, filter .15s; }
-.cf-teclas button:hover:not(:disabled) { filter: brightness(1.15); }
-.cf-teclas button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.cf-teclas { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.cf-teclas button { height: 56px; border-radius: 14px; cursor: pointer; font: inherit; font-size: 21px; font-weight: 600; color: #ecd07a;
+  border: 1px solid rgba(216,185,95,.4); background: linear-gradient(180deg, #1f5a3f, #123a29);
+  box-shadow: 0 4px 0 #07211a, 0 6px 10px rgba(0,0,0,.4); display: grid; place-items: center; transition: transform .08s, box-shadow .08s, filter .15s; }
+.cf-teclas button:hover:not(:disabled) { filter: brightness(1.2); }
+.cf-teclas button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #07211a; }
 .cf-teclas button:disabled { opacity: .55; cursor: default; }
-.cf-teclas button.ok { color: #1c1608; border-color: transparent; background: linear-gradient(135deg, #f0d680, #c9a548 55%, #b08d3c); }
+.cf-teclas button.ok { color: #1c1608; border-color: transparent; background: linear-gradient(135deg, #f0d680, #c9a548 55%, #b08d3c); box-shadow: 0 4px 0 #6f5716, 0 6px 10px rgba(0,0,0,.4); }
+.cf-teclas button.ok:active:not(:disabled) { box-shadow: 0 1px 0 #6f5716; }
 .cf-teclas button:focus-visible { outline: 2px solid #f0d680; outline-offset: 2px; }
 .cf-sp { width: 18px; height: 18px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: cfgiro .7s linear infinite; }
 @keyframes cfgiro { to { transform: rotate(360deg); } }
+
+.cf-pie { width: 100%; display: flex; justify-content: space-between; gap: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; letter-spacing: .1em; color: rgba(216,185,95,.6); }
 
 /* Bóveda abierta */
 .cf-abierta { animation: cfentra .6s ease both; }
@@ -275,12 +373,15 @@ const CSS = `
 .cf-carga { padding: 40px 0; text-align: center; color: #7a857e; }
 
 @media (max-width: 480px) {
-  .cf-marco { padding: 22px; }
-  .cf-interior { inset: 22px; }
+  .cf-marco { padding: 24px 16px 18px; border-radius: 26px; }
+  .cf-panel { padding: 16px 12px 12px; }
+  .cf-dial { width: 104px; height: 104px; }
   .cf-teclas button { height: 52px; }
+  .cf-serie { gap: 6px; padding: 6px 12px; }
+  .cf-interior { padding: 14px 14px 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cf-puerta, .cf-perno, .cf-rueda, .cf-persp { transition-duration: .01s !important; transition-delay: 0s !important; }
+  .cf-puerta, .cf-perno, .cf-luz, .cf-abierta-txt, .cf-persp { transition-duration: .01s !important; transition-delay: 0s !important; }
   .cf-visor.mal, .cf-abierta { animation: none; }
 }
 `;
