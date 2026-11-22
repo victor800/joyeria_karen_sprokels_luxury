@@ -84,14 +84,8 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
   const esencialesOk = ESENCIALES.every(lleno);
 
   // Abre la tienda en el mismo dominio donde estás (local o Vercel)
- const rutaTienda = (() => {
-  if (!url) return '';
-  try {
-    return new window.URL(url).pathname;
-  } catch {
-    return url;
-  }
-})();
+   // Ruta relativa de la tienda (/t/slug): igual en servidor y navegador, sin usar window
+  const rutaTienda = url ? url.replace(/^https?:\/\/[^/]+/i, '') : '';
 
   // ---------- Acciones ----------
   const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement>) => {

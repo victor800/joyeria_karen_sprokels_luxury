@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
 import { leerConfigPublica } from '@/lib/configuracion';
 import { leerPrendasPublicas } from '@/lib/prendas';
+import CatalogoPublico, { type PrendaP, type VarianteP } from './CatalogoPublico';
 
 const serif = Playfair_Display({
   subsets: ['latin'],
@@ -12,12 +13,10 @@ const serif = Playfair_Display({
   display: 'swap',
 });
 
-/** Se refresca cada minuto: los cambios de Configuración se ven casi al instante sin saturar Google Sheets */
+/** Se refresca cada minuto: los cambios de Configuración y de Prendas se ven casi al instante sin saturar Google Sheets */
 export const revalidate = 60;
 
 type Params = { params: Promise<{ slug: string }> };
-
-type Producto = { nombre: string; precio?: string; foto?: string; categoria?: string; detalle?: string };
 
 const cop = (v?: string) => {
   const n = Number(String(v ?? '').replace(/[.,\s]/g, ''));
@@ -37,6 +36,79 @@ const waLink = (tel?: string) => {
   const d = (tel || '').replace(/\D/g, '');
   return d ? `https://wa.me/${d.length <= 10 ? '57' + d : d}` : '#';
 };
+
+/* ---------- Prendas del Sheet → datos para las tarjetas ---------- */
+const SEP = '|';
+const parseFotos = (v: unknown) => String(v ?? '').split(SEP).map((x) => x.trim()).filter(Boolean);
+const soloDigitos = (v: unknown) => Number(String(v ?? '').replace(/\D/g, '')) || 0;
+
+type VarCruda = { t?: unknown; p?: unknown; s?: unknown; m?: unknown; f?: unknown };
+function parseVariantes(tamano: unknown): VarCruda[] | null {
+  const t = String(tamano ?? '').trim();
+  if (!t.startsWith('[')) return null;
+  try {
+    const arr = JSON.parse(t);
+    return Array.isArray(arr) && arr.length ? arr : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizarPrendas(crudas: unknown[], precios: Record<string, unknown>): PrendaP[] {
+  const margen = Number(String(precios.margen ?? '0').replace(',', '.')) || 0;
+  const calc = (quilate: string, peso: unknown, manual: unknown) => {
+    const m = soloDigitos(manual);
+    if (m > 0) return m;
+    const gramo = soloDigitos(precios[`p${quilate}`]);
+    const pe = Number(String(peso ?? '').replace(',', '.'));
+    return pe > 0 && gramo > 0 ? Math.round(pe * gramo * (1 + margen / 100)) : 0;
+  };
+
+  const salida: PrendaP[] = [];
+  for (const raw of crudas) {
+    const r = raw as Record<string, unknown>;
+    const nombre = String(r.nombre ?? '').trim();
+    if (!nombre) continue;
+    if (r.activo !== undefined && String(r.activo) !== 'true') continue; // solo publicadas
+
+    const quilate = String(r.quilate ?? '18');
+    const fotosBase = parseFotos(r.foto_url ?? r.foto);
+    const crudasVar = parseVariantes(r.tamano);
+
+    let variantes: VarianteP[];
+    if (crudasVar) {
+      const vs = crudasVar.map((x) => ({
+        tamano: String(x.t ?? ''),
+        peso: String(x.p ?? ''),
+        stock: Number(x.s ?? 0) || 0,
+        precio: calc(quilate, x.p, x.m),
+        fotos: parseFotos(x.f),
+      }));
+      const respaldo = vs.find((x) => x.fotos.length)?.fotos ?? fotosBase;
+      variantes = vs.map((x) => ({ ...x, fotos: x.fotos.length ? x.fotos : respaldo }));
+    } else {
+      const precio = Number(r.precio) > 0 ? Number(r.precio) : soloDigitos(r.precio) || calc(quilate, r.peso, r.precio_manual);
+      variantes = [{
+        tamano: String(r.tamano ?? ''),
+        peso: String(r.peso ?? ''),
+        stock: Number(r.stock ?? 1) || 0,
+        precio,
+        fotos: fotosBase,
+      }];
+    }
+
+    salida.push({
+      id: String(r.id ?? r.codigo ?? nombre),
+      codigo: String(r.codigo ?? ''),
+      nombre,
+      categoria: String(r.categoria ?? ''),
+      quilate,
+      descripcion: String(r.descripcion ?? r.detalle ?? ''),
+      variantes,
+    });
+  }
+  return salida;
+}
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
@@ -86,7 +158,8 @@ export default async function TiendaPublica({ params }: Params) {
   const { slug } = await params;
   const f = await leerConfigPublica(slug).catch(() => null);
   if (!f) notFound();
-  const PRODUCTOS: Producto[] = await leerPrendasPublicas().catch(() => []);
+  const crudas = (await leerPrendasPublicas().catch(() => [])) as unknown[];
+  const PRENDAS = normalizarPrendas(crudas, f as unknown as Record<string, unknown>);
 
   const nombre = f.nombre || 'Joyería';
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
@@ -164,11 +237,93 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-prods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
         .mw-p { background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.05); position: relative; }
         .mw-pf { aspect-ratio: 1; border-radius: 10px; background: var(--vc); display: grid; place-items: center; color: #9db8a8; overflow: hidden; }
-        .mw-pf img { width: 100%; height: 100%; object-fit: cover; }
         .mw-p .co { position: absolute; top: 20px; right: 20px; color: #7d8f84; }
-        .mw-p b { display: block; font-size: 14px; margin-top: 12px; } .mw-p span { color: var(--o); font-size: 13px; }
         .mw-p .ln { display: block; height: 10px; border-radius: 6px; background: #ece8dd; margin-top: 12px; } .mw-p .ln + .ln { width: 50%; margin-top: 8px; }
         .mw-aviso { text-align: center; font-size: 12px; color: #8a978f; margin: 16px 0 0; }
+
+        /* ---------- Tarjetas del catálogo (verde profundo + oro) ---------- */
+        .mc-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 22px; }
+        .mc-chips button { font: inherit; font-size: 13px; padding: 8px 16px; border-radius: 99px; border: 1px solid rgba(176,141,60,.4); background: #fff; color: #3c4a42; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; transition: .2s; }
+        .mc-chips button i { font-style: normal; font-size: 11px; background: #f1ead2; color: #8a6d25; padding: 1px 8px; border-radius: 99px; }
+        .mc-chips button:hover { border-color: #b08d3c; }
+        .mc-chips button[aria-pressed="true"] { background: #0b2d1f; border-color: #0b2d1f; color: #f3ead2; }
+        .mc-chips button[aria-pressed="true"] i { background: rgba(236,208,122,.2); color: #ecd07a; }
+
+        .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; align-items: start; }
+        .mc-card { --c1: #0b2d1f; --c2: #07211a; --au: #d8b95f; --crema: #f3ead2; position: relative; overflow: hidden; border-radius: 20px;
+          background: linear-gradient(180deg, var(--c1) 0%, var(--c1) 62%, var(--c2) 100%);
+          border: 1px solid rgba(216,185,95,.22); box-shadow: 0 14px 34px rgba(5,28,19,.28); color: var(--crema);
+          transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s, border-color .3s; animation: mcentra .5s both; }
+        .mc-card:hover { transform: translateY(-4px); border-color: rgba(216,185,95,.55); box-shadow: 0 22px 46px rgba(5,28,19,.38); }
+        @keyframes mcentra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+        .mc-foto { position: relative; aspect-ratio: 5 / 6; overflow: hidden; background: #07241a; touch-action: pan-y; }
+        .mc-foto::after { content: ""; position: absolute; inset: auto 0 0 0; height: 42%; background: linear-gradient(to top, var(--c1) 6%, rgba(11,45,31,0)); pointer-events: none; z-index: 2; }
+        .mc-bg { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(22px) saturate(1.1) brightness(.75); }
+        .mc-main { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; animation: mcfade .35s both; }
+        @keyframes mcfade { from { opacity: 0; } to { opacity: 1; } }
+        .mc-vacio { position: absolute; inset: 0; display: grid; place-items: center; color: var(--o); }
+        .mc-q { position: absolute; top: 16px; left: 16px; z-index: 3; font-size: 10.5px; font-weight: 600; letter-spacing: .18em; color: #ecd07a;
+          border: 1px solid rgba(236,208,122,.55); background: rgba(6,24,17,.45); backdrop-filter: blur(6px); padding: 4px 11px; border-radius: 99px; }
+        .mc-logo { position: absolute; top: 14px; right: 14px; z-index: 4; width: 34px; height: 34px; border-radius: 50%; object-fit: cover;
+          border: 1px solid rgba(216,185,95,.85); box-shadow: 0 2px 10px rgba(0,0,0,.45); background: #07241a; }
+        .mc-nav { position: absolute; top: 42%; transform: translateY(-50%); z-index: 5; width: 32px; height: 32px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer;
+          border: 1px solid rgba(216,185,95,.55); background: rgba(6,24,17,.55); color: #ecd07a; backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s, background .2s, color .2s; }
+        .mc-nav.prev { left: 10px; } .mc-nav.next { right: 10px; }
+        .mc-foto:hover .mc-nav, .mc-nav:focus-visible { opacity: 1; }
+        .mc-nav:hover { background: #d8b95f; color: #0b2d1f; }
+        @media (hover: none) { .mc-nav { display: none; } }
+        .mc-dots { position: absolute; left: 0; right: 0; bottom: 46px; z-index: 5; display: flex; justify-content: center; gap: 7px; }
+        .mc-dots button { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 99px; background: rgba(243,234,210,.45); cursor: pointer; transition: width .25s, background .25s; }
+        .mc-dots button.on { width: 20px; background: #ecd07a; }
+
+        .mc-cuerpo { position: relative; z-index: 4; margin-top: -34px; padding: 0 20px 14px; }
+        .mc-ey { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--au); font-weight: 600; margin-bottom: 6px; }
+        .mc-ey span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mc-ey b { font-weight: 500; letter-spacing: .14em; color: rgba(243,234,210,.55); flex-shrink: 0; }
+        .mw .mc-nom { font-size: 20px; line-height: 1.2; color: var(--crema); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mc-fino { height: 1px; margin: 14px 0 12px; background: linear-gradient(90deg, rgba(216,185,95,.7), rgba(216,185,95,.06)); }
+
+        .mc-tams { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+        .mc-tams button { font: inherit; font-size: 11px; padding: 5px 11px; border-radius: 99px; border: 1px solid rgba(216,185,95,.4); background: transparent; color: rgba(243,234,210,.85); cursor: pointer; transition: .2s; }
+        .mc-tams button:hover { border-color: #d8b95f; }
+        .mc-tams button[aria-pressed="true"] { background: linear-gradient(135deg, #e6c970, #b08d3c); border-color: #e6c970; color: #1c1c1c; font-weight: 600; }
+
+        .mc-spec { display: flex; }
+        .mc-spec > div { flex: 1; text-align: center; min-width: 0; padding: 2px; }
+        .mc-spec > div + div { border-left: 1px solid rgba(216,185,95,.18); }
+        .mc-spec small { display: block; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--au); margin-bottom: 4px; }
+        .mc-spec b { display: block; font-size: 12px; font-weight: 500; color: rgba(243,234,210,.92); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px; }
+        .mc-spec em { display: block; font-size: 9.5px; color: #e8b27a; margin-top: 1px; }
+        .mc-spec em.ag { color: #ef9a90; }
+
+        .mc-precio { margin-top: 16px; font-family: ${serif.style.fontFamily}, Georgia, serif; font-size: 27px; font-weight: 500; color: #ecd07a; }
+        .mc-pedir { display: block; margin-top: 14px; padding: 12px 14px; border-radius: 99px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+          color: #1c1c1c !important; background: linear-gradient(135deg, #e6c970, #b08d3c); transition: transform .2s, box-shadow .2s; }
+        .mc-pedir:hover:not(.off) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(176,141,60,.35); }
+        .mc-pedir.off { background: rgba(255,255,255,.08); color: rgba(243,234,210,.55) !important; cursor: default; }
+        .mc-mas { width: 100%; margin-top: 4px; padding: 10px 0 2px; border: 0; background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+          font: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: rgba(216,185,95,.85); transition: color .2s, gap .2s; }
+        .mc-mas svg { width: 13px; height: 13px; }
+        .mc-mas:hover { color: #ecd07a; gap: 8px; }
+        .mc-card.ago .mc-main { filter: grayscale(.8); opacity: .65; }
+
+        .mc-ov { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; padding: 20px 20px 16px;
+          background: linear-gradient(180deg, rgba(9,38,27,.97), rgba(5,24,17,.985)); backdrop-filter: blur(10px); animation: mcsube .32s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes mcsube { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+        .mc-ov-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(216,185,95,.25); }
+        .mc-ov-h small { display: block; font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: #d8b95f; font-weight: 600; margin-bottom: 6px; }
+        .mw .mc-ov-h h4 { margin: 0; font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; font-size: 20px; line-height: 1.2; color: #f3ead2; }
+        .mc-ov-x { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer; border: 1px solid rgba(216,185,95,.4); background: transparent; color: #d8b95f; transition: .2s; }
+        .mc-ov-x:hover { background: #d8b95f; color: #0b2d1f; }
+        .mc-ov-g { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 16px; }
+        .mc-ov-g > div { padding: 9px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(216,185,95,.14); min-width: 0; }
+        .mc-ov-g dt { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: rgba(216,185,95,.8); font-weight: 600; }
+        .mc-ov-g dd { margin: 3px 0 0; font-size: 14px; color: #f3ead2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mc-ov-s { font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: #d8b95f; font-weight: 600; margin-bottom: 6px; }
+        .mc-ov-d { flex: 1; min-height: 0; margin: 0; overflow-y: auto; font-size: 13px; line-height: 1.6; color: rgba(243,234,210,.82); white-space: pre-line; padding-right: 4px; scrollbar-width: thin; scrollbar-color: rgba(216,185,95,.4) transparent; }
+        .mc-ov-f { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(216,185,95,.2); font-size: 11px; color: rgba(243,234,210,.55); }
+        .mc-ov-f b { font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; font-size: 19px; color: #ecd07a; }
 
         .mw-banner { background: linear-gradient(110deg, #06301e, var(--v) 60%, var(--v2)); border-radius: 20px; color: #fff; padding: 44px 48px; display: grid; grid-template-columns: 1fr 1.1fr; gap: 32px; align-items: center; position: relative; overflow: hidden; margin-top: 56px; scroll-margin-top: 90px; }
         .mw-banner::after { content: ""; position: absolute; right: -80px; top: -80px; width: 280px; height: 280px; border-radius: 50%; border: 28px solid rgba(176,141,60,.25); pointer-events: none; }
@@ -208,7 +363,9 @@ export default async function TiendaPublica({ params }: Params) {
           .mw-hero h2 { font-size: 36px; }
           .mw-arco { width: 250px; height: 310px; }
           .mw-pie .mw-wrap { grid-template-columns: 1fr; }
+          .mc-grid { grid-template-columns: 1fr; }
         }
+        @media (prefers-reduced-motion: reduce) { .mc-card, .mc-ov, .mc-main { animation: none; } }
       `}</style>
 
       {/* ---------- Cabecera ---------- */}
@@ -279,26 +436,23 @@ export default async function TiendaPublica({ params }: Params) {
             <div><small>Los favoritos</small><h3>Nuestras piezas más amadas</h3></div>
             <a href="#catalogo">Ver todo →</a>
           </div>
-          <div className="mw-prods">
-            {(PRODUCTOS.length ? PRODUCTOS : Array.from({ length: 4 }, () => null)).map((p, i) =>
-              p ? (
-                <div key={i} className="mw-p">
-                  <div className="mw-pf">{p.foto && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.foto} alt={p.nombre} />}</div>
-                  <span className="co"><Ic n="heart" s={18} /></span>
-                 <b>{p.nombre}</b>
-<small style={{ display: 'block', color: '#6b7a72', fontSize: 11, margin: '2px 0' }}>{p.detalle}</small>
-<span>{p.precio ?? ''}</span>
-                </div>
-              ) : (
-                <div key={i} className="mw-p">
-                  <div className="mw-pf"><Ic n="gem" s={40} /></div>
-                  <span className="co"><Ic n="heart" s={18} /></span>
-                  <i className="ln" /><i className="ln" />
-                </div>
-              )
-            )}
-          </div>
-          {!PRODUCTOS.length && <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>}
+
+          {PRENDAS.length ? (
+            <CatalogoPublico prendas={PRENDAS} wa={waLink(f.telefono)} logo={f.logo_url || undefined} />
+          ) : (
+            <>
+              <div className="mw-prods">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="mw-p">
+                    <div className="mw-pf"><Ic n="gem" s={40} /></div>
+                    <span className="co"><Ic n="heart" s={18} /></span>
+                    <i className="ln" /><i className="ln" />
+                  </div>
+                ))}
+              </div>
+              <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>
+            </>
+          )}
 
           {/* Banner de precios del oro */}
           <div className="mw-banner" id="oro">
