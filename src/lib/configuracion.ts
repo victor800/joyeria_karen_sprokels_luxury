@@ -16,9 +16,10 @@ const NUMERICOS: Campo[] = ['p24', 'p18', 'p14', 'margen', 'domicilio', 'seguro'
 /** Campos protegidos: se generan una vez y no se pueden modificar */
 const FIJOS = ['id', 'slug', 'creado'] as const;
 
-/** Campos que ve el cliente en la página pública */
+/** Campos que ve el cliente en la página pública (sin margen, NIT ni correo) */
 export const PUBLICOS = [
   'slug', 'nombre', 'encabezado', 'logo_url', 'telefono', 'instagram', 'direccion', 'horario',
+  'p24', 'p18', 'p14', 'domicilio', 'cobertura', 'seguro',
 ] as const;
 
 export type Config = Record<string, string>;
@@ -46,7 +47,7 @@ export function slugify(t: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/['’`]/g, '') // quita apóstrofes sin dejar guion
+    .replace(/['’`]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
@@ -63,7 +64,6 @@ async function leerFilas(): Promise<Config> {
   try {
     res = await leer();
   } catch {
-    // La pestaña quizá no existe todavía: la crea y reintenta
     await asegurarPestana(HOJA_CONFIG);
     res = await leer();
   }
@@ -80,7 +80,6 @@ async function escribir(cfg: Config) {
   const filas = [['clave', 'valor'], ...orden.map((k) => [k, cfg[k] ?? ''])];
   const api = hojas();
   await api.spreadsheets.values.clear({ spreadsheetId: SHEET_ID(), range: `${HOJA_CONFIG}!A:B` });
-  // RAW: lo escrito se guarda como texto, nunca como fórmula
   await api.spreadsheets.values.update({
     spreadsheetId: SHEET_ID(),
     range: `${HOJA_CONFIG}!A1`,
@@ -101,6 +100,15 @@ export async function leerConfig(): Promise<Config> {
     await escribir(cfg);
   }
   return cfg;
+}
+
+/** Devuelve solo los datos públicos, o null si el slug no existe */
+export async function leerConfigPublica(slug: string): Promise<Config | null> {
+  const cfg = await leerConfig();
+  if (!slug || cfg.slug !== slug) return null;
+  const pub: Config = {};
+  for (const k of PUBLICOS) pub[k] = cfg[k] ?? '';
+  return pub;
 }
 
 function limpiar(campo: Campo, valor: unknown): string {

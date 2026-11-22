@@ -83,6 +83,16 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
   const sucio = JSON.stringify(f) !== base;
   const esencialesOk = ESENCIALES.every(lleno);
 
+  // Abre la tienda en el mismo dominio donde estás (local o Vercel)
+ const rutaTienda = (() => {
+  if (!url) return '';
+  try {
+    return new window.URL(url).pathname;
+  } catch {
+    return url;
+  }
+})();
+
   // ---------- Acciones ----------
   const cambiar = (campo: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setF((prev) => ({ ...prev, [campo]: e.target.value }));
@@ -356,6 +366,19 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
           <p style={{ fontSize: 13, opacity: .7, margin: '0 0 16px' }}>
             Se actualiza mientras escribes en las otras pestañas, sin necesidad de guardar.
           </p>
+          {rutaTienda && (
+            <p style={{ margin: '0 0 16px' }}>
+              <a
+                className="cfg-btn2"
+                href={rutaTienda}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: 'none' }}
+              >
+                Abrir tienda pública ↗
+              </a>
+            </p>
+          )}
           <TiendaPreview f={f} url={url} />
         </section>
       )}
@@ -393,17 +416,30 @@ export default function ConfiguracionForm({ inicial }: { inicial: Record<string,
               )}
             </div>
 
-            <div
+            <a
+              href={rutaTienda}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir tu tienda"
               style={{
-                fontSize: 13, padding: '10px 12px', borderRadius: 8, wordBreak: 'break-all',
-                background: 'rgba(128,128,128,.12)', marginBottom: 12,
+                display: 'block', fontSize: 13, padding: '10px 12px', borderRadius: 8, wordBreak: 'break-all',
+                background: 'rgba(128,128,128,.12)', marginBottom: 12, color: DORADO, textDecoration: 'underline',
               }}
             >
-              {url}
-            </div>
+              {url} ↗
+            </a>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="cfg-btn2 fill" onClick={descargarQr} disabled={!qr}>
+              <a
+                className="cfg-btn2 fill"
+                href={rutaTienda}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: 'none' }}
+              >
+                Abrir tienda ↗
+              </a>
+              <button type="button" className="cfg-btn2" onClick={descargarQr} disabled={!qr}>
                 Descargar QR
               </button>
               <button type="button" className="cfg-btn2" onClick={copiar}>
