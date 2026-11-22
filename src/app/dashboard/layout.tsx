@@ -5,6 +5,7 @@ import { MARCA } from '@/lib/marca';
 import Sidebar from '@/components/dashboard/Sidebar';
 import Reloj from '@/components/dashboard/Reloj';
 import TablasMovil from '@/components/dashboard/TablasMovil';
+import BarraInferior from '@/components/dashboard/BarraInferior';
 import './dashboard.css';
 
 const sans = Inter({ subsets: ['latin'], variable: '--d-sans', display: 'swap' });
@@ -42,6 +43,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Activa tablas en tarjetas y secciones colapsables en el celular */}
       <TablasMovil />
+
+      {/* Barra inferior de navegación (solo móvil, siempre visible; se oculta con el menú lateral abierto) */}
+      <BarraInferior />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 // 📁 RUTA: src/app/dashboard/page.tsx
 import Link from 'next/link';
 import { Saludo } from '@/components/dashboard/Reloj';
-import BarraInferior from '@/components/dashboard/BarraInferior';
 import { PRECIOS_ORO, cop } from '@/lib/datos-dashboard';
 
 const KPIS = [
@@ -135,8 +134,6 @@ export default function Inicio() {
           </section>
         </div>
       </div>
-
-      <BarraInferior />
     </main>
   );
 }

@@ -321,6 +321,19 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
     return () => window.removeEventListener('keydown', esc);
   }, [detalle]);
 
+  // Botón "Nuevo artículo" de la barra inferior: abre el formulario de nueva prenda
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('nueva') === '1') {
+      abrir();
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    const alEvento = () => abrir();
+    window.addEventListener('jks:nueva-prenda', alEvento);
+    return () => window.removeEventListener('jks:nueva-prenda', alEvento);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Precio estimado en vivo dentro del formulario
   const estimado = useMemo(() => {
     const manual = Number(form.precio_manual.replace(/\D/g, ''));
