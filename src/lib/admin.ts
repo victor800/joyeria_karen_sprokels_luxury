@@ -4,10 +4,7 @@ import { cookies } from 'next/headers';
 import { adminAuth } from '@/lib/firebase/admin';
 import { SESSION_COOKIE, esAdminEmail } from '@/lib/auth';
 
-/**
- * MODO DEMO: mientras sea true, el panel no exige sesión.
- * Ponlo en false cuando conectes Firebase o Apple.
- */
+/** MODO DEMO: mientras sea true, el panel no exige sesión. Ponlo en false al conectar Firebase o Apple. */
 const MODO_DEMO = true;
 
 export async function autorizada(_req?: Request): Promise<boolean> {
