@@ -175,6 +175,7 @@ const P: Record<string, React.ReactNode> = {
   pin: <><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></>,
   lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  ig: <><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r=".9" fill="currentColor" /></>,
   wa: <><path d="M3.5 20.5 5 16A8.5 8.5 0 1 1 8 19z" /><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2.2-1-.9.9c-1-.4-2-1.4-2.4-2.4l.9-.9-1-2.2z" /></>,
 };
 function Ic({ n, s = 20 }: { n: keyof typeof P; s?: number }) {
@@ -186,6 +187,10 @@ function Ic({ n, s = 20 }: { n: keyof typeof P; s?: number }) {
 
 /** Pega aquí el enlace de Google Drive (o la URL .mp4) del video del hero. También puedes poner la columna video_url en Configuración. */
 const VIDEO_HERO = '/sprokel.mp4';
+/** Instagram de la tienda */
+const INSTAGRAM = 'https://www.instagram.com/joyeria_jks_luxury';
+/** Foto del banner antes del pie (archivo en /public) */
+const FOTO_BANNER = '/pieza13.jpeg';
 /** Logo de la marca (archivo en /public) */
 const LOGO_JKS = '/logo-jks.jpeg';
 /** Bloque plegable del pie (solo CSS, sin JavaScript): en móvil se abre/cierra, en escritorio siempre se ve abierto */
@@ -279,6 +284,7 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-nav a { padding: 6px 0; border-bottom: 1px solid transparent; transition: .2s; white-space: nowrap; }
         .mw-nav a:hover { color: var(--o2); border-color: var(--o2); }
         .mw-iconos { display: flex; justify-content: flex-end; align-items: center; }
+        .mw-nombre { display: none; }
         .mw .mc-hbtn { color: var(--o2); }
 
         /* Hero con video */
@@ -370,9 +376,12 @@ export default async function TiendaPublica({ params }: Params) {
         @media (max-width: 1060px) {
           .mw-nav { display: none; }
           .mw-head .mw-wrap { grid-template-columns: 1fr auto 1fr; gap: 10px; }
-          .mw-head .mw-marca { display: contents; }
-          .mw-head .mw-logo { grid-column: 1; justify-self: start; width: 40px; height: 40px; }
-          .mw-head .mw-marca span { grid-column: 2; justify-self: center; text-align: center; font-size: 15px; letter-spacing: .16em; max-width: 56vw; }
+          .mw-head .mw-marca { grid-column: 1; justify-self: start; }
+          .mw-head .mw-marca span { display: none; }
+          .mw-head .mw-logo { width: 40px; height: 40px; }
+          .mw-head .mw-nombre { display: block; grid-column: 2; justify-self: center; text-align: center; max-width: 58vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; font-size: 18px; letter-spacing: .12em; text-transform: uppercase;
+            color: #f0d680 !important; text-shadow: 0 0 18px rgba(224,183,63,.35), 0 1px 2px rgba(0,0,0,.6); }
           .mw-head .mw-iconos { grid-column: 3; }
         }
         @media (max-width: 960px) {
@@ -387,7 +396,7 @@ export default async function TiendaPublica({ params }: Params) {
         }
         @media (max-width: 600px) {
           .mw-wrap { padding: 0 16px; } .mw-head .mw-wrap { height: 58px; }
-          .mw-head .mw-marca span { font-size: 13.5px; letter-spacing: .12em; }
+          .mw-head .mw-nombre { font-size: 16px; letter-spacing: .08em; max-width: 52vw; }
           .mw-head .mw-logo { width: 36px; height: 36px; }
 
           /* Hero más compacto: el logo ya está arriba */
@@ -410,8 +419,8 @@ export default async function TiendaPublica({ params }: Params) {
           .mw-b small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.35; }
 
           .mw-sec { padding-top: 44px; } .mw .mw-dark { padding: 44px 0 40px; }
-          .mw-dark .mc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-          .mw-dark .mc-card .mc-top { flex-wrap: wrap; } .mw-dark .mc-card .mc-nom { font-size: 14px !important; } .mw-dark .mc-card .mc-precio b { font-size: 15px; }
+          /* Las tarjetas ahora van en carrusel y ocupan ~80 % del ancho: pueden tener texto más grande */
+          .mw-dark .mc-card .mc-nom { font-size: 17px !important; } .mw-dark .mc-card .mc-precio b { font-size: 18px; }
 
           /* Pie: marca arriba y el resto en bloques plegables */
           .mw-pie .mw-wrap { grid-template-columns: 1fr; gap: 0; padding-top: 32px; }
@@ -435,6 +444,35 @@ export default async function TiendaPublica({ params }: Params) {
           .gt-chk:checked ~ .gt-b .gt-in { visibility: visible; transition-delay: 0s; }
         }
         @media (prefers-reduced-motion: reduce) { .gt-b, .gt-chev, .gt-in { transition: none; } }
+
+        /* Banner con foto */
+        .mw-ban { position: relative; isolation: isolate; overflow: hidden; background: #030c08; color: #f4efdc; }
+        .mw-ban > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; z-index: -2; }
+        .mw-ban::before { content: ""; position: absolute; inset: 0; z-index: -1;
+          background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.58) 45%, rgba(3,12,8,.08) 100%), linear-gradient(0deg, rgba(3,12,8,.7), transparent 40%); }
+        .mw-ban-in { max-width: 1180px; margin: 0 auto; padding: 110px 28px; min-height: 520px; display: flex; align-items: center; }
+        .mw-ban-txt { max-width: 480px; }
+        .mw-ban h3 { font-size: clamp(28px, 4vw, 48px); line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; margin: 16px 0 14px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.5); }
+        .mw-ban p { margin: 0 0 26px; font-size: 14.5px; line-height: 1.65; color: #d3ddd6; }
+        .mw-ban-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+        .mw-btn-ig { gap: 9px; }
+
+        /* Tienda (fija) + Instagram */
+        .pl-fijo h5 { margin: 0 0 14px; font: 600 11px/1 system-ui, sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--o2); }
+        .mw-ig { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; min-height: 44px; padding: 0 16px 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #f0d680 !important;
+          border: 1px solid rgba(224,183,63,.55); background: rgba(224,183,63,.06); transition: .2s; -webkit-tap-highlight-color: transparent; }
+        .mw-ig:hover { background: var(--o2); color: #1a1405 !important; }
+        @media (max-width: 600px) {
+          .mw-ban-in { min-height: min(78svh, 560px); align-items: flex-end; padding: 0 16px 34px; }
+          .mw-ban::before { background: linear-gradient(0deg, rgba(3,12,8,.95) 0%, rgba(3,12,8,.72) 38%, rgba(3,12,8,.05) 78%); }
+          .mw-ban p { font-size: 13.5px; margin-bottom: 20px; }
+          .mw-ban-cta .mw-btn { flex: 1 1 100%; }
+          .pl-fijo { border-top: 1px solid rgba(255,255,255,.1); padding: 18px 0 20px; }
+          .pl-fijo h5 { margin-bottom: 12px; }
+          .pl-fijo ul { display: flex; flex-wrap: wrap; gap: 8px; }
+          .pl-fijo ul a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); color: #d6e0d9; font-size: 13px; }
+          .mw-ig { width: 100%; justify-content: center; }
+        }
 
         /* Bloques plegables del pie (CSS puro) */
         .pl { position: relative; }
@@ -461,6 +499,7 @@ export default async function TiendaPublica({ params }: Params) {
       <header className="mw-head">
         <div className="mw-wrap">
           <a className="mw-marca" href="#inicio">{logo}<span>{nombre}</span></a>
+          <a className="mw-nombre" href="#inicio">{nombre}</a>
           <nav className="mw-nav">
             <a href="#inicio">Inicio</a>
             {PROMOS.length > 0 && <a href="#promociones">Promociones</a>}
@@ -532,16 +571,33 @@ export default async function TiendaPublica({ params }: Params) {
         <div className="mw-wrap">
           <div className="mw-tit"><small>Los favoritos</small><h3>Nuestras piezas más amadas</h3><i /></div>
           {PRENDAS.length
-            ? <CatalogoPublico prendas={PRENDAS} wa={wa} logo={LOGO_JKS} />
+            ? <CatalogoPublico prendas={PRENDAS} wa={wa} logo={LOGO_JKS} tienda={nombre} />
             : <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>}
         </div>
       </section>
 
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
-        <GuiaTallas wa={wa} />
+        <GuiaTallas wa={wa} nombre={nombre} />
       </Colapsa>
 
       <PersonalizacionTrabajos wa={wa} nombre={nombre} />
+
+      {/* Banner con foto: cierre visual antes del pie */}
+      <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={FOTO_BANNER} alt={`Joya de ${nombre}`} loading="lazy" />
+        <div className="mw-ban-in">
+          <div className="mw-ban-txt">
+            <span className="mw-tag">Cada joya, una historia</span>
+            <h3>Joyas que cuentan tu historia</h3>
+            <p>Oro certificado, elaborado con dedicación. Escríbenos y te asesoramos sin compromiso.</p>
+            <div className="mw-ban-cta">
+              {wa !== '#' && <a className="mw-btn solid" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>}
+              <a className="mw-btn mw-btn-ig" href={INSTAGRAM} target="_blank" rel="noopener noreferrer"><Ic n="ig" s={16} /> Instagram</a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <footer className="mw-pie" id="contacto">
         <div className="mw-wrap">
@@ -549,9 +605,14 @@ export default async function TiendaPublica({ params }: Params) {
             <a className="mw-marca" href="#inicio">{logo}<span>{nombre}</span></a>
             <p>{lema}</p>
           </div>
-          <Pl id="tienda" titulo="Tienda">
+          {/* Tienda: siempre visible (no se pliega) */}
+          <div className="pl-fijo">
+            <h5>Tienda</h5>
             <ul>{cats.length ? cats.map((c) => <li key={c.n}><a href={`#cat-${slugCat(c.n)}`}>{c.n}</a></li>) : <li>Próximamente</li>}</ul>
-          </Pl>
+            <a className="mw-ig" href={INSTAGRAM} target="_blank" rel="noopener noreferrer" aria-label="Instagram de la tienda">
+              <Ic n="ig" s={18} /><span>Síguenos en Instagram</span>
+            </a>
+          </div>
           <Pl id="entregas" titulo="Entregas">
             <ul>
               <li>Domicilio: {dom ?? 'por definir'}</li>

@@ -262,6 +262,58 @@ function Tarjeta({ p, liked, conteo, onLike, onAdd, onFicha }: PropsPieza) {
   );
 }
 
+/* ═════════════ Carrusel por categoría: se ve ~80 % de la tarjeta y asoma ~20 % de la siguiente ═════════════ */
+function GrupoCarrusel({ id, nombre, cuenta, children }: { id: string; nombre: string; cuenta: number; children: ReactNode }) {
+  const pista = useRef<HTMLDivElement>(null);
+  const [ant, setAnt] = useState(false);
+  const [sig, setSig] = useState(false);
+
+  const medir = useCallback(() => {
+    const el = pista.current;
+    if (!el) return;
+    setAnt(el.scrollLeft > 4);
+    setSig(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = pista.current;
+    if (!el) return;
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    el.addEventListener('scroll', medir, { passive: true });
+    return () => { ro.disconnect(); el.removeEventListener('scroll', medir); };
+  }, [medir, cuenta]);
+
+  const mover = (dir: 1 | -1) => {
+    const el = pista.current;
+    if (!el) return;
+    const tarjeta = el.firstElementChild as HTMLElement | null;
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 14;
+    const paso = tarjeta ? tarjeta.offsetWidth + gap : el.clientWidth * 0.8;
+    el.scrollBy({ left: dir * paso, behavior: 'smooth' });
+  };
+
+  return (
+    <section className="mc-grupo" id={`cat-${id}`}>
+      <div className="mc-grupo-tit">
+        <h4>{nombre}</h4>
+        <span>{cuenta} {cuenta === 1 ? 'pieza' : 'piezas'}</span>
+        <i aria-hidden="true" />
+        {(ant || sig) && (
+          <div className="mc-nav">
+            <button type="button" aria-label={`${nombre}: anteriores`} disabled={!ant} onClick={() => mover(-1)}><Chev dir="l" /></button>
+            <button type="button" aria-label={`${nombre}: siguientes`} disabled={!sig} onClick={() => mover(1)}><Chev dir="r" /></button>
+          </div>
+        )}
+      </div>
+      <div className="mc-track" ref={pista} tabIndex={0} role="group" aria-label={`Carrusel de ${nombre}`}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 /* ═════════════ Ficha completa (ventana) ═════════════ */
 function Ficha({ p, liked, conteo, onLike, onAdd, onCerrar }: Omit<PropsPieza, 'onFicha'> & { onCerrar: () => void }) {
   const [idx, setIdx] = useState(Math.max(0, p.variantes.findIndex((v) => v.stock > 0)));
@@ -322,7 +374,7 @@ function Campo({ id, label, opcional, error, children }: { id: string; label: st
 }
 
 /* ═════════════ Catálogo + carrito ═════════════ */
-export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; wa: string; logo?: string }) {
+export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's" }: { prendas: PrendaP[]; wa: string; logo?: string; tienda?: string }) {
   const [items, setItems] = useState<Item[]>([]);
   const [likes, setLikes] = useState<string[]>([]);
   const [conteos, setConteos] = useState<Record<string, number>>({});
@@ -527,7 +579,7 @@ export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; w
         : 'Entrega: Recoger en tienda',
       e.indicaciones.trim() ? `Indicaciones: ${e.indicaciones.trim()}` : '',
     ].filter(Boolean).join('\n');
-    const msg = `Hola, quiero hacer este pedido:\n\n${lineas.join('\n')}${extra}\n\nTotal: ${cop(total)}${datos}`;
+    const msg = `Hola, *${tienda}* 👋\nQuiero hacer este pedido:\n\n${lineas.join('\n')}${extra}\n\n*Total: ${cop(total)}*${datos}\n\n¿Me confirmas disponibilidad, envío y forma de pago? ¡Gracias!`;
     const sep = wa.includes('?') ? '&' : '?';
     return `${wa}${sep}text=${encodeURIComponent(msg)}`;
   };
@@ -571,13 +623,37 @@ export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; w
         .mc-chip.on { background: var(--v); color: #fff; border-color: var(--v); }
 
         .mc-grupo { scroll-margin-top: 80px; }
-        .mc-grupo + .mc-grupo { margin-top: 34px; }
-        .mc-grupo-tit { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+        .mc-grupo + .mc-grupo { margin-top: 30px; }
+        .mc-grupo-tit { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
         .mc-grupo-tit h4 { margin: 0; font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 26px; color: var(--tx); }
         .mc-grupo-tit span { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--o); white-space: nowrap; }
         .mc-grupo-tit i { flex: 1; height: 1px; align-self: center; background: linear-gradient(90deg, #cfc7ae, transparent); }
 
         .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+
+        /* ── Carrusel por categoría: ~80 % de la tarjeta + ~20 % de la siguiente ── */
+        .mc-nav { display: flex; gap: 8px; flex: 0 0 auto; }
+        .mc-nav button { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #e0b73f; background: rgba(4,23,15,.75); border: 1px solid rgba(224,183,63,.55); transition: background .2s, color .2s, opacity .2s; -webkit-tap-highlight-color: transparent; }
+        .mc-nav button:hover:not(:disabled) { background: #e0b73f; color: #1a1405; }
+        .mc-nav button:disabled { opacity: .28; cursor: default; }
+        .mc-nav button svg { width: 18px; height: 18px; }
+
+        .mc-track { --g: 14px; --w: calc((100% - 4 * var(--g)) / 4.2);
+          display: flex; gap: var(--g); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-left: 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+          padding: 6px 2px 26px; margin: -6px -2px -12px; outline: none; }
+        .mc-track::-webkit-scrollbar { display: none; }
+        .mc-track:focus-visible { outline: 2px solid #e0b73f; outline-offset: 2px; border-radius: 12px; }
+        .mc-track > .mc-card { flex: 0 0 var(--w); min-width: 0; scroll-snap-align: start; }
+        @media (max-width: 1100px) { .mc-track { --w: calc((100% - 3 * var(--g)) / 3.2); } }
+        @media (max-width: 860px) { .mc-track { --w: calc((100% - 2 * var(--g)) / 2.2); } }
+        @media (max-width: 600px) {
+          .mc-track { --g: 12px; --w: 80%; margin: -6px -16px -12px; padding: 6px 16px 26px; scroll-padding-left: 16px; }
+          .mc-grupo-tit { gap: 8px; }
+          .mc-grupo-tit span { font-size: 10px; letter-spacing: .12em; }
+          .mc-grupo-tit i { display: none; }
+          .mc-grupo-tit h4 { flex: 1; min-width: 0; }
+          .mc-nav button { width: 36px; height: 36px; }
+        }
 
         /* ── Tarjeta oscura ── */
         .mc-card { background: #0c1511; color: #ece7d4; border: 1px solid rgba(224,183,63,.18); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
@@ -726,9 +802,8 @@ export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; w
           .mc-cuerpo-modal { max-height: none; overflow: visible; }
         }
         @media (max-width: 600px) {
-          .mc-grid { gap: 16px; }
           .mc-grupo-tit h4 { font-size: 22px; }
-          .mc-grupo + .mc-grupo { margin-top: 28px; }
+          .mc-grupo + .mc-grupo { margin-top: 26px; }
           .mc-nom { font-size: 18px !important; }
           .mc-fab { right: 14px; bottom: 76px; }
           .mc-datos.tres { grid-template-columns: 1fr 1fr; }
@@ -737,6 +812,7 @@ export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; w
         }
         @media (prefers-reduced-motion: reduce) {
           .mc-base { animation: none; }
+          .mc-track { scroll-behavior: auto; }
         }
       `}</style>
 
@@ -757,24 +833,17 @@ export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; w
           )}
 
           {grupos.map(({ clave, nombre, lista }) => (
-            <section key={clave} className="mc-grupo" id={`cat-${clave}`}>
-              <div className="mc-grupo-tit">
-                <h4>{nombre}</h4>
-                <span>{lista.length} {lista.length === 1 ? 'pieza' : 'piezas'}</span>
-                <i aria-hidden="true" />
-              </div>
-              <div className="mc-grid">
-                {lista.map((p) => (
-                  <Tarjeta key={p.id} p={p} liked={likes.includes(p.id)} conteo={conteos[p.id] ?? 0}
-                    onLike={() => alternarLike(p)} onAdd={(v) => agregar(p, v)} onFicha={() => setFicha(p.id)} />
-                ))}
-              </div>
-            </section>
+            <GrupoCarrusel key={clave} id={clave} nombre={nombre} cuenta={lista.length}>
+              {lista.map((p) => (
+                <Tarjeta key={p.id} p={p} liked={likes.includes(p.id)} conteo={conteos[p.id] ?? 0}
+                  onLike={() => alternarLike(p)} onAdd={(v) => agregar(p, v)} onFicha={() => setFicha(p.id)} />
+              ))}
+            </GrupoCarrusel>
           ))}
         </>
       )}
 
-      {vista === 'malla' && <ArmaMalla onAdd={agregarMalla} />}
+      {vista === 'malla' && <ArmaMalla onAdd={agregarMalla} wa={wa} />}
       {vista === 'taller' && <TallerReparacion wa={wa} />}
 
       {pFicha && (
