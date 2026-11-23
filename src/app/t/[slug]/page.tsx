@@ -11,7 +11,7 @@ import CarruselColecciones from './CarruselColecciones';
 import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
 import MenuInferior from './MenuInferior';
-import Plegable from './Plegable';
+import WhatsAppFlotante from './WhatsAppFlotante';
 import { estadoPromo, type Promocion } from '@/types/promocion';
 import { rutaFoto } from '@/lib/foto-url';
 import { listar as leerPromociones } from '@/lib/promociones-store';
@@ -188,6 +188,36 @@ function Ic({ n, s = 20 }: { n: keyof typeof P; s?: number }) {
 const VIDEO_HERO = '/sprokel.mp4';
 /** Logo de la marca (archivo en /public) */
 const LOGO_JKS = '/logo-jks.jpeg';
+/** Bloque plegable del pie (solo CSS, sin JavaScript): en móvil se abre/cierra, en escritorio siempre se ve abierto */
+function Pl({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="pl">
+      <input type="checkbox" id={`pl-${id}`} className="pl-chk" aria-label={titulo} />
+      <label htmlFor={`pl-${id}`} className="pl-h">
+        <span>{titulo}</span>
+        <svg className="pl-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </label>
+      <div className="pl-b"><div className="pl-in">{children}</div></div>
+    </div>
+  );
+}
+/** Sección que en móvil se muestra como una tarjeta plegable (solo CSS). En escritorio se ve normal, siempre abierta. */
+function Colapsa({ id, sub, titulo, children }: { id: string; sub: string; titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="gt" id={`${id}-bloque`}>
+      <input type="checkbox" id={`${id}-chk`} className="gt-chk" aria-label={titulo} />
+      <label htmlFor={`${id}-chk`} className="gt-h">
+        <span><small>{sub}</small><b>{titulo}</b></span>
+        <svg className="gt-chev" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </label>
+      <div className="gt-b"><div className="gt-in">{children}</div></div>
+    </div>
+  );
+}
 const slugCat = (k: string) => k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export default async function TiendaPublica({ params }: Params) {
@@ -372,15 +402,12 @@ export default async function TiendaPublica({ params }: Params) {
           .mw-btn { flex: 1; padding: 15px 16px; }
           .mw-oro-in { padding: 12px 16px; } .mw-oro-in > span { width: 100%; } .mw-oro-in div { gap: 18px; width: 100%; justify-content: space-between; } .mw-oro-in b { font-size: 15px; }
 
-          /* Beneficios: en móvil, fila deslizable de etiquetas en vez de 4 bloques */
-          .mw-ben .mw-wrap { display: flex; gap: 8px; padding-top: 12px; padding-bottom: 12px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-          .mw-ben .mw-wrap::-webkit-scrollbar { display: none; }
-          .mw-b { flex: 0 0 auto; gap: 8px; padding: 7px 14px 7px 8px; border: 1px solid rgba(176,141,60,.45); border-radius: 999px; background: rgba(255,255,255,.5); scroll-snap-align: start; white-space: nowrap; }
-          .mw-b + .mw-b { border-left: 1px solid rgba(176,141,60,.45); }
-          .mw-b:nth-child(3) { border-left: 1px solid rgba(176,141,60,.45); }
-          .mw-b > span { width: 28px; height: 28px; border: 0; background: rgba(11,74,46,.08); }
-          .mw-b > span svg { width: 16px; height: 16px; }
-          .mw-b b { font-size: 12.5px; } .mw-b small { display: none; }
+          /* Beneficios: en móvil, 2 columnas con tarjetas compactas */
+          .mw-ben .mw-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 16px; padding-bottom: 16px; }
+          .mw-b, .mw-b + .mw-b, .mw-b:nth-child(3) { flex-direction: column; justify-content: flex-start; align-items: center; text-align: center; gap: 8px; padding: 14px 10px 12px; border: 1px solid rgba(176,141,60,.4); border-radius: 14px; background: rgba(255,255,255,.55); }
+          .mw-b > span { width: 40px; height: 40px; }
+          .mw-b b { font-size: 12.5px; line-height: 1.25; }
+          .mw-b small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.35; }
 
           .mw-sec { padding-top: 44px; } .mw .mw-dark { padding: 44px 0 40px; }
           .mw-dark .mc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -390,6 +417,44 @@ export default async function TiendaPublica({ params }: Params) {
           .mw-pie .mw-wrap { grid-template-columns: 1fr; gap: 0; padding-top: 32px; }
           .mw-pie-marca { padding-bottom: 22px; }
         }
+        /* Guía de tallas plegable en móvil (CSS puro) */
+        .gt-chk { position: absolute; opacity: 0; pointer-events: none; }
+        .gt-h { display: none; }
+        @media (max-width: 860px) {
+          .gt { position: relative; padding: 20px 16px 6px; scroll-margin-top: 68px; }
+          .gt-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 70px; padding: 14px 18px; border-radius: 16px; cursor: pointer; color: #f4efdc;
+            background: linear-gradient(135deg, #0b4a2e, #06241a); border: 1px solid rgba(224,183,63,.4); box-shadow: 0 8px 22px rgba(3,12,8,.18); -webkit-tap-highlight-color: transparent; }
+          .gt-h small { display: block; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--o2); margin-bottom: 6px; }
+          .gt-h b { display: block; font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; font-size: 19px; line-height: 1.2; }
+          .gt-chev { flex: 0 0 auto; color: var(--o2); transition: transform .25s ease; }
+          .gt-chk:checked ~ .gt-h .gt-chev { transform: rotate(180deg); }
+          .gt-chk:focus-visible ~ .gt-h { outline: 2px solid var(--o2); outline-offset: 2px; }
+          .gt-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
+          .gt-chk:checked ~ .gt-b { grid-template-rows: 1fr; }
+          .gt-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear .3s; }
+          .gt-chk:checked ~ .gt-b .gt-in { visibility: visible; transition-delay: 0s; }
+        }
+        @media (prefers-reduced-motion: reduce) { .gt-b, .gt-chev, .gt-in { transition: none; } }
+
+        /* Bloques plegables del pie (CSS puro) */
+        .pl { position: relative; }
+        .pl-chk { position: absolute; opacity: 0; pointer-events: none; }
+        .pl-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 0 14px; cursor: default;
+          font: 600 11px/1 system-ui, sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--o2); }
+        .pl-chev { display: none; }
+        @media (max-width: 600px) {
+          .pl { border-top: 1px solid rgba(255,255,255,.1); }
+          .pl:last-child { border-bottom: 1px solid rgba(255,255,255,.1); }
+          .pl-h { padding: 0; min-height: 52px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+          .pl-chk:focus-visible ~ .pl-h { outline: 2px solid var(--o2); outline-offset: 2px; }
+          .pl-chev { display: block; transition: transform .25s ease; }
+          .pl-chk:checked ~ .pl-h .pl-chev { transform: rotate(180deg); }
+          .pl-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+          .pl-chk:checked ~ .pl-b { grid-template-rows: 1fr; }
+          .pl-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear .28s; }
+          .pl-chk:checked ~ .pl-b .pl-in { visibility: visible; transition-delay: 0s; padding-bottom: 16px; }
+        }
+        @media (prefers-reduced-motion: reduce) { .pl-b, .pl-chev, .pl-in { transition: none; } }
         @media (prefers-reduced-motion: reduce) { .mw-hero-txt > *, .mw-hero-logo img { animation: none; } }
       `}</style>
 
@@ -402,7 +467,7 @@ export default async function TiendaPublica({ params }: Params) {
             {cats.length > 0 && <a href="#categorias">Colecciones</a>}
             <a href="#catalogo">Catálogo</a>
             <a href="#personalizado">Personalizados</a>
-            <a href="#tallas">Tallas</a>
+            <a href="#tallas-bloque">Tallas</a>
             <a href="#oro">Precio del oro</a>
             <a href="#contacto">Contacto</a>
           </nav>
@@ -472,7 +537,9 @@ export default async function TiendaPublica({ params }: Params) {
         </div>
       </section>
 
-      <GuiaTallas wa={wa} />
+      <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
+        <GuiaTallas wa={wa} />
+      </Colapsa>
 
       <PersonalizacionTrabajos wa={wa} nombre={nombre} />
 
@@ -482,34 +549,32 @@ export default async function TiendaPublica({ params }: Params) {
             <a className="mw-marca" href="#inicio">{logo}<span>{nombre}</span></a>
             <p>{lema}</p>
           </div>
-          <Plegable titulo="Tienda">
+          <Pl id="tienda" titulo="Tienda">
             <ul>{cats.length ? cats.map((c) => <li key={c.n}><a href={`#cat-${slugCat(c.n)}`}>{c.n}</a></li>) : <li>Próximamente</li>}</ul>
-          </Plegable>
-          <Plegable titulo="Entregas">
+          </Pl>
+          <Pl id="entregas" titulo="Entregas">
             <ul>
               <li>Domicilio: {dom ?? 'por definir'}</li>
               <li>{f.horario || 'Horario por definir'}</li>
               <li>{f.cobertura || 'Cobertura por definir'}</li>
               {f.seguro && <li>Seguro por envío: {f.seguro}%</li>}
             </ul>
-          </Plegable>
-          <Plegable titulo="Contacto">
+          </Pl>
+          <Pl id="contacto" titulo="Contacto">
             <ul>
               {f.telefono && <li>WhatsApp {f.telefono}</li>}
               {ig && <li><a href={instagramUrl(f.instagram)} target="_blank" rel="noopener noreferrer">{ig}</a></li>}
               {f.direccion && <li><Ic n="pin" s={13} /> {f.direccion}</li>}
             </ul>
             <a className="mw-wa" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
-          </Plegable>
+          </Pl>
         </div>
         <div className="mw-copy">© {nombre}. Todos los derechos reservados.</div>
       </footer>
 
-      <a className="mw-wafab" href={wa} target="_blank" rel="noopener noreferrer" aria-label="Escribir por WhatsApp">
-        <Ic n="wa" s={26} />
-      </a>
+      <WhatsAppFlotante wa={wa} tienda={nombre} />
 
-      <MenuInferior wa={wa} />
+      <MenuInferior />
     </div>
   );
 }
