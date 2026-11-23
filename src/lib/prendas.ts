@@ -6,17 +6,20 @@ import { leerConfig, type Config } from './configuracion';
 
 export const HOJA_PRENDAS = 'Prendas';
 
+/** La columna "bailarinas" va al FINAL (columna O) para no mover las columnas que ya existen */
 export const COLS = [
   'id', 'codigo', 'nombre', 'categoria', 'quilate', 'peso', 'tamano', 'descripcion',
-  'foto_url', 'precio_manual', 'stock', 'activo', 'creado', 'actualizado',
+  'foto_url', 'precio_manual', 'stock', 'activo', 'creado', 'actualizado', 'bailarinas',
 ] as const;
 type Col = (typeof COLS)[number];
 export type Prenda = Record<Col, string>;
 export type PrendaConPrecio = Prenda & { precio: number };
 
+const ULTIMA_COL = 'O';
+
 const EDITABLES: Col[] = [
   'nombre', 'categoria', 'quilate', 'peso', 'tamano', 'descripcion',
-  'foto_url', 'precio_manual', 'stock', 'activo',
+  'foto_url', 'precio_manual', 'stock', 'activo', 'bailarinas',
 ];
 
 const CATEGORIAS = ['Anillos', 'Collares', 'Aretes', 'Pulseras', 'Dijes', 'Cadenas', 'Esclavas'];
@@ -41,7 +44,7 @@ type Fila = { p: Prenda; fila: number };
 async function leerFilas(): Promise<Fila[]> {
   const api = hojas();
   const leer = () =>
-    api.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${HOJA_PRENDAS}!A:N` });
+    api.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: `${HOJA_PRENDAS}!A:${ULTIMA_COL}` });
 
   let res;
   try {
@@ -51,7 +54,7 @@ async function leerFilas(): Promise<Fila[]> {
     res = await leer();
   }
 
-  let values = res.data.values ?? [];
+  const values = res.data.values ?? [];
   if (!values.length) {
     await api.spreadsheets.values.update({
       spreadsheetId: SHEET_ID(),
@@ -59,7 +62,16 @@ async function leerFilas(): Promise<Fila[]> {
       valueInputOption: 'RAW',
       requestBody: { values: [[...COLS]] },
     });
-    values = [[...COLS]];
+    values.push([...COLS]);
+  } else if (String(values[0][COLS.length - 1] ?? '') !== COLS[COLS.length - 1]) {
+    // Hoja creada antes de agregar columnas nuevas: completa los encabezados (solo la primera vez)
+    await api.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID(),
+      range: `${HOJA_PRENDAS}!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[...COLS]] },
+    });
+    values[0] = [...COLS];
   }
 
   return values
@@ -103,9 +115,17 @@ function limpiarCampo(c: Col, valor: unknown): string {
       return v || '1';
     case 'activo':
       return v === 'true' ? 'true' : 'false';
+    case 'bailarinas':
+      if (v && !/^\d{1,3}$/.test(v)) throw new Error('Las bailarinas deben ser un número entero');
+      return v ? String(Number(v)) : '';
     default:
       return '';
   }
+}
+
+/** Las bailarinas solo aplican a las pulseras: en cualquier otra categoría se deja vacío */
+function ajustarBailarinas(p: Prenda) {
+  if (p.categoria !== 'Pulseras') p.bailarinas = '';
 }
 
 export async function listarPrendas(): Promise<PrendaConPrecio[]> {
@@ -126,13 +146,14 @@ export async function crearPrenda(entrada: Record<string, unknown>): Promise<Pre
   p.id = `prd_${randomBytes(5).toString('hex')}`;
   p.codigo = `JKS-${String(n).padStart(4, '0')}`;
   for (const c of EDITABLES) p[c] = limpiarCampo(c, entrada[c]);
+  ajustarBailarinas(p);
   p.activo = 'false';
   p.creado = ahora;
   p.actualizado = ahora;
 
   await hojas().spreadsheets.values.append({
     spreadsheetId: SHEET_ID(),
-    range: `${HOJA_PRENDAS}!A:N`,
+    range: `${HOJA_PRENDAS}!A:${ULTIMA_COL}`,
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [COLS.map((c) => p[c])] },
@@ -149,11 +170,12 @@ export async function actualizarPrenda(id: string, cambios: Record<string, unkno
 
   const p = { ...x.p };
   for (const c of EDITABLES) if (c in cambios) p[c] = limpiarCampo(c, cambios[c]);
+  ajustarBailarinas(p);
   p.actualizado = new Date().toISOString();
 
   await hojas().spreadsheets.values.update({
     spreadsheetId: SHEET_ID(),
-    range: `${HOJA_PRENDAS}!A${x.fila}:N${x.fila}`,
+    range: `${HOJA_PRENDAS}!A${x.fila}:${ULTIMA_COL}${x.fila}`,
     valueInputOption: 'RAW',
     requestBody: { values: [COLS.map((c) => p[c])] },
   });
@@ -202,11 +224,12 @@ export async function leerPrendasPublicas() {
       precio_manual: p.precio_manual,
       stock: p.stock,
       activo: p.activo,
+      bailarinas: p.bailarinas,
       // Campos de siempre (compatibilidad)
       nombre: p.nombre,
       categoria: p.categoria,
       foto: p.foto_url,
       precio: p.precio > 0 ? `$${p.precio.toLocaleString('es-CO')}` : '',
-      detalle: `${p.quilate}K · ${p.peso} g${p.tamano ? ` · ${p.tamano}` : ''}`,
+      detalle: `${p.quilate}K · ${p.peso} g${p.tamano ? ` · ${p.tamano}` : ''}${p.bailarinas ? ` · ${p.bailarinas} bailarinas` : ''}`,
     }));
 }

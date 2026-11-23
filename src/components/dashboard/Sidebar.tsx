@@ -56,7 +56,7 @@ const GRUPOS: Grupo[] = [
   {
     titulo: 'Clientes y ventas',
     items: [
-      { href: '/dashboard/clientes', t: 'Clientes VIP', i: 'clientes' },
+      { href: '/dashboard/clientes', t: 'Clientes VIP', i: 'clientes', contador: 'clientes' },
       { href: '/dashboard/apartados', t: 'Apartados', i: 'apartados' },
       { href: '/dashboard/personalizados', t: 'Personalizados', i: 'personalizados' },
       { href: '/dashboard/garantias', t: 'Garantías', i: 'garantias' },

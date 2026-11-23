@@ -1,18 +1,11 @@
 // 📁 RUTA: src/app/dashboard/promociones/page.tsx
-import PaginaModulo from '@/components/dashboard/PaginaModulo';
+import PromocionesVista from '@/components/dashboard/promociones/PromocionesVista';
+import { listar } from '@/lib/promociones-store';
+import { hoyBogota } from '@/types/promocion';
 
-export default function Page() {
-  return (
-    <PaginaModulo
-      titulo="Promociones y cupones"
-      descripcion="Descuentos, códigos y ofertas por temporada."
-      kpis={[
-        { t: 'Promociones activas', v: '0' },
-        { t: 'Cupones usados', v: '0' },
-        { t: 'Programadas', v: '0' },
-      ]}
-      columnas={['Código', 'Descripción', 'Descuento', 'Vigencia', 'Usos', 'Estado']}
-      accion="Nuevo cupón"
-    />
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function Promociones() {
+  const filas = await listar();
+  return <PromocionesVista filas={filas} hoy={hoyBogota()} />;
 }

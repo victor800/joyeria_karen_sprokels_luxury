@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 type Prenda = {
   id: string; codigo: string; nombre: string; categoria: string; quilate: string; peso: string;
   tamano: string; descripcion: string; foto_url: string; precio_manual: string; stock: string;
-  activo: string; creado: string; actualizado: string; precio: number;
+  activo: string; creado: string; actualizado: string; bailarinas: string; precio: number;
 };
 type Precios = { p24: string; p18: string; p14: string; margen: string };
 
@@ -19,7 +19,7 @@ const LENTE = 140;  // diámetro de la lupa en px
 
 const FORM_VACIO = {
   nombre: '', categoria: 'Anillos', quilate: '18', peso: '', tamano: '',
-  stock: '1', precio_manual: '', descripcion: '', foto_url: '',
+  stock: '1', precio_manual: '', descripcion: '', foto_url: '', bailarinas: '',
 };
 
 const cop = (n: number) => (n > 0 ? `$${n.toLocaleString('es-CO')}` : 'Sin precio');
@@ -408,6 +408,7 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
       precio_manual: p.precio_manual || '',
       descripcion: p.descripcion || '',
       foto_url: p.foto_url || '',
+      bailarinas: p.bailarinas || '',
     });
     setError('');
     setAbierto(true);
@@ -539,6 +540,7 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
     const manual = v ? v.precio_manual : p.precio_manual;
     const precio = v ? calcPrecio(p.quilate, v.peso, v.precio_manual) : p.precio;
     const stock = Number(stockTxt) || 0;
+    const bail = p.categoria === 'Pulseras' && p.bailarinas ? p.bailarinas : '';
     // Foto(s) del tamaño elegido; si ese tamaño no tiene fotos, usa las del primero que sí tenga
     const fotos = v ? (v.fotos.length ? v.fotos : (vs ?? []).find((x) => x.fotos.length)?.fotos ?? []) : parseFotos(p.foto_url);
     const estado = stock === 0 ? { t: 'Agotada', c: 'ag' } : stock === 1 ? { t: 'Última unidad', c: 'ul' } : { t: `${stock} disponibles`, c: 'ok' };
@@ -607,9 +609,10 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
             </div>
           )}
 
-          <div className="pc-tiles pc-det">
+          <div className={`pc-tiles pc-det${bail ? ' tres' : ''}`}>
             <div><span>Peso exacto</span><b>{peso ? `${peso} g` : '—'}</b></div>
             <div><span>Tamaño</span><b title={tamano}>{tamano || '—'}</b></div>
+            {bail && <div><span>Bailarinas</span><b>{bail}</b></div>}
           </div>
 
           <div className="pc-precios pc-det">
@@ -653,6 +656,7 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
               <div><dt>Peso</dt><dd>{peso ? `${peso} g` : '—'}</dd></div>
               <div><dt>Tamaño</dt><dd>{tamano || '—'}</dd></div>
               <div><dt>Stock</dt><dd>{stockTxt} u.</dd></div>
+              {bail && <div><dt>Bailarinas</dt><dd>{bail}</dd></div>}
             </dl>
 
             {vs && vs.length > 1 && (
@@ -909,7 +913,9 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
         .pc-tams button i { font-style: normal; font-size: 9.5px; margin-left: 6px; opacity: .65; font-weight: 500; }
 
         .pc-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .pc-tiles.tres { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .pc-tiles > div { min-width: 0; padding: 8px 11px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.05); }
+        .pc-tiles.tres > div { padding: 8px 9px; }
         .pc-tiles span { display: block; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: #93a09a; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .pc-tiles b { display: block; margin-top: 3px; font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1138,6 +1144,19 @@ export default function PrendasPanel({ inicial, precios }: { inicial: Prenda[]; 
                 <select id="pc" value={form.categoria} onChange={set('categoria')}>{CATEGORIAS.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div><label htmlFor="pq">Quilate</label>
                 <select id="pq" value={form.quilate} onChange={set('quilate')}>{QUILATES.map((c) => <option key={c} value={c}>{c}K</option>)}</select></div>
+              {form.categoria === 'Pulseras' && (
+                <div>
+                  <label htmlFor="pb">Bailarinas (cantidad)</label>
+                  <input
+                    id="pb"
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={form.bailarinas}
+                    onChange={(e) => setForm((f) => ({ ...f, bailarinas: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
+                    placeholder="Ej.: 7"
+                  />
+                </div>
+              )}
               <div className="full"><label htmlFor="pd">Descripción</label><textarea id="pd" rows={3} value={form.descripcion} onChange={set('descripcion')} placeholder="Detalles, acabado, piedras…" /></div>
             </div>
 

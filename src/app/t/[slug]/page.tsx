@@ -4,7 +4,15 @@ import type { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
 import { leerConfigPublica } from '@/lib/configuracion';
 import { leerPrendasPublicas } from '@/lib/prendas';
-import CatalogoPublico, { type PrendaP, type VarianteP } from './CatalogoPublico';
+import CatalogoPublico, { CarritoHeader, type PrendaP, type VarianteP } from './CatalogoPublico';
+import HeroVideo from './HeroVideo';
+import PromocionesPublicas, { type PromoP } from './PromocionesPublicas';
+import CarruselColecciones from './CarruselColecciones';
+import GuiaTallas from './GuiaTallas';
+import PersonalizacionTrabajos from './PersonalizacionTrabajos';
+import { estadoPromo, type Promocion } from '@/types/promocion';
+import { rutaFoto } from '@/lib/foto-url';
+import { listar as leerPromociones } from '@/lib/promociones-store';
 
 const serif = Playfair_Display({
   subsets: ['latin'],
@@ -13,7 +21,6 @@ const serif = Playfair_Display({
   display: 'swap',
 });
 
-/** Se refresca cada minuto: los cambios de Configuración y de Prendas se ven casi al instante sin saturar Google Sheets */
 export const revalidate = 60;
 
 type Params = { params: Promise<{ slug: string }> };
@@ -37,9 +44,14 @@ const waLink = (tel?: string) => {
   return d ? `https://wa.me/${d.length <= 10 ? '57' + d : d}` : '#';
 };
 
-/* ---------- Prendas del Sheet → datos para las tarjetas ---------- */
+/* ---------- Prendas del Sheet → datos para las tarjetas (SIN CAMBIOS) ---------- */
 const SEP = '|';
-const parseFotos = (v: unknown) => String(v ?? '').split(SEP).map((x) => x.trim()).filter(Boolean);
+const parseFotos = (v: unknown): string[] =>
+  (Array.isArray(v) ? v.map(String) : String(v ?? '').split(SEP)).map((x) => x.trim()).filter(Boolean);
+const primerasFotos = (...vs: unknown[]): string[] => {
+  for (const v of vs) { const f = parseFotos(v); if (f.length) return f; }
+  return [];
+};
 const soloDigitos = (v: unknown) => Number(String(v ?? '').replace(/\D/g, '')) || 0;
 
 type VarCruda = { t?: unknown; p?: unknown; s?: unknown; m?: unknown; f?: unknown };
@@ -69,10 +81,10 @@ function normalizarPrendas(crudas: unknown[], precios: Record<string, unknown>):
     const r = raw as Record<string, unknown>;
     const nombre = String(r.nombre ?? '').trim();
     if (!nombre) continue;
-    if (r.activo !== undefined && String(r.activo) !== 'true') continue; // solo publicadas
+    if (r.activo !== undefined && String(r.activo) !== 'true') continue;
 
     const quilate = String(r.quilate ?? '18');
-    const fotosBase = parseFotos(r.foto_url ?? r.foto);
+    const fotosBase = primerasFotos(r.foto_url, r.foto, r.fotos, r.imagen_url, r.imagen);
     const crudasVar = parseVariantes(r.tamano);
 
     let variantes: VarianteP[];
@@ -110,6 +122,28 @@ function normalizarPrendas(crudas: unknown[], precios: Record<string, unknown>):
   return salida;
 }
 
+/* ---------- Promociones activas ---------- */
+const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+async function promosActivas(): Promise<PromoP[]> {
+  const hoy = hoyBogota();
+  const filas = (await leerPromociones().catch(() => [])) as Promocion[];
+  return filas
+    .filter((p) => estadoPromo(p, hoy) === 'activa')
+    .map((p) => ({
+      id: p.id,
+      codigo: p.codigo,
+      nombre: p.nombre,
+      descripcion: p.descripcion,
+      tipo: p.tipo,
+      valor: p.valor,
+      hasta: p.hasta,
+      dias: Math.max(0, Math.round((Date.parse(`${p.hasta}T00:00:00Z`) - Date.parse(`${hoy}T00:00:00Z`)) / 86400000)),
+      fotoUrl: p.fotoUrl ? rutaFoto(p.fotoUrl) : '',
+      restantes: p.usosMax > 0 ? Math.max(0, p.usosMax - p.usos) : null,
+    }));
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
   const f = await leerConfigPublica(slug).catch(() => null);
@@ -125,9 +159,6 @@ const P: Record<string, React.ReactNode> = {
   gem: <><path d="M6 4h12l4 5-10 11L2 9z" /><path d="M2 9h20M9 4l-2 5 5 11 5-11-2-5" /></>,
   shield: <><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /><path d="m9 12 2 2 4-4" /></>,
   truck: <><path d="M2 6h11v10H2zM13 10h5l3 3v3h-8z" /><circle cx="7" cy="18" r="1.8" /><circle cx="17" cy="18" r="1.8" /></>,
-  search: <><circle cx="11" cy="11" r="6" /><path d="m20 20-4.2-4.2" /></>,
-  user: <><circle cx="12" cy="8" r="4" /><path d="M4 20c1-4 4-6 8-6s7 2 8 6" /></>,
-  bag: <><path d="M5 8h14l-1 12H6z" /><path d="M9 8a3 3 0 0 1 6 0" /></>,
   heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
   ring: <><circle cx="12" cy="15" r="6" /><path d="M9 6h6l2-3H7z" /></>,
   necklace: <><path d="M4 5c0 9 4 12 8 12s8-3 8-12" /><path d="m12 17 2.5 3L12 23l-2.5-3z" /></>,
@@ -138,21 +169,20 @@ const P: Record<string, React.ReactNode> = {
   pin: <><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></>,
   lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  wa: <><path d="M3.5 20.5 5 16A8.5 8.5 0 1 1 8 19z" /><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2.2-1-.9.9c-1-.4-2-1.4-2.4-2.4l.9-.9-1-2.2z" /></>,
 };
 function Ic({ n, s = 20 }: { n: keyof typeof P; s?: number }) {
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden>{P[n]}</svg>
   );
 }
 
-const CATEGORIAS: { n: keyof typeof P; t: string }[] = [
-  { n: 'necklace', t: 'Collares' },
-  { n: 'ring', t: 'Anillos' },
-  { n: 'earring', t: 'Aretes' },
-  { n: 'bracelet', t: 'Pulseras' },
-  { n: 'pendant', t: 'Dijes' },
-];
+/** Pega aquí el enlace de Google Drive (o la URL .mp4) del video del hero. También puedes poner la columna video_url en Configuración. */
+const VIDEO_HERO = '/sprokel.mp4';
+/** Logo de la marca (archivo en /public) */
+const LOGO_JKS = '/logo-jks.jpeg';
+const slugCat = (k: string) => k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export default async function TiendaPublica({ params }: Params) {
   const { slug } = await params;
@@ -160,160 +190,216 @@ export default async function TiendaPublica({ params }: Params) {
   if (!f) notFound();
   const crudas = (await leerPrendasPublicas().catch(() => [])) as unknown[];
   const PRENDAS = normalizarPrendas(crudas, f as unknown as Record<string, unknown>);
+  const PROMOS = await promosActivas();
 
   const nombre = f.nombre || 'Joyería';
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
   const ig = instagramUser(f.instagram);
   const dom = cop(f.domicilio);
-  const logo = f.logo_url ? (
+  const wa = waLink(f.telefono);
+  const logo = (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={f.logo_url} alt={nombre} className="mw-logo" />
-  ) : (
-    <span className="mw-logo mw-ini">{nombre.trim().charAt(0).toUpperCase()}</span>
+    <img src={LOGO_JKS} alt={nombre} className="mw-logo" />
   );
+
+  const videoUrl = String((f as unknown as Record<string, unknown>).video_url ?? '').trim() || VIDEO_HERO;
+
+  /* Categorías reales con la foto de su primera pieza */
+  const cm = new Map<string, { n: string; c: number; foto: string }>();
+  for (const p of PRENDAS) {
+    const k = p.categoria.trim() || 'Otras piezas';
+    const e = cm.get(k) ?? { n: k, c: 0, foto: '' };
+    e.c++;
+    if (!e.foto) {
+      const ff = p.variantes.find((v) => v.fotos.length)?.fotos[0];
+      if (ff) { try { e.foto = rutaFoto(ff) || ff; } catch { e.foto = ff; } }
+    }
+    cm.set(k, e);
+  }
+  const cats = Array.from(cm.values());
 
   return (
     <div className="mw">
       <style>{`
         html { scroll-behavior: smooth; }
-        body { margin: 0; }
-        .mw { --v:#0b4a2e; --v2:#0f5f3b; --vc:#e7efe9; --vm:#cfe0d5; --o:#b08d3c; --crema:#f6f4ee; --tx:#14201a; --serif: ${serif.style.fontFamily};
-          min-height: 100vh; background: var(--crema); color: var(--tx);
-          font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+        body { margin: 0; background: #030c08; }
+        .mw { --v:#0b4a2e; --v2:#0f5f3b; --vd:#030c08; --vc:#e7efe9; --vm:#cfe0d5; --o:#b08d3c; --o2:#e0b73f; --o3:#f0d680;
+          --crema:#f6f4ee; --tx:#14201a; --serif: ${serif.style.fontFamily};
+          min-height: 100vh; background: var(--crema); color: var(--tx); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
         .mw * { box-sizing: border-box; }
         .mw h1,.mw h2,.mw h3,.mw .mw-marca span { font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; margin: 0; }
         .mw a { color: inherit; text-decoration: none; }
-        .mw-wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+        .mw-wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+        .mw-logo { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--vd); border: 1.5px solid var(--o2); box-shadow: 0 0 0 3px rgba(224,183,63,.14), 0 4px 14px rgba(0,0,0,.4); flex-shrink: 0; }
+        .mw-pie .mw-logo { width: 64px; height: 64px; }
+        .mw .mc-precio b, .mw .mw-oro-bar b, .mw .mc-badge, .mw .mc-tot b, .mw .mc-it b { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif !important; font-weight: 700 !important; font-variant-numeric: lining-nums tabular-nums; }
 
-        .mw-logo { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: #fff; border: 1px solid var(--o); flex-shrink: 0; }
-        .mw-ini { display: grid; place-items: center; background: var(--v); color: var(--o); font-weight: 600; font-size: 20px; }
+        /* Cabecera */
+        .mw-head { background: rgba(3,12,8,.92); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(224,183,63,.16); position: sticky; top: 0; z-index: 20; }
+        .mw-head .mw-wrap { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 68px; }
+        .mw-marca { display: flex; align-items: center; gap: 12px; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: #f4efdc; min-width: 0; }
+        .mw-marca span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mw-nav { display: flex; gap: 26px; font-size: 12px; letter-spacing: .1em; color: #c5d0c8; }
+        .mw-nav a { padding: 6px 0; border-bottom: 1px solid transparent; transition: .2s; white-space: nowrap; }
+        .mw-nav a:hover { color: var(--o2); border-color: var(--o2); }
+        .mw-iconos { display: flex; justify-content: flex-end; align-items: center; }
+        .mw .mc-hbtn { color: var(--o2); }
 
-        .mw-head { background: #fff; border-bottom: 1px solid #e6e2d6; position: sticky; top: 0; z-index: 20; }
-        .mw-head .mw-wrap { display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 74px; }
-        .mw-marca { display: flex; align-items: center; gap: 12px; font-size: 19px; color: var(--v); }
-        .mw-nav { display: flex; gap: 30px; font-size: 14px; color: #44514a; }
-        .mw-nav a:hover { color: var(--v); }
-        .mw-iconos { display: flex; gap: 16px; color: var(--v); }
+        /* Hero con video */
+        .mw-hero { position: relative; display: flex; flex-direction: column; min-height: min(92vh, 820px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
+          background: radial-gradient(ellipse 60% 70% at 20% 60%, rgba(15,95,59,.8), transparent 70%), linear-gradient(120deg, #030c08, #082a1b 60%, #0b4a2e); }
+        .mw .hv { position: absolute; top: 0; right: 0; height: 100%; width: 58%; object-fit: cover; object-position: 50% 55%; opacity: 0; transition: opacity 1.8s ease;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%); mask-image: linear-gradient(90deg, transparent 0%, #000 28%); }
+        .mw .hv.on { opacity: 1; }
+        .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.65) 35%, rgba(3,12,8,0) 65%), linear-gradient(0deg, rgba(3,12,8,.85) 0%, transparent 25%); }
+        .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 64px; padding-bottom: 64px; }
+        .mw .mw-hero-in { max-width: none; margin: 0; padding-left: clamp(24px, 6vw, 96px); padding-right: 24px; }
+        .mw-hero-txt { max-width: 560px; }
+        .mw-hero-txt > * { animation: mw-up 1s cubic-bezier(.2,.7,.2,1) both; }
+        .mw-hero-txt > :nth-child(2) { animation-delay: .1s; } .mw-hero-txt > :nth-child(3) { animation-delay: .2s; } .mw-hero-txt > :nth-child(4) { animation-delay: .3s; } .mw-hero-txt > :nth-child(5) { animation-delay: .4s; }
+        @keyframes mw-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+        .mw-tag { display: inline-flex; align-items: center; gap: 14px; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--o2); }
+        .mw-tag::before { content: ""; width: 36px; height: 1px; background: var(--o2); }
+        .mw-hero h2 { font-size: clamp(34px, 4.6vw, 64px); line-height: 1.06; letter-spacing: .05em; text-transform: uppercase; margin: 22px 0 24px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.45); }
+        .mw-hero p { color: #d3ddd6; font-size: 14.5px; line-height: 1.65; max-width: 400px; margin: 0 0 28px; padding-left: 14px; border-left: 2px solid var(--o2); }
+        .mw-cta { display: flex; gap: 14px; flex-wrap: wrap; }
+        .mw-btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(224,183,63,.7); color: #f4efdc !important; padding: 15px 30px; font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; transition: .25s; }
+        .mw-btn:hover { background: rgba(224,183,63,.14); border-color: var(--o2); }
+        .mw-btn.solid { background: linear-gradient(135deg, var(--o3), var(--o2) 55%, var(--o)); color: #1a1405 !important; border-color: transparent; }
+        .mw-btn.solid:hover { filter: brightness(1.08); }
+        .mw-oro-bar { position: relative; z-index: 1; width: 100%; max-width: none; padding: 0; background: rgba(3,12,8,.6); backdrop-filter: blur(10px); border-top: 1px solid rgba(224,183,63,.3); scroll-margin-top: 68px; }
+        .mw-oro-in { max-width: 1180px; margin: 0 auto; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+        .mw-oro-in > span { font-size: 11px; letter-spacing: .24em; text-transform: uppercase; color: var(--o2); }
+        .mw-oro-in div { display: flex; gap: 36px; }
+        .mw-oro-in small { display: block; font-size: 10.5px; letter-spacing: .14em; color: #8fa397; margin-bottom: 2px; }
+        .mw-oro-in b { font-size: 19px; color: var(--o3); } .mw-oro-in em { font-style: normal; font-size: 11px; color: #8fa397; margin-left: 4px; }
 
-        .mw-hero { background: linear-gradient(120deg, #f6f4ee 0%, var(--vc) 55%, var(--vm) 100%); position: relative; overflow: hidden; scroll-margin-top: 74px; }
-        .mw-hero .mw-wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding-top: 64px; padding-bottom: 64px; }
-        .mw-tag { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--o); }
-        .mw-hero h2 { font-size: 58px; line-height: 1.05; margin: 14px 0 18px; }
-        .mw-hero h2 em { font-style: italic; color: var(--v); }
-        .mw-hero p { color: #4b5a52; font-size: 16px; line-height: 1.6; max-width: 440px; margin: 0 0 28px; }
-        .mw-cta { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-        .mw-btn { display: inline-flex; align-items: center; gap: 10px; background: var(--v); color: #fff !important; padding: 15px 28px; border-radius: 6px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
-        .mw-btn:hover { background: var(--v2); }
-        .mw-link { font-size: 14px; display: inline-flex; align-items: center; gap: 10px; }
-        .mw-link i { width: 28px; height: 28px; border: 1px solid var(--v); border-radius: 50%; display: grid; place-items: center; font-style: normal; }
-        .mw-visual { position: relative; height: 380px; display: grid; place-items: center; }
-        .mw-arco { width: 300px; height: 360px; border-radius: 150px 150px 24px 24px; background: linear-gradient(160deg, var(--v2), var(--v)); display: grid; place-items: center; box-shadow: 0 24px 60px rgba(11,74,46,.35); position: relative; overflow: hidden; }
-        .mw-arco::before { content: ""; position: absolute; width: 360px; height: 360px; border-radius: 50%; border: 26px solid rgba(176,141,60,.35); top: -150px; right: -150px; }
-        .mw-arco::after { content: ""; position: absolute; width: 220px; height: 220px; border-radius: 50%; border: 14px solid rgba(255,255,255,.08); bottom: -90px; left: -90px; }
-        .mw-arco .mw-logo { width: 170px; height: 170px; border-radius: 28px; border-width: 2px; position: relative; z-index: 1; font-size: 74px; }
-        .mw-flota { position: absolute; left: 0; bottom: 20px; background: #fff; border-radius: 14px; padding: 14px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.14); }
-        .mw-flota small { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--o); }
-        .mw-flota b { font-size: 22px; color: var(--v); }
-        .mw-flota span { font-size: 12px; color: #777; }
-
-        .mw-ben { background: #fff; border-bottom: 1px solid #e6e2d6; }
-        .mw-ben .mw-wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding-top: 22px; padding-bottom: 22px; }
-        .mw-b { display: flex; gap: 14px; align-items: center; }
-        .mw-b > span { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--vm); display: grid; place-items: center; color: var(--v); flex-shrink: 0; }
+        /* Beneficios: franja beige con divisores */
+        .mw-ben { background: linear-gradient(180deg, #f3ecdc, #ece3cf); border-bottom: 1px solid #ddd1b0; }
+        .mw-ben .mw-wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding-top: 22px; padding-bottom: 22px; }
+        .mw-b { display: flex; gap: 14px; align-items: center; padding: 0 18px; }
+        .mw-b + .mw-b { border-left: 1px solid rgba(176,141,60,.35); }
+        .mw-b > span { width: 42px; height: 42px; display: grid; place-items: center; color: var(--v); flex-shrink: 0; border: 1px solid rgba(176,141,60,.5); border-radius: 50%; background: rgba(255,255,255,.4); }
         .mw-b b { display: block; font-size: 13px; } .mw-b small { color: #6b7a72; font-size: 12px; }
 
-        .mw-sec { padding: 56px 0 8px; scroll-margin-top: 74px; }
-        .mw-sup { text-align: center; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #6b7a72; margin-bottom: 22px; }
-        .mw-cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
-        .mw-cat { background: var(--vc); border-radius: 14px; padding: 18px 12px 16px; text-align: center; transition: .2s; }
-        .mw-cat:hover { background: var(--vm); transform: translateY(-2px); }
-        .mw-cat .ci { height: 96px; display: grid; place-items: center; color: var(--v); }
-        .mw-cat b { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-top: 8px; }
-        .mw-cat small { font-size: 12px; color: #5a6b62; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+        /* Logo en el hero */
+        .mw-hero-logo { margin: 0 0 24px 7px; }
+        .mw-hero-logo img { display: block; width: clamp(96px, 9vw, 132px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: var(--vd); border: 2px solid var(--o2);
+          box-shadow: 0 0 0 6px rgba(224,183,63,.14), 0 0 0 7px rgba(224,183,63,.38), 0 14px 34px rgba(0,0,0,.5); animation: mw-flota 7s ease-in-out infinite; }
+        @keyframes mw-flota { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
-        .mw-tit { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; }
-        .mw-tit small { display: block; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--o); margin-bottom: 6px; }
-        .mw-tit h3 { font-size: 32px; } .mw-tit a { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--v); }
-        .mw-prods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
-        .mw-p { background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.05); position: relative; }
-        .mw-pf { aspect-ratio: 1; border-radius: 10px; background: var(--vc); display: grid; place-items: center; color: #9db8a8; overflow: hidden; }
-        .mw-p .co { position: absolute; top: 20px; right: 20px; color: #7d8f84; }
-        .mw-p .ln { display: block; height: 10px; border-radius: 6px; background: #ece8dd; margin-top: 12px; } .mw-p .ln + .ln { width: 50%; margin-top: 8px; }
-        .mw-aviso { text-align: center; font-size: 12px; color: #8a978f; margin: 16px 0 0; }
+        .mw-sec { padding: 64px 0 4px; scroll-margin-top: 68px; }
+        .mw-tit { margin-bottom: 26px; }
+        .mw-tit small { display: block; font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--o); margin-bottom: 8px; }
+        .mw-tit h3 { font-size: clamp(28px, 3.4vw, 38px); color: var(--v); letter-spacing: .02em; }
+        .mw-tit i { display: block; width: 64px; height: 2px; background: linear-gradient(90deg, var(--o2), transparent); margin-top: 14px; }
+        .mw-tit.c { text-align: center; }
+        .mw-tit.c i { margin: 14px auto 0; background: linear-gradient(90deg, transparent, var(--o2), transparent); }
 
-        .mw-banner { background: linear-gradient(110deg, #06301e, var(--v) 60%, var(--v2)); border-radius: 20px; color: #fff; padding: 44px 48px; display: grid; grid-template-columns: 1fr 1.1fr; gap: 32px; align-items: center; position: relative; overflow: hidden; margin-top: 56px; scroll-margin-top: 90px; }
-        .mw-banner::after { content: ""; position: absolute; right: -80px; top: -80px; width: 280px; height: 280px; border-radius: 50%; border: 28px solid rgba(176,141,60,.25); pointer-events: none; }
-        .mw-banner small { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #d4b25f; }
-        .mw-banner h3 { font-size: 36px; line-height: 1.15; margin: 10px 0 12px; }
-        .mw-banner p { font-size: 14px; opacity: .8; margin: 0 0 22px; max-width: 340px; }
-        .mw-banner .mw-btn { background: #fff; color: var(--v) !important; }
-        .mw-oro { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; position: relative; z-index: 1; }
-        .mw-oro div { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 18px 10px; text-align: center; }
-        .mw-oro small { color: #d4b25f; } .mw-oro b { display: block; font-size: 19px; margin-top: 6px; }
-        .mw-oro span { font-size: 11px; opacity: .65; }
+        /* Catálogo oscuro */
+        .mw .mw-dark { padding: 64px 0 56px; color: #f4efdc; margin-top: 0;
+          background: radial-gradient(ellipse 50% 40% at 0% 0%, rgba(15,95,59,.55), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 55%, rgba(224,183,63,.12), transparent 70%), linear-gradient(180deg, #030c08, #06241a 50%, #030c08); }
+        .mw-dark .mw-tit h3 { color: #f4efdc; }
+        .mw-dark .mc-chip { background: transparent; border-color: rgba(224,183,63,.4); color: #e8e1c8; }
+        .mw-dark .mc-chip.on { background: var(--o2); border-color: var(--o2); color: #1a1405; }
+        .mw-dark .mc-grupo-tit h4 { color: #f4efdc; }
+        .mw-dark .mc-grupo-tit i { background: linear-gradient(90deg, rgba(224,183,63,.5), transparent); }
+        .mw-dark .mc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 215px), 1fr)); gap: 14px; }
+        .mw-dark .mc-card { border-radius: 8px; border: 1px solid rgba(224,183,63,.3); background: linear-gradient(175deg, #0c3322, #07140e 55%, #030806); box-shadow: 0 14px 34px rgba(0,0,0,.45); transition: transform .25s, border-color .25s; }
+        .mw-dark .mc-card:hover { transform: translateY(-4px); border-color: var(--o2); }
+        .mw-dark .mc-pie-foto span { display: none; } .mw-dark .mc-pie-foto { justify-content: flex-end; }
+        .mw-dark .mc-card .mc-cuerpo { padding: 10px 12px 12px; gap: 6px; }
+        .mw-dark .mc-card .mc-nom { font-size: 16px !important; line-height: 1.2; min-height: 2.4em; }
+        .mw-dark .mc-card .mc-sku { font-size: 9.5px; } .mw-dark .mc-card .mc-est { font-size: 10px; padding: 3px 8px; }
+        .mw-dark .mc-card .mc-fila { padding-top: 10px; }
+        .mw-dark .mc-card .mc-precio b { font-size: 18px; }
+        .mw-dark .mc-bolsa { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; border: 1px solid rgba(224,183,63,.55); background: rgba(4,23,15,.7); color: var(--o2); transition: .2s; }
+        .mw-dark .mc-bolsa:hover:not(:disabled) { background: var(--o2); color: #1a1405; } .mw-dark .mc-bolsa:disabled { opacity: .35; cursor: not-allowed; }
+        .mw-aviso { text-align: center; font-size: 13px; color: #8fa397; }
 
-        .mw-gar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; padding: 40px 0; }
+        /* Botón Pedir del carrito */
+        .mw .mc-pedir, .mw .mc-sig { background: linear-gradient(135deg, var(--o3), var(--o2) 55%, var(--o)); color: #1a1405 !important; letter-spacing: .16em; text-transform: uppercase; font-size: 12.5px; border-radius: 6px; }
 
-        .mw-pie { background: #eef2ee; border-top: 1px solid #e0e6e0; scroll-margin-top: 74px; }
-        .mw-pie .mw-wrap { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.3fr; gap: 36px; padding-top: 44px; padding-bottom: 28px; }
-        .mw-pie h4 { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; margin: 0 0 14px; }
-        .mw-pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 13px; color: #55645b; }
-        .mw-pie p { font-size: 13px; color: #55645b; line-height: 1.6; margin: 12px 0 0; max-width: 260px; }
-        .mw-wa { display: inline-flex; background: var(--v); color: #fff !important; padding: 11px 20px; border-radius: 6px; font-size: 13px; margin-top: 12px; }
-        .mw-copy { border-top: 1px solid #dfe5df; padding: 16px 32px; text-align: center; font-size: 12px; color: #8a978f; }
+        /* Pie */
+        .mw-pie { background: var(--vd); color: #f4efdc; border-top: 1px solid rgba(224,183,63,.25); scroll-margin-top: 68px; }
+        .mw-pie .mw-wrap { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.3fr; gap: 30px; padding-top: 48px; padding-bottom: 28px; }
+        .mw-pie h4 { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; margin: 0 0 14px; color: var(--o2); font-weight: 600; }
+        .mw-pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 13px; color: #a9b8ae; }
+        .mw-pie p { font-size: 13px; color: #a9b8ae; line-height: 1.6; margin: 14px 0 0; max-width: 260px; }
+        .mw-wa { display: inline-flex; border: 1px solid var(--o2); color: #f4efdc !important; padding: 10px 18px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-top: 14px; }
+        .mw-wa:hover { background: var(--o2); color: #1a1405 !important; }
+        .mw-copy { border-top: 1px solid rgba(255,255,255,.08); padding: 16px 28px; text-align: center; font-size: 12px; color: #6f8277; }
+        .mw-wafab { position: fixed; right: 18px; bottom: 18px; z-index: 30; width: 52px; height: 52px; border-radius: 50%; background: #1faa59; color: #fff !important; display: grid; place-items: center; box-shadow: 0 8px 22px rgba(31,170,89,.4); }
 
+        @media (max-width: 1060px) {
+          .mw-nav { display: none; } .mw-head .mw-wrap { grid-template-columns: 1fr auto; }
+        }
         @media (max-width: 960px) {
-          .mw-nav { display: none; }
-          .mw-hero .mw-wrap, .mw-banner { grid-template-columns: 1fr; }
-          .mw-hero h2 { font-size: 42px; }
-          .mw-visual { height: 340px; }
-          .mw-cats { grid-template-columns: repeat(3, 1fr); }
-          .mw-prods, .mw-gar { grid-template-columns: repeat(2, 1fr); }
+          .mw-ben .mw-wrap { grid-template-columns: repeat(2, 1fr); gap: 18px 0; }
+          .mw-b:nth-child(3) { border-left: 0; }
           .mw-pie .mw-wrap { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 600px) {
-          .mw-wrap { padding: 0 18px; }
-          .mw-ben .mw-wrap { grid-template-columns: 1fr; }
-          .mw-cats { grid-template-columns: repeat(2, 1fr); }
-          .mw-banner { padding: 30px 22px; }
-          .mw-hero h2 { font-size: 36px; }
-          .mw-arco { width: 250px; height: 310px; }
-          .mw-pie .mw-wrap { grid-template-columns: 1fr; }
+          .mw-wrap { padding: 0 16px; } .mw-head .mw-wrap { height: 58px; } .mw-marca { font-size: 13px; }
+         .mw .hv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; opacity: 0; transition: opacity 1.8s ease;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
+  mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
+          .mw-btn { flex: 1; padding: 15px 16px; }
+          .mw-oro-in { padding: 12px 16px; } .mw-oro-in > span { width: 100%; } .mw-oro-in div { gap: 18px; width: 100%; justify-content: space-between; } .mw-oro-in b { font-size: 15px; }
+          .mw-ben .mw-wrap { grid-template-columns: 1fr; gap: 14px; }
+          .mw-b { padding: 0; } .mw-b + .mw-b { border-left: 0; }
+          .mw-sec { padding-top: 44px; } .mw .mw-dark { padding: 44px 0 40px; }
+          .mw-hero-logo { margin-bottom: 16px; } .mw-hero-logo img { width: 84px; }
+          .mw-dark .mc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .mw-dark .mc-card .mc-top { flex-wrap: wrap; } .mw-dark .mc-card .mc-nom { font-size: 14px !important; } .mw-dark .mc-card .mc-precio b { font-size: 15px; }
+          .mw-pie .mw-wrap { grid-template-columns: 1fr; gap: 24px; } .mw-wafab { right: 14px; bottom: 14px; width: 48px; height: 48px; }
         }
+        @media (prefers-reduced-motion: reduce) { .mw-hero-txt > *, .mw-hero-logo img { animation: none; } }
       `}</style>
 
-      {/* ---------- Cabecera ---------- */}
       <header className="mw-head">
         <div className="mw-wrap">
           <a className="mw-marca" href="#inicio">{logo}<span>{nombre}</span></a>
           <nav className="mw-nav">
             <a href="#inicio">Inicio</a>
-            <a href="#categorias">Categorías</a>
+            {PROMOS.length > 0 && <a href="#promociones">Promociones</a>}
+            {cats.length > 0 && <a href="#categorias">Colecciones</a>}
             <a href="#catalogo">Catálogo</a>
+            <a href="#personalizado">Personalizados</a>
+            <a href="#tallas">Tallas</a>
             <a href="#oro">Precio del oro</a>
             <a href="#contacto">Contacto</a>
           </nav>
-          <div className="mw-iconos"><Ic n="search" /><Ic n="user" /><Ic n="bag" /></div>
+          <div className="mw-iconos"><CarritoHeader /></div>
         </div>
       </header>
 
-      {/* ---------- Hero ---------- */}
       <section className="mw-hero" id="inicio">
-        <div className="mw-wrap">
-          <div>
-            <span className="mw-tag">Elegancia atemporal</span>
-            <h2>Hechas para<br />brillar <em>siempre</em></h2>
+        <HeroVideo src={videoUrl} />
+        <div className="mw-shade" />
+        <div className="mw-wrap mw-hero-in">
+          <div className="mw-hero-txt">
+            <div className="mw-hero-logo">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={LOGO_JKS} alt={nombre} />
+            </div>
+            <span className="mw-tag">Oro certificado</span>
+            <h2>Hechas para<br />brillar siempre</h2>
             <p>{lema}</p>
             <div className="mw-cta">
-              <a className="mw-btn" href="#catalogo">Ver catálogo</a>
-              <a className="mw-link" href="#contacto">Conoce más <i><Ic n="arrow" s={14} /></i></a>
+              <a className="mw-btn solid" href="#catalogo">Ver catálogo</a>
+              <a className="mw-btn" href="#personalizado">Diseña tu joya</a>
             </div>
           </div>
-          <div className="mw-visual">
-            <div className="mw-arco">{logo}</div>
-            <div className="mw-flota">
-              <small>Oro 18K hoy</small>
-              <b>{cop(f.p18) ?? '—'}</b> <span>/ gramo</span>
+        </div>
+        <div className="mw-oro-bar" id="oro">
+          <div className="mw-oro-in">
+            <span>Precio del oro hoy</span>
+            <div>
+              <p style={{ margin: 0 }}><small>Oro 24K</small><b>{cop(f.p24) ?? '—'}</b><em>/ g</em></p>
+              <p style={{ margin: 0 }}><small>Oro 18K</small><b>{cop(f.p18) ?? '—'}</b><em>/ g</em></p>
+              <p style={{ margin: 0 }}><small>Oro 14K</small><b>{cop(f.p14) ?? '—'}</b><em>/ g</em></p>
             </div>
           </div>
         </div>
@@ -321,79 +407,40 @@ export default async function TiendaPublica({ params }: Params) {
 
       <section className="mw-ben">
         <div className="mw-wrap">
-          <div className="mw-b"><span><Ic n="gem" /></span><div><b>Oro certificado</b><small>Piezas auténticas con garantía</small></div></div>
-          <div className="mw-b"><span><Ic n="shield" /></span><div><b>Garantía de por vida</b><small>Respaldo en cada joya</small></div></div>
-          <div className="mw-b"><span><Ic n="truck" /></span><div><b>Domicilio {dom ? `desde ${dom}` : 'a tu puerta'}</b><small>{f.cobertura || 'Consulta tu zona'}</small></div></div>
+          <div className="mw-b"><span><Ic n="gem" s={22} /></span><div><b>Oro certificado</b><small>Piezas auténticas</small></div></div>
+          <div className="mw-b"><span><Ic n="shield" s={22} /></span><div><b>Garantía de por vida</b><small>Respaldo en cada joya</small></div></div>
+          <div className="mw-b"><span><Ic n="truck" s={22} /></span><div><b>Domicilio {dom ? `desde ${dom}` : 'a tu puerta'}</b><small>{f.cobertura || f.horario || 'Consulta tu zona'}</small></div></div>
+          <div className="mw-b"><span><Ic n="headset" s={22} /></span><div><b>Atención directa</b><small>Te respondemos por WhatsApp</small></div></div>
         </div>
       </section>
 
-      {/* ---------- Categorías ---------- */}
-      <section className="mw-sec" id="categorias">
+      {PROMOS.length > 0 && (
+        <section className="mw-sec" id="promociones" style={{ paddingBottom: 56 }}>
+          <div className="mw-wrap">
+            <PromocionesPublicas promos={PROMOS} wa={wa} logo={LOGO_JKS} />
+          </div>
+        </section>
+      )}
+
+      {cats.length > 0 && (
+        <div id="categorias" style={{ scrollMarginTop: 68 }}>
+          <CarruselColecciones cats={cats.map((c) => ({ ...c, href: `#cat-${slugCat(c.n)}` }))} />
+        </div>
+      )}
+
+      <section className="mw-sec mw-dark" id="catalogo">
         <div className="mw-wrap">
-          <div className="mw-sup">Compra por categoría</div>
-          <div className="mw-cats">
-            {CATEGORIAS.map((c) => (
-              <a key={c.t} className="mw-cat" href="#catalogo">
-                <div className="ci"><Ic n={c.n} s={52} /></div>
-                <b>{c.t}</b>
-                <small>Explorar <Ic n="arrow" s={12} /></small>
-              </a>
-            ))}
-          </div>
+          <div className="mw-tit"><small>Los favoritos</small><h3>Nuestras piezas más amadas</h3><i /></div>
+          {PRENDAS.length
+            ? <CatalogoPublico prendas={PRENDAS} wa={wa} logo={LOGO_JKS} />
+            : <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>}
         </div>
       </section>
 
-      {/* ---------- Catálogo ---------- */}
-      <section className="mw-sec" id="catalogo">
-        <div className="mw-wrap">
-          <div className="mw-tit">
-            <div><small>Los favoritos</small><h3>Nuestras piezas más amadas</h3></div>
-            <a href="#catalogo">Ver todo →</a>
-          </div>
+      <GuiaTallas wa={wa} />
 
-          {PRENDAS.length ? (
-            <CatalogoPublico prendas={PRENDAS} wa={waLink(f.telefono)} logo={f.logo_url || undefined} />
-          ) : (
-            <>
-              <div className="mw-prods">
-                {Array.from({ length: 4 }, (_, i) => (
-                  <div key={i} className="mw-p">
-                    <div className="mw-pf"><Ic n="gem" s={40} /></div>
-                    <span className="co"><Ic n="heart" s={18} /></span>
-                    <i className="ln" /><i className="ln" />
-                  </div>
-                ))}
-              </div>
-              <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>
-            </>
-          )}
+      <PersonalizacionTrabajos wa={wa} nombre={nombre} />
 
-          {/* Banner de precios del oro */}
-          <div className="mw-banner" id="oro">
-            <div>
-              <small>Precio del día</small>
-              <h3>Oro certificado<br />al mejor valor</h3>
-              <p>Consulta el precio actual del gramo y reserva tu pieza hoy.</p>
-              <a className="mw-btn" href={waLink(f.telefono)} target="_blank" rel="noopener noreferrer">Escríbenos</a>
-            </div>
-            <div className="mw-oro">
-              <div><small>Oro 24K</small><b>{cop(f.p24) ?? '—'}</b><span>por gramo</span></div>
-              <div><small>Oro 18K</small><b>{cop(f.p18) ?? '—'}</b><span>por gramo</span></div>
-              <div><small>Oro 14K</small><b>{cop(f.p14) ?? '—'}</b><span>por gramo</span></div>
-            </div>
-          </div>
-
-          {/* Garantías */}
-          <div className="mw-gar">
-            <div className="mw-b"><span><Ic n="truck" /></span><div><b>Domicilios</b><small>{f.horario || 'Consulta el horario'}</small></div></div>
-            <div className="mw-b"><span><Ic n="lock" /></span><div><b>Pago seguro</b><small>Compra con confianza</small></div></div>
-            <div className="mw-b"><span><Ic n="gem" /></span><div><b>Calidad excepcional</b><small>Oro certificado</small></div></div>
-            <div className="mw-b"><span><Ic n="headset" /></span><div><b>Atención directa</b><small>Te respondemos por WhatsApp</small></div></div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- Pie ---------- */}
       <footer className="mw-pie" id="contacto">
         <div className="mw-wrap">
           <div>
@@ -402,7 +449,7 @@ export default async function TiendaPublica({ params }: Params) {
           </div>
           <div>
             <h4>Tienda</h4>
-            <ul><li>Collares</li><li>Anillos</li><li>Aretes</li><li>Pulseras</li><li>Dijes</li></ul>
+            <ul>{cats.length ? cats.map((c) => <li key={c.n}><a href={`#cat-${slugCat(c.n)}`}>{c.n}</a></li>) : <li>Próximamente</li>}</ul>
           </div>
           <div>
             <h4>Entregas</h4>
@@ -420,11 +467,15 @@ export default async function TiendaPublica({ params }: Params) {
               {ig && <li><a href={instagramUrl(f.instagram)} target="_blank" rel="noopener noreferrer">{ig}</a></li>}
               {f.direccion && <li><Ic n="pin" s={13} /> {f.direccion}</li>}
             </ul>
-            <a className="mw-wa" href={waLink(f.telefono)} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
+            <a className="mw-wa" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
           </div>
         </div>
         <div className="mw-copy">© {nombre}. Todos los derechos reservados.</div>
       </footer>
+
+      <a className="mw-wafab" href={wa} target="_blank" rel="noopener noreferrer" aria-label="Escribir por WhatsApp">
+        <Ic n="wa" s={26} />
+      </a>
     </div>
   );
 }

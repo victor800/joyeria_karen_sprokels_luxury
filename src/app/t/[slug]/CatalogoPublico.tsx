@@ -1,550 +1,980 @@
 // 📁 RUTA: src/app/t/[slug]/CatalogoPublico.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { rutaFoto } from '@/lib/foto-url';
+import { ArmaMalla, TallerReparacion, type DatosMalla } from './SeccionesTaller';
 
 export type VarianteP = { tamano: string; peso: string; stock: number; precio: number; fotos: string[] };
 export type PrendaP = {
-  id: string; codigo: string; nombre: string; categoria: string; quilate: string; descripcion: string;
-  variantes: VarianteP[];
+  id: string; codigo: string; nombre: string; categoria: string;
+  quilate: string; descripcion: string; variantes: VarianteP[];
 };
 
-const cop = (n: number) => (n > 0 ? `$${n.toLocaleString('es-CO')}` : 'Consultar precio');
-const LEY: Record<string, string> = { '24': '999', '18': '750', '14': '585' };
-const PUREZA: Record<string, string> = { '24': '99.9', '18': '75.0', '14': '58.5' };
-const estadoDe = (stock: number) =>
-  stock <= 0 ? { t: 'Agotada', c: 'ag' } : stock === 1 ? { t: 'Última unidad', c: 'ul' } : { t: 'Disponible', c: 'ok' };
-const LIKES_KEY = 'jks_me_encanta'; // ids que este visitante ya marcó (solo en su navegador)
-const waHref = (wa: string, p: PrendaP, v: VarianteP) => {
-  const msg = `Hola, me interesa ${p.nombre} (${p.codigo})${v.tamano ? ` en tamaño ${v.tamano}` : ''}. ¿Está disponible?`;
-  return wa === '#' ? '#' : `${wa}?text=${encodeURIComponent(msg)}`;
+type Item = { key: string; id: string; nombre: string; tamano: string; precio: number; qty: number; max: number; foto: string };
+type Vista = 'catalogo' | 'malla' | 'taller';
+
+const LS_CARRITO = 'mw-carrito';
+const LS_LIKES = 'mw-likes';
+const EV_CARRITO = 'mw-carrito';
+const EV_ABRIR = 'mw-abrir-carrito';
+/** Para cambiar de sección desde fuera: window.dispatchEvent(new CustomEvent('mw-vista', { detail: 'malla' })) */
+const EV_VISTA = 'mw-vista';
+const LS_CUPON = 'mw-cupon';
+const LS_ENVIO = 'mw-envio';
+const ID_MALLA = 'malla-personalizada';
+
+/** Cupón aplicado desde la sección de Promociones */
+type Cupon = { codigo: string; nombre: string; tipo: 'porcentaje' | 'monto'; valor: number; hasta: string };
+
+/** Datos de entrega del cliente (se recuerdan en el navegador) */
+type Envio = {
+  entrega: 'domicilio' | 'recoger';
+  nombre: string; telefono: string; correo: string;
+  ciudad: string; barrio: string; direccion: string; complemento: string; indicaciones: string;
+};
+const ENVIO_VACIO: Envio = {
+  entrega: 'domicilio', nombre: '', telefono: '', correo: '',
+  ciudad: '', barrio: '', direccion: '', complemento: '', indicaciones: '',
+};
+const PASOS = ['Carrito', 'Envío', 'Confirmar'];
+
+const soloCelular = (t: string) => {
+  let d = t.replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('57')) d = d.slice(2);
+  return d;
 };
 
-/* Pase automático de fotos: lento y con fundido suave */
-const PASE_MS = 5600;      // tiempo que se queda cada foto en la tarjeta
-const PASE_MODAL_MS = 6000; // tiempo en la vista rápida
-const MAX_FOTOS = 6;
-const sinMovimiento = () =>
-  typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function validarEnvio(e: Envio): Partial<Record<keyof Envio, string>> {
+  const r: Partial<Record<keyof Envio, string>> = {};
+  const nombre = e.nombre.trim();
+  if (nombre.length < 5 || nombre.split(/\s+/).length < 2) r.nombre = 'Escribe tu nombre y apellido';
+  if (!/^3\d{9}$/.test(soloCelular(e.telefono))) r.telefono = 'Celular de 10 dígitos. Ej: 3001234567';
+  if (e.correo.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.correo.trim())) r.correo = 'El correo no es válido';
+  if (e.entrega === 'domicilio') {
+    if (e.ciudad.trim().length < 2) r.ciudad = 'Indica la ciudad o municipio';
+    if (e.barrio.trim().length < 2) r.barrio = 'Indica el barrio';
+    if (e.direccion.trim().length < 5) r.direccion = 'Escribe la dirección completa';
+  }
+  return r;
+}
+
+/** URL a mostrar; si rutaFoto falla o no aplica, se usa el valor tal cual */
+const srcFoto = (f?: string) => {
+  if (!f) return '';
+  if (/^(data:|blob:)/.test(f)) return f;
+  try { return rutaFoto(f) || f; } catch { return f; }
+};
+
+/** Orden preferido de las categorías (las demás van después, en el orden en que aparecen) */
+const ORDEN_CAT = ['collares', 'cadenas', 'anillos', 'aretes', 'pulseras', 'dijes'];
+const slugCat = (k: string) => k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** Clave estable de una categoría: ignora mayúsculas, tildes y espacios ("collares " = "Collares") */
+const CLAVE_OTRAS = 'otras-piezas';
+const claveCat = (k: string) => slugCat(k || '') || CLAVE_OTRAS;
+
+/** Texto a mostrar: "collares" → "Collares" */
+const etiquetaCat = (k: string) => {
+  const t = (k || '').trim().replace(/\s+/g, ' ');
+  if (!t) return 'Otras piezas';
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+};
+
+const rangoCat = (clave: string) => {
+  const i = ORDEN_CAT.indexOf(clave);
+  return i < 0 ? 99 : i;
+};
+
+const cop = (n: number) => (n > 0 ? `$${n.toLocaleString('es-CO')}` : 'Consultar');
+
+function leer<T>(k: string, d: T): T {
+  try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; }
+}
+function guardar(k: string, v: unknown) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin espacio o modo privado */ }
+}
 
 /* ---------- Iconos ---------- */
-const ic = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
-const Chev = ({ d }: { d: 'l' | 'r' }) => (<svg {...ic}><path d={d === 'l' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} /></svg>);
-const Cerrar = () => (<svg {...ic}><path d="M6 6l12 12M18 6L6 18" /></svg>);
-const Ojo = () => (<svg {...ic}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>);
-const Chat = () => (<svg {...ic}><path d="M21 12a8 8 0 0 1-11.7 7L4 20l1.1-4.2A8 8 0 1 1 21 12z" /></svg>);
-const Ok = () => (<svg {...ic} width={13} height={13}><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.7 2.7L16 9.5" /></svg>);
-const Corazon = ({ on }: { on: boolean }) => (
-  <svg width="21" height="21" viewBox="0 0 24 24" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
+const Cart = ({ s = 18 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2" />
+    <circle cx="9.5" cy="19.2" r="1.4" /><circle cx="17" cy="19.2" r="1.4" />
   </svg>
 );
-const Gema = () => (<svg {...ic} width={44} height={44} strokeWidth={1.3}><path d="M6 4h12l4 5-10 11L2 9z" /><path d="M2 9h20M9 4l-2 5 5 11 5-11-2-5" /></svg>);
+const Heart = ({ on, s = 16 }: { on: boolean; s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+    <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+  </svg>
+);
+const Check = ({ s = 18 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12l4 4 10-10" /></svg>
+);
+const Close = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>
+);
+const Chev = ({ dir }: { dir: 'l' | 'r' }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d={dir === 'l' ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'} />
+  </svg>
+);
 
-/* ---------- Corazón "me encanta": blanco → rojo ---------- */
-function BotonLike({ liked, onClick, nombre }: { liked: boolean; onClick: () => void; nombre: string }) {
-  const [pop, setPop] = useState(false);
+/* ---------- Icono del carrito para la cabecera (lo usa page.tsx) ---------- */
+export function CarritoHeader() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const sync = () => setN(leer<Item[]>(LS_CARRITO, []).reduce((a, i) => a + i.qty, 0));
+    sync();
+    window.addEventListener(EV_CARRITO, sync);
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener(EV_CARRITO, sync); window.removeEventListener('storage', sync); };
+  }, []);
   return (
-    <button
-      type="button"
-      className={`cp-like ${liked ? 'on' : ''} ${pop ? 'pop' : ''}`}
-      aria-pressed={liked}
-      aria-label={liked ? `Quitar me encanta de ${nombre}` : `Me encanta ${nombre}`}
-      title={liked ? 'Quitar de mis favoritas' : 'Me encanta'}
-      onClick={(e) => { e.stopPropagation(); if (!liked) setPop(true); onClick(); }}
-      onAnimationEnd={() => setPop(false)}
-    >
-      <Corazon on={liked} />
-      <span className="cp-like-aro" aria-hidden="true" />
+    <button type="button" className="mc-hbtn" aria-label={`Abrir carrito (${n})`}
+      onClick={() => window.dispatchEvent(new Event(EV_ABRIR))}>
+      <Cart s={22} />
+      {n > 0 && <span className="mc-badge">{n}</span>}
     </button>
   );
 }
 
-/* ---------- Tarjeta del catálogo ---------- */
-function Tarjeta({ p, wa, delay, onAbrir, liked, onLike }: { p: PrendaP; wa: string; delay: number; onAbrir: (vi: number, fi: number) => void; liked: boolean; onLike: () => void }) {
-  const [vi, setVi] = useState(0);
-  const [fi, setFi] = useState(0);
-  const [visto, setVisto] = useState(false);   // ya apareció alguna vez (animación de entrada)
-  const [viendo, setViendo] = useState(false); // está en pantalla ahora mismo (el pase de fotos solo corre si se ve)
-  const item = useRef<HTMLDivElement>(null);
+/* ═════════════ Galería (foto + contador + puntos) ═════════════ */
+function Galeria({ fotos, alt, peso, extra, grande, onClick }: {
+  fotos: string[]; alt: string; peso?: string; extra?: ReactNode; grande?: boolean; onClick?: () => void;
+}) {
+  const caja = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState(0);
+  const [crudo, setCrudo] = useState<Record<number, boolean>>({});
+  const xIni = useRef<number | null>(null);
 
-  const v = p.variantes[Math.min(vi, p.variantes.length - 1)];
-  const multi = p.variantes.length > 1;
-  const fotos = v.fotos.slice(0, MAX_FOTOS);
+  useEffect(() => { setIdx(0); setCrudo({}); }, [fotos.join('|')]);
+
   const n = fotos.length;
-  const k0 = n ? Math.min(fi, n - 1) : 0;
-  const agotada = v.stock <= 0;
-  const est = estadoDe(v.stock);
-  const spec = [v.peso ? `${v.peso} g` : '', v.tamano].filter(Boolean).join('  ·  ');
-
-  const elegir = (k: number) => { setVi(k); setFi(0); };
-
-  // Aparece con un suave desplazamiento al entrar en pantalla, y avisa si la tarjeta está a la vista
-  useEffect(() => {
-    const el = item.current;
-    if (!el || typeof IntersectionObserver === 'undefined') { setVisto(true); setViendo(true); return; }
-    const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) setVisto(true);
-      setViendo(e.isIntersecting);
-    }, { threshold: 0.12 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  // Pase automático: una foto cada PASE_MS, con un pequeño desfase por tarjeta para que no cambien todas a la vez
-  useEffect(() => {
-    if (n < 2 || !viendo || sinMovimiento()) return;
-    const espera = PASE_MS + (fi === 0 ? (delay % 4) * 700 : 0);
-    const t = setTimeout(() => setFi((k) => (k + 1) % n), espera);
-    return () => clearTimeout(t);
-  }, [fi, n, viendo, delay]);
-
-  // Inclinación 3D suave + luz que sigue el cursor (solo mouse; no re-renderiza)
-  const mover = (e: React.PointerEvent<HTMLElement>) => {
-    if (e.pointerType !== 'mouse') return;
-    const el = e.currentTarget;
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    const f = el.querySelector('.cp-foto')?.getBoundingClientRect();
-    if (f) {
-      el.style.setProperty('--mx', `${(((e.clientX - f.left) / f.width) * 100).toFixed(1)}%`);
-      el.style.setProperty('--my', `${(((e.clientY - f.top) / f.height) * 100).toFixed(1)}%`);
-    }
-    el.style.setProperty('--rx', `${((0.5 - py) * 5).toFixed(2)}deg`);
-    el.style.setProperty('--ry', `${((px - 0.5) * 7).toFixed(2)}deg`);
-  };
-  const salir = (e: React.PointerEvent<HTMLElement>) => {
-    e.currentTarget.style.setProperty('--rx', '0deg');
-    e.currentTarget.style.setProperty('--ry', '0deg');
-  };
+  const actual = fotos[idx] ?? '';
+  const src = crudo[idx] ? actual : srcFoto(actual);
+  const ir = (d: number) => setIdx((i) => (i + d + n) % n);
 
   return (
-    <div ref={item} className={`cp-item ${visto ? 'vis' : ''}`} style={{ transitionDelay: `${Math.min(delay, 6) * 70}ms` }}>
-      <article className={`cp-card ${agotada ? 'ago' : ''}`} onPointerMove={mover} onPointerLeave={salir}>
-        <button type="button" className={`cp-foto ${n > 1 ? 'multi' : ''}`} onClick={() => onAbrir(vi, k0)} aria-haspopup="dialog" aria-label={`Vista rápida de ${p.nombre}`}>
-          {n ? (
-            fotos.map((u, k) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={`${vi}-${k}`} className={`cp-img ${k === k0 ? 'on' : ''}`} src={u} alt="" loading="lazy" />
-            ))
-          ) : (
-            <span className="cp-vacio"><Gema /></span>
-          )}
-          <span className="cp-luz" aria-hidden="true" />
-          <span className="cp-ley"><Ok /> ORO {p.quilate}K</span>
-          {n > 1 && (
-            <span className="cp-prog" aria-hidden="true">
-              {fotos.map((_, k) => (<i key={k} className={k === k0 ? 'on' : ''} />))}
-            </span>
-          )}
-          <span className="cp-rapida"><Ojo /> Vista rápida</span>
-        </button>
+    <div className={`mc-foto${grande ? ' grande' : ''}`} ref={caja}
+      onClick={onClick}
+      onTouchStart={(e) => { xIni.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (xIni.current === null || n < 2) return;
+        const dx = e.changedTouches[0].clientX - xIni.current;
+        xIni.current = null;
+        if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1);
+      }}>
+      {src
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img key={src} className="mc-base" src={src} alt={alt} loading="lazy" draggable={false}
+            onError={() => { if (!crudo[idx] && srcFoto(actual) !== actual) setCrudo((c) => ({ ...c, [idx]: true })); }} />
+        : <span className="mc-sinfoto">Sin foto</span>}
 
-        <BotonLike liked={liked} onClick={onLike} nombre={p.nombre} />
+      <div className="mc-vela" />
 
-        <div className="cp-cuerpo">
-          <div className="cp-ey"><span>{p.categoria}</span><b>{p.codigo}</b></div>
-          <h3 className="cp-nom" title={p.nombre}>{p.nombre}</h3>
-          <i className="cp-linea" aria-hidden="true" />
+      {n > 1 && <span className="mc-cont">{idx + 1} / {n}</span>}
+      {extra}
 
-          {multi && (
-            <div className="cp-tams" role="group" aria-label="Tamaño">
-              {p.variantes.map((x, k) => (
-                <button key={k} type="button" aria-pressed={k === vi} onClick={() => elegir(k)}>{x.tamano || `Opción ${k + 1}`}</button>
-              ))}
-            </div>
-          )}
-          {spec && <p className="cp-spec">{spec}</p>}
-
-          <div className="cp-fila">
-            <span className="cp-precio">{cop(v.precio)}{v.precio > 0 && <small>COP</small>}</span>
-            <span className={`cp-est ${est.c}`}><i aria-hidden="true" />{est.t}</span>
+      {n > 1 && (
+        <>
+          <button type="button" className="mc-flecha l" aria-label="Foto anterior" onClick={(e) => { e.stopPropagation(); ir(-1); }}><Chev dir="l" /></button>
+          <button type="button" className="mc-flecha r" aria-label="Foto siguiente" onClick={(e) => { e.stopPropagation(); ir(1); }}><Chev dir="r" /></button>
+          <div className="mc-puntos">
+            {fotos.map((_, i) => (
+              <button key={i} type="button" aria-label={`Foto ${i + 1}`} data-on={i === idx}
+                onClick={(e) => { e.stopPropagation(); setIdx(i); }} />
+            ))}
           </div>
+        </>
+      )}
 
-          <a className={`cp-pedir ${agotada ? 'off' : ''}`} href={agotada ? undefined : waHref(wa, p, v)} target="_blank" rel="noopener noreferrer" aria-disabled={agotada}>
-            <Chat /> {agotada ? 'Agotada por ahora' : 'Pedir por WhatsApp'}
-          </a>
-        </div>
-      </article>
-    </div>
-  );
-}
-
-/* ---------- Vista rápida: ficha a pantalla completa con galería y zoom ---------- */
-function VistaRapida({ p, wa, logo, vi0, fi0, onCerrar, liked, onLike }: { p: PrendaP; wa: string; logo?: string; vi0: number; fi0: number; onCerrar: () => void; liked: boolean; onLike: () => void }) {
-  const [vi, setVi] = useState(Math.min(vi0, p.variantes.length - 1));
-  const [fi, setFi] = useState(fi0);
-  const [pausa, setPausa] = useState(false); // el pase automático se detiene mientras el cursor está sobre la foto (zoom)
-  const v = p.variantes[vi];
-  const fotos = v.fotos.slice(0, MAX_FOTOS);
-  const n = fotos.length;
-  const i = n ? Math.min(fi, n - 1) : 0;
-  const est = estadoDe(v.stock);
-  const agotada = v.stock <= 0;
-  const ley = LEY[p.quilate];
-  const pureza = PUREZA[p.quilate];
-  const tiles = [
-    { k: 'Peso', val: v.peso ? `${v.peso} g` : '' },
-    { k: 'Tamaño', val: v.tamano },
-    { k: 'Pureza', val: pureza ? `${pureza}% Au` : '' },
-  ].filter((t) => t.val);
-
-  const ir = (d: number) => { if (n > 1) setFi((i + d + n) % n); };
-  const elegir = (k: number) => { setVi(k); setFi(0); };
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCerrar();
-      else if (e.key === 'ArrowRight') ir(1);
-      else if (e.key === 'ArrowLeft') ir(-1);
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  });
-
-  // Pase automático lento; al cambiar de foto a mano el reloj vuelve a empezar
-  useEffect(() => {
-    if (n < 2 || pausa || sinMovimiento()) return;
-    const t = setTimeout(() => setFi((i + 1) % n), PASE_MODAL_MS);
-    return () => clearTimeout(t);
-  }, [i, n, pausa, vi]);
-
-  const zoom = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== 'mouse') return;
-    const r = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty('--zx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
-    e.currentTarget.style.setProperty('--zy', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
-  };
-
-  return (
-    <div className="cp-m" role="dialog" aria-modal="true" aria-label={p.nombre} onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-      <div className="cp-m-hoja">
-        <button type="button" className="cp-m-x" onClick={onCerrar} aria-label="Cerrar" autoFocus><Cerrar /></button>
-
-        <div className="cp-m-gal">
-          <div
-            className="cp-m-foto"
-            onPointerMove={zoom}
-            onPointerEnter={(e) => { if (e.pointerType === 'mouse') setPausa(true); }}
-            onPointerLeave={(e) => { if (e.pointerType === 'mouse') setPausa(false); }}
-          >
-            {n ? (
-              fotos.map((u, k) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={`${vi}-${k}`} className={`cp-m-img ${k === i ? 'on' : ''}`} src={u} alt={k === i ? (n > 1 ? `${p.nombre} (${i + 1} de ${n})` : p.nombre) : ''} aria-hidden={k !== i} />
-              ))
-            ) : (
-              <span className="cp-vacio"><Gema /></span>
-            )}
-            <span className="cp-ley"><Ok /> ORO {p.quilate}K{ley ? ` · LEY ${ley}` : ''}</span>
-            <BotonLike liked={liked} onClick={onLike} nombre={p.nombre} />
-            {n > 1 && (
-              <>
-                <button type="button" className="cp-m-nav prev" onClick={() => ir(-1)} aria-label="Foto anterior"><Chev d="l" /></button>
-                <button type="button" className="cp-m-nav next" onClick={() => ir(1)} aria-label="Foto siguiente"><Chev d="r" /></button>
-              </>
-            )}
-          </div>
-          {n > 1 && (
-            <div className="cp-m-tiras">
-              {fotos.map((u, k) => (
-                <button key={u + k} type="button" className={k === i ? 'on' : ''} onClick={() => setFi(k)} aria-label={`Foto ${k + 1}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={u} alt="" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="cp-m-info">
-          <div className="cp-m-top">
-            <span className="cp-sku">SKU: {p.codigo}</span>
-            <span className={`cp-est pill ${est.c}`}><i aria-hidden="true" />{est.t}</span>
-          </div>
-          <h3 className="cp-m-nom">{p.nombre}</h3>
-          <p className="cp-m-desc">{p.descripcion || 'Pieza en oro certificado.'}</p>
-
-          {p.variantes.length > 1 && (
-            <div className="cp-tams" role="group" aria-label="Tamaño">
-              {p.variantes.map((x, k) => (
-                <button key={k} type="button" aria-pressed={k === vi} onClick={() => elegir(k)}>{x.tamano || `Opción ${k + 1}`}</button>
-              ))}
-            </div>
-          )}
-
-          {tiles.length > 0 && (
-            <div className="cp-tiles" style={{ gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))` }}>
-              {tiles.map((t) => (<div key={t.k}><span>{t.k}</span><b title={t.val}>{t.val}</b></div>))}
-            </div>
-          )}
-
-          <div className="cp-m-precio">
-            <span>Precio</span>
-            <b>{cop(v.precio)}{v.precio > 0 && <small>COP</small>}</b>
-          </div>
-
-          <a className={`cp-pedir grande ${agotada ? 'off' : ''}`} href={agotada ? undefined : waHref(wa, p, v)} target="_blank" rel="noopener noreferrer" aria-disabled={agotada}>
-            <Chat /> {agotada ? 'Agotada por ahora' : 'Pedir por WhatsApp'}
-          </a>
-
-          <div className="cp-m-sello">
-            {logo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="" aria-hidden="true" />
-            )}
-            <span>Oro certificado{ley ? ` · Ley ${ley}` : ''}</span>
-          </div>
-        </div>
+      <div className="mc-pie-foto">
+        <span>Fotografía real</span>
+        {peso ? <b>{peso} g</b> : null}
       </div>
     </div>
   );
 }
 
-/* ---------- Catálogo ---------- */
-export default function CatalogoPublico({ prendas, wa, logo }: { prendas: PrendaP[]; wa: string; logo?: string }) {
-  const [cat, setCat] = useState('todas');
-  const [rapida, setRapida] = useState<{ id: string; vi: number; fi: number } | null>(null);
-  const [mios, setMios] = useState<Set<string>>(() => new Set());
-  const pendientes = useRef<Set<string>>(new Set());
+/* ═════════════ Datos comunes de una pieza ═════════════ */
+function estadoStock(stock: number) {
+  if (stock <= 0) return { t: 'Agotado', c: 'ago' };
+  if (stock === 1) return { t: 'Última unidad', c: 'ult' };
+  return { t: `${stock} disponibles`, c: 'ok' };
+}
 
-  // Recuerda en este navegador qué piezas ya marcó el visitante
+type PropsPieza = {
+  p: PrendaP; liked: boolean; conteo: number;
+  onLike: () => void; onAdd: (v: VarianteP) => void; onFicha: () => void;
+};
+
+function BotonLike({ liked, conteo, onLike }: { liked: boolean; conteo: number; onLike: () => void }) {
+  return (
+    <button type="button" className={`mc-like${liked ? ' on' : ''}`} onClick={(e) => { e.stopPropagation(); onLike(); }}
+      aria-pressed={liked} aria-label={liked ? 'Quitar de me encanta' : 'Me encanta'}>
+      <Heart on={liked} />{conteo > 0 && <span>{conteo}</span>}
+    </button>
+  );
+}
+
+function Variantes({ p, idx, setIdx }: { p: PrendaP; idx: number; setIdx: (i: number) => void }) {
+  if (p.variantes.length < 2) return null;
+  return (
+    <div className="mc-tams" role="group" aria-label="Tamaño">
+      {p.variantes.map((x, i) => (
+        <button key={i} type="button" disabled={x.stock <= 0} data-on={i === idx} onClick={() => setIdx(i)}>
+          {x.tamano || `Opción ${i + 1}`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ═════════════ Tarjeta (compacta: el detalle y la compra están en la ficha) ═════════════ */
+function Tarjeta({ p, liked, conteo, onLike, onAdd, onFicha }: PropsPieza) {
+  const v = p.variantes.find((x) => x.stock > 0) ?? p.variantes[0];
+  const est = estadoStock(v.stock);
+  const agotado = v.stock <= 0;
+
+  return (
+    <article className="mc-card">
+      <Galeria fotos={v.fotos} alt={p.nombre} peso={v.peso}
+        extra={<BotonLike liked={liked} conteo={conteo} onLike={onLike} />} onClick={onFicha} />
+
+      <div className="mc-cuerpo">
+        <div className="mc-top">
+          <span className="mc-sku">{p.codigo ? `SKU: ${p.codigo}` : `Oro ${p.quilate}K`}</span>
+          <span className={`mc-est ${est.c}`}><i />{est.t}</span>
+        </div>
+
+        <h4 className="mc-nom">{p.nombre}</h4>
+
+        <div className="mc-fila">
+          <div className="mc-precio"><b>{cop(v.precio)}</b></div>
+          <button type="button" className="mc-bolsa" aria-label="Agregar al carrito"
+            disabled={agotado || v.precio <= 0}
+            onClick={(e) => { e.stopPropagation(); p.variantes.length > 1 ? onFicha() : onAdd(v); }}>
+            <Cart s={16} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ═════════════ Ficha completa (ventana) ═════════════ */
+function Ficha({ p, liked, conteo, onLike, onAdd, onCerrar }: Omit<PropsPieza, 'onFicha'> & { onCerrar: () => void }) {
+  const [idx, setIdx] = useState(Math.max(0, p.variantes.findIndex((v) => v.stock > 0)));
+  const v = p.variantes[idx] ?? p.variantes[0];
+  const est = estadoStock(v.stock);
+  const agotado = v.stock <= 0;
+
   useEffect(() => {
-    try {
-      const a = JSON.parse(localStorage.getItem(LIKES_KEY) || '[]');
-      if (Array.isArray(a)) setMios(new Set(a.filter((x): x is string => typeof x === 'string')));
-    } catch { /* sin almacenamiento: funciona igual, solo no se recuerda */ }
-  }, []);
-
-  const poner = (id: string, quiere: boolean) =>
-    setMios((cur) => {
-      const sig = new Set(cur);
-      if (quiere) sig.add(id); else sig.delete(id);
-      try { localStorage.setItem(LIKES_KEY, JSON.stringify(Array.from(sig))); } catch { /* ignorar */ }
-      return sig;
-    });
-
-  // El corazón cambia al instante; si el servidor falla, vuelve a como estaba
-  const alternarLike = async (id: string) => {
-    if (pendientes.current.has(id)) return;
-    const quiere = !mios.has(id);
-    pendientes.current.add(id);
-    poner(id, quiere);
-    try {
-      const res = await fetch('/api/likes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, accion: quiere ? 'like' : 'unlike' }),
-      });
-      if (!res.ok) throw new Error('like');
-    } catch {
-      poner(id, !quiere);
-    } finally {
-      pendientes.current.delete(id);
-    }
-  };
-
-  const cats = Array.from(new Set(prendas.map((p) => p.categoria).filter(Boolean)));
-  const activa = cat !== 'todas' && cats.includes(cat) ? cat : 'todas';
-  const lista = prendas.filter((p) => activa === 'todas' || p.categoria === activa);
-  const abierta = rapida ? prendas.find((p) => p.id === rapida.id) : undefined;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onCerrar]);
 
   return (
     <>
-      <style>{CSS}</style>
+      <div className="mc-back" onClick={onCerrar} />
+      <div className="mc-modal" role="dialog" aria-label={p.nombre}>
+        <button type="button" className="mc-x mc-modal-x" aria-label="Cerrar" onClick={onCerrar}><Close /></button>
+        <Galeria fotos={v.fotos} alt={p.nombre} peso={v.peso} grande
+          extra={<BotonLike liked={liked} conteo={conteo} onLike={onLike} />} />
+        <div className="mc-cuerpo mc-cuerpo-modal">
+          <div className="mc-top">
+            <span className="mc-sku">{p.codigo ? `SKU: ${p.codigo}` : 'Pieza'}</span>
+            <span className={`mc-est ${est.c}`}><i />{est.t}</span>
+          </div>
+          <h4 className="mc-nom grande">{p.nombre}</h4>
+          {p.descripcion && <p className="mc-desc completa">{p.descripcion}</p>}
 
-      {cats.length > 1 && (
-        <div className="cp-chips" role="group" aria-label="Categorías">
-          <button type="button" aria-pressed={activa === 'todas'} onClick={() => setCat('todas')}>Todas <i>{prendas.length}</i></button>
-          {cats.map((c) => (
-            <button key={c} type="button" aria-pressed={activa === c} onClick={() => setCat(c)}>
-              {c} <i>{prendas.filter((p) => p.categoria === c).length}</i>
+          <div className="mc-datos tres">
+            <div><small>Material</small><b>Oro {p.quilate}K</b></div>
+            <div><small>Peso exacto</small><b>{v.peso ? `${v.peso} g` : '—'}</b></div>
+            <div><small>Tamaño</small><b>{v.tamano || '—'}</b></div>
+          </div>
+          <Variantes p={p} idx={idx} setIdx={setIdx} />
+          {p.categoria && <p className="mc-cat-ficha">Categoría: {etiquetaCat(p.categoria)}</p>}
+
+          <div className="mc-fila">
+            <div className="mc-precio"><small>Precio público</small><b>{cop(v.precio)}</b></div>
+            <button type="button" className="mc-add" disabled={agotado || v.precio <= 0} onClick={() => onAdd(v)}>
+              <Cart s={17} /><span>Agregar</span>
             </button>
-          ))}
+          </div>
         </div>
-      )}
-
-      <div className="cp-grid">
-        {lista.map((p, k) => (
-          <Tarjeta key={p.id} p={p} wa={wa} delay={k} onAbrir={(vi, fi) => setRapida({ id: p.id, vi, fi })} liked={mios.has(p.id)} onLike={() => alternarLike(p.id)} />
-        ))}
       </div>
-
-      {abierta && rapida && (
-        <VistaRapida key={abierta.id} p={abierta} wa={wa} logo={logo} vi0={rapida.vi} fi0={rapida.fi} onCerrar={() => setRapida(null)} liked={mios.has(abierta.id)} onLike={() => alternarLike(abierta.id)} />
-      )}
     </>
   );
 }
 
-/* ---------- Estilos ---------- */
-const CSS = `
-  .cp-chips { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 28px; }
-  .cp-chips button { font: inherit; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; padding: 11px 20px; border-radius: 99px; border: 1px solid rgba(176,141,60,.38);
-    background: transparent; color: #3c4a42; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: .25s; }
-  .cp-chips button i { font-style: normal; font-size: 10px; letter-spacing: .06em; color: #8a6d25; }
-  .cp-chips button:hover { border-color: #b08d3c; color: #0b2d1f; }
-  .cp-chips button[aria-pressed="true"] { background: #0b2d1f; border-color: #0b2d1f; color: #f3ead2; }
-  .cp-chips button[aria-pressed="true"] i { color: #ecd07a; }
-  .cp-chips button:focus-visible, .cp-card button:focus-visible, .cp-m button:focus-visible, .cp-pedir:focus-visible { outline: 2px solid #d8b95f; outline-offset: 2px; }
+/* ═════════════ Campo de formulario con etiqueta y error ═════════════ */
+function Campo({ id, label, opcional, error, children }: { id: string; label: string; opcional?: boolean; error?: string; children: ReactNode }) {
+  return (
+    <div className="mc-c">
+      <label htmlFor={id}>{label}{opcional && <em> (opcional)</em>}</label>
+      {children}
+      {error && <small className="mc-err" role="alert">{error}</small>}
+    </div>
+  );
+}
 
-  .cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(262px, 1fr)); gap: 28px; align-items: stretch; }
-  .cp-item { opacity: 0; transform: translateY(22px); perspective: 1000px; transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); }
-  .cp-item.vis { opacity: 1; transform: none; }
+/* ═════════════ Catálogo + carrito ═════════════ */
+export default function CatalogoPublico({ prendas, wa }: { prendas: PrendaP[]; wa: string; logo?: string }) {
+  const [items, setItems] = useState<Item[]>([]);
+  const [likes, setLikes] = useState<string[]>([]);
+  const [conteos, setConteos] = useState<Record<string, number>>({});
+  const [abierto, setAbierto] = useState(false);
+  const [ficha, setFicha] = useState<string | null>(null);
+  const [vista, setVista] = useState<Vista>('catalogo');
+  const [cat, setCat] = useState('todas'); // clave de categoría ('todas' = sin filtro)
+  const [aviso, setAviso] = useState('');
+  const [cupon, setCupon] = useState<Cupon | null>(null);
+  const [paso, setPaso] = useState(0);
+  const [envio, setEnvio] = useState<Envio>(ENVIO_VACIO);
+  const [tocados, setTocados] = useState<Record<string, boolean>>({});
+  const enVuelo = useRef<Set<string>>(new Set());
 
-  .cp-card { --mx: 50%; --my: 50%; --rx: 0deg; --ry: 0deg; position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 22px; color: #f3ead2;
-    background: linear-gradient(180deg, #0d3324 0%, #0a2619 55%, #07211a 100%); border: 1px solid rgba(216,185,95,.2); box-shadow: 0 18px 40px rgba(5,28,19,.25);
-    transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s, border-color .35s; will-change: transform; }
-  .cp-card:hover { border-color: rgba(216,185,95,.5); box-shadow: 0 30px 60px rgba(5,28,19,.38); }
-  /* brillo dorado que recorre el borde al pasar el cursor */
-  .cp-card::before { content: ""; position: absolute; inset: 0; z-index: 7; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .3s;
-    background: linear-gradient(115deg, transparent 35%, rgba(255,232,160,.95) 50%, transparent 65%); background-size: 260% 100%; background-position: 150% 0;
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-  .cp-card:hover::before { opacity: 1; animation: cpbrillo 1.5s ease both; }
-  @keyframes cpbrillo { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+  useEffect(() => {
+    setItems(leer<Item[]>(LS_CARRITO, []));
+    setLikes(leer<string[]>(LS_LIKES, []));
+    setCupon(leer<Cupon | null>(LS_CUPON, null));
+    setEnvio({ ...ENVIO_VACIO, ...leer<Partial<Envio>>(LS_ENVIO, {}) });
+    const abrir = () => { setPaso(0); setAbierto(true); };
+    const releer = () => { setItems(leer<Item[]>(LS_CARRITO, [])); setCupon(leer<Cupon | null>(LS_CUPON, null)); };
+    const irVista = (e: Event) => {
+      const d = (e as CustomEvent<string>).detail;
+      if (d === 'catalogo' || d === 'malla' || d === 'taller') setVista(d);
+    };
+    window.addEventListener(EV_ABRIR, abrir);
+    window.addEventListener(EV_CARRITO, releer);
+    window.addEventListener(EV_VISTA, irVista);
+    return () => {
+      window.removeEventListener(EV_ABRIR, abrir);
+      window.removeEventListener(EV_CARRITO, releer);
+      window.removeEventListener(EV_VISTA, irVista);
+    };
+  }, []);
 
-  .cp-foto { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1.1; padding: 0; border: 0; background: #050d09; cursor: pointer; overflow: hidden; }
-  .cp-foto::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; z-index: 2; pointer-events: none; background: linear-gradient(to top, #0a2619 0%, rgba(10,38,25,0)); }
+  // totales de "me encanta" por pieza
+  useEffect(() => {
+    fetch('/api/likes', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.likes) setConteos(d.likes as Record<string, number>); })
+      .catch(() => {});
+  }, []);
 
-  /* Fotos apiladas: la activa se funde sobre la anterior, despacio, con un acercamiento casi imperceptible */
-  .cp-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 38%; opacity: 0; transform: scale(1);
-    transition: opacity 1.8s ease-in-out, transform 0s linear 1.8s; }
-  .cp-img.on { opacity: 1; transition: opacity 1.8s ease-in-out, transform 0s; }
-  .cp-foto.multi .cp-img.on { transform: scale(1.07); transition: opacity 1.8s ease-in-out, transform 9s ease-out; }
+  useEffect(() => {
+    document.body.style.overflow = abierto || ficha ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [abierto, ficha]);
 
-  .cp-vacio { position: absolute; inset: 0; display: grid; place-items: center; color: #b08d3c; }
-  /* luz que sigue al cursor, como un foco de vitrina */
-  .cp-luz { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .4s; mix-blend-mode: screen;
-    background: radial-gradient(240px circle at var(--mx) var(--my), rgba(255,236,170,.26), transparent 62%); }
-  .cp-card:hover .cp-luz { opacity: 1; }
+  const persistir = useCallback((next: Item[]) => {
+    setItems(next);
+    guardar(LS_CARRITO, next);
+    window.dispatchEvent(new Event(EV_CARRITO));
+  }, []);
 
-  /* indicador discreto de cuántas fotos tiene la pieza y cuál se ve */
-  .cp-prog { position: absolute; left: 50%; bottom: 62px; z-index: 4; transform: translateX(-50%); display: flex; gap: 5px; pointer-events: none; transition: opacity .3s; }
-  .cp-prog i { display: block; width: 12px; height: 2px; border-radius: 2px; background: rgba(243,234,210,.4); transition: width 1s ease, background 1s ease; }
-  .cp-prog i.on { width: 26px; background: #ecd07a; }
-  .cp-card:hover .cp-prog { opacity: 0; }
-  @media (hover: none) { .cp-card:hover .cp-prog { opacity: 1; } }
+  const avisar = (t: string) => { setAviso(t); window.setTimeout(() => setAviso(''), 1800); };
 
-  .cp-ley { position: absolute; top: 14px; left: 14px; z-index: 4; pointer-events: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border-radius: 99px;
-    font-size: 10.5px; font-weight: 600; letter-spacing: .14em; white-space: nowrap; color: #f3ead2; background: rgba(6,24,17,.55); border: 1px solid rgba(236,208,122,.5); backdrop-filter: blur(8px); }
-  .cp-ley svg { color: #ecd07a; }
-  .cp-rapida { position: absolute; left: 50%; bottom: 46px; z-index: 4; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 18px; border-radius: 99px; white-space: nowrap;
-    font-size: 10.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #f3ead2; background: rgba(6,24,17,.6); border: 1px solid rgba(236,208,122,.5); backdrop-filter: blur(8px);
-    opacity: 0; transform: translate(-50%, 10px); transition: opacity .3s, transform .3s; }
-  .cp-card:hover .cp-rapida, .cp-foto:focus-visible .cp-rapida { opacity: 1; transform: translate(-50%, 0); }
-  @media (hover: none) { .cp-rapida { opacity: 1; transform: translate(-50%, 0); } .cp-prog { bottom: 94px; } }
+  const agregar = (p: PrendaP, v: VarianteP) => {
+    const key = `${p.id}|${v.tamano}`;
+    const ex = items.find((i) => i.key === key);
+    if (ex) {
+      if (ex.qty >= v.stock) return avisar('Ya tienes todo el stock disponible');
+      persistir(items.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)));
+    } else {
+      persistir([...items, {
+        key, id: p.id, nombre: p.nombre, tamano: v.tamano, precio: v.precio,
+        qty: 1, max: v.stock, foto: srcFoto(v.fotos[0]),
+      }]);
+    }
+    avisar('Agregado al carrito');
+  };
 
-  .cp-cuerpo { position: relative; z-index: 5; flex: 1; display: flex; flex-direction: column; margin-top: -30px; padding: 0 22px 22px; }
-  .cp-ey { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: #d8b95f; }
-  .cp-ey span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cp-ey b { flex-shrink: 0; font-weight: 500; letter-spacing: .14em; color: rgba(243,234,210,.55); }
-  .mw .cp-nom { font-size: 23px; line-height: 1.2; color: #f3ead2; min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .cp-linea { display: block; width: 36px; height: 1px; margin: 12px 0 14px; background: linear-gradient(90deg, #ecd07a, rgba(236,208,122,0)); transition: width .6s cubic-bezier(.2,.8,.2,1); }
-  .cp-card:hover .cp-linea { width: 100%; }
+  /** Malla armada en el visor 3D (pieza hecha a pedido: hasta 5 iguales por pedido) */
+  const agregarMalla = (d: DatosMalla) => {
+    const ex = items.find((i) => i.key === d.key);
+    if (ex) {
+      if (ex.qty >= ex.max) return avisar('Máximo 5 mallas iguales por pedido');
+      persistir(items.map((i) => (i.key === d.key ? { ...i, qty: i.qty + 1, precio: d.precio } : i)));
+    } else {
+      persistir([...items, {
+        key: d.key, id: ID_MALLA, nombre: d.nombre, tamano: d.tamano, precio: d.precio,
+        qty: 1, max: 5, foto: d.foto,
+      }]);
+    }
+    avisar('Malla agregada al carrito');
+  };
 
-  .cp-tams { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
-  .cp-tams button { font: inherit; font-size: 11px; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(216,185,95,.4); background: transparent; color: rgba(243,234,210,.88); cursor: pointer; transition: .2s; }
-  .cp-tams button:hover { border-color: #d8b95f; }
-  .cp-tams button[aria-pressed="true"] { background: linear-gradient(135deg, #f0d680, #b08d3c); border-color: #e6c970; color: #1c1608; font-weight: 600; }
-  .cp-spec { margin: 0 0 10px; font-size: 12px; letter-spacing: .06em; color: rgba(243,234,210,.66); }
+  const cambiar = (key: string, d: number) =>
+    persistir(items
+      .map((i) => (i.key === key ? { ...i, qty: Math.min(i.max, i.qty + d) } : i))
+      .filter((i) => i.qty > 0));
 
-  .cp-fila { margin-top: auto; padding-top: 6px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .cp-precio { font-family: var(--serif, Georgia, serif); font-size: 28px; font-weight: 500; letter-spacing: .01em; color: #ecd07a; }
-  .cp-precio small { font-family: system-ui, sans-serif; font-size: 10px; letter-spacing: .14em; margin-left: 7px; color: rgba(236,208,122,.6); }
-  .cp-est { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; color: #8fdcb0; }
-  .cp-est i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .cp-est.ul { color: #f0c48f; }
-  .cp-est.ag { color: #f2a59d; }
+  const quitar = (key: string) => persistir(items.filter((i) => i.key !== key));
 
-  .cp-pedir { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; height: 46px; border-radius: 99px;
-    font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #1c1608 !important; background: linear-gradient(135deg, #f0d680, #c9a548 55%, #b08d3c);
-    transition: transform .25s, box-shadow .25s; }
-  .cp-pedir::after { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; transform: skewX(-20deg); background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); }
-  .cp-pedir:hover:not(.off) { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(176,141,60,.4); }
-  .cp-pedir:hover:not(.off)::after { left: 130%; transition: left .8s ease; }
-  .cp-pedir.off { background: rgba(255,255,255,.08); color: rgba(243,234,210,.55) !important; cursor: default; }
-  .cp-pedir.off::after { display: none; }
-  .cp-pedir.grande { height: 52px; font-size: 12px; margin-top: 4px; }
-  .cp-card.ago .cp-img { filter: grayscale(.8); }
-  .cp-card.ago .cp-img.on { opacity: .65; }
+  const alternarLike = async (p: PrendaP) => {
+    if (enVuelo.current.has(p.id)) return;
+    enVuelo.current.add(p.id);
 
-  /* ---------- Corazón "me encanta" ---------- */
-  .cp-like { position: absolute; top: 12px; right: 12px; z-index: 6; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
-    color: #fff; background: rgba(6,24,17,.5); border: 1px solid rgba(255,255,255,.38); backdrop-filter: blur(8px);
-    transition: transform .25s, background .25s, border-color .25s, color .25s; }
-  .cp-like:hover { transform: scale(1.08); background: rgba(6,24,17,.72); border-color: rgba(255,255,255,.7); }
-  .cp-like.on { color: #ff4d5a; border-color: rgba(255,77,90,.65); }
-  .cp-like.pop svg { animation: cplatido .6s cubic-bezier(.2,.9,.3,1.4); }
-  .cp-like-aro { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #ff4d5a; opacity: 0; pointer-events: none; }
-  .cp-like.pop .cp-like-aro { animation: cparo .6s ease-out; }
-  @keyframes cplatido { 0% { transform: scale(.55); } 45% { transform: scale(1.4); } 100% { transform: scale(1); } }
-  @keyframes cparo { 0% { transform: scale(.7); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
-  .cp-m-foto .cp-like { top: 14px; right: 14px; }
+    const on = !likes.includes(p.id);
+    const aplicar = (marcado: boolean) =>
+      setLikes((prev) => {
+        const next = marcado ? Array.from(new Set([...prev, p.id])) : prev.filter((x) => x !== p.id);
+        guardar(LS_LIKES, next);
+        return next;
+      });
 
-  /* ---------- Vista rápida ---------- */
-  .cp-m { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(3,10,7,.78); backdrop-filter: blur(8px); animation: cpfade .25s both; }
-  @keyframes cpfade { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes cppop { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
-  .cp-m-hoja { position: relative; width: 100%; max-width: 1020px; max-height: calc(100vh - 48px); overflow: auto; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    border-radius: 24px; background: #0a130f; color: #f1ede0; border: 1px solid rgba(216,185,95,.35); box-shadow: 0 40px 100px rgba(0,0,0,.6); animation: cppop .35s cubic-bezier(.2,.9,.3,1.1) both; }
-  .cp-m-x { position: absolute; top: 14px; right: 14px; z-index: 10; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer;
-    border: 1px solid rgba(255,255,255,.25); background: rgba(6,24,17,.6); color: #f3ead2; backdrop-filter: blur(6px); transition: .2s; }
-  .cp-m-x:hover { background: #d8b95f; color: #0b2d1f; border-color: #d8b95f; }
-  .cp-m-gal { display: flex; flex-direction: column; min-width: 0; background: #050a08; }
-  .cp-m-foto { position: relative; flex: 1; min-height: 460px; overflow: hidden; cursor: zoom-in; }
-  /* mismas fotos apiladas con fundido largo; el zoom del cursor solo aplica a la foto visible */
-  .cp-m-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform-origin: var(--zx, 50%) var(--zy, 50%); transition: opacity 1.4s ease-in-out, transform .5s cubic-bezier(.2,.8,.2,1); }
-  .cp-m-img.on { opacity: 1; }
-  @media (hover: hover) { .cp-m-foto:hover .cp-m-img.on { transform: scale(1.9); } }
-  .cp-m-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; cursor: pointer;
-    border: 1px solid rgba(216,185,95,.55); background: rgba(6,24,17,.6); color: #ecd07a; backdrop-filter: blur(6px); transition: .2s; }
-  .cp-m-nav.prev { left: 14px; } .cp-m-nav.next { right: 14px; }
-  .cp-m-nav:hover { background: #d8b95f; color: #0b2d1f; }
-  .cp-m-tiras { display: flex; gap: 8px; padding: 12px 14px; overflow-x: auto; border-top: 1px solid rgba(255,255,255,.06); }
-  .cp-m-tiras button { flex-shrink: 0; width: 58px; height: 58px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; opacity: .55; background: #0e1a15; border: 1px solid rgba(255,255,255,.14); transition: .4s; }
-  .cp-m-tiras button:hover { opacity: .9; }
-  .cp-m-tiras button.on { opacity: 1; border-color: #ecd07a; }
-  .cp-m-tiras img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    aplicar(on);
+    setConteos((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) + (on ? 1 : -1)) }));
+    try {
+      const r = await fetch('/api/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, accion: on ? 'like' : 'unlike' }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      const d = (await r.json().catch(() => null)) as { total?: number } | null;
+      if (typeof d?.total === 'number') setConteos((c) => ({ ...c, [p.id]: d.total as number }));
+    } catch (e) {
+      aplicar(!on);
+      setConteos((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) + (on ? -1 : 1)) }));
+      avisar(e instanceof Error && e.message === '429' ? 'Demasiados intentos, espera un momento' : 'No se pudo guardar tu me encanta');
+    } finally {
+      enVuelo.current.delete(p.id);
+    }
+  };
 
-  .cp-m-info { min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 38px 34px 28px; background: linear-gradient(180deg, #0e1a15, #0a130f); }
-  .cp-m-top { display: flex; align-items: center; gap: 10px; padding-right: 48px; }
-  .cp-sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; letter-spacing: .08em; color: #93a09a; }
-  .cp-est.pill { height: 26px; padding: 0 11px; border-radius: 99px; background: rgba(60,170,110,.14); border: 1px solid rgba(92,190,134,.28); }
-  .cp-est.pill.ul { background: rgba(232,169,79,.14); border-color: rgba(232,169,79,.32); }
-  .cp-est.pill.ag { background: rgba(239,100,90,.14); border-color: rgba(239,100,90,.32); }
-  .mw .cp-m-nom { font-size: 32px; line-height: 1.15; color: #fff; }
-  .cp-m-desc { margin: 0; font-size: 14px; line-height: 1.65; color: #b4bdb7; white-space: pre-line; }
-  .cp-tiles { display: grid; gap: 8px; }
-  .cp-tiles > div { min-width: 0; padding: 11px 13px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.05); }
-  .cp-tiles span { display: block; font-size: 9.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #93a09a; }
-  .cp-tiles b { display: block; margin-top: 4px; font-size: 16px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cp-m-precio { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.07); }
-  .cp-m-precio span { display: block; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #f0c14b; }
-  .cp-m-precio b { display: block; margin-top: 4px; font-family: var(--serif, Georgia, serif); font-size: 36px; font-weight: 500; color: #ecd07a; }
-  .cp-m-precio small { font-family: system-ui, sans-serif; font-size: 11px; letter-spacing: .12em; margin-left: 8px; color: rgba(236,208,122,.6); }
-  .cp-m-sello { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(243,234,210,.6); }
-  .cp-m-sello img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(216,185,95,.7); }
+  /* Categorías detectadas dinámicamente desde las piezas (clave normalizada + etiqueta visible) */
+  const categorias = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of prendas) {
+      const clave = claveCat(p.categoria);
+      if (!m.has(clave)) m.set(clave, etiquetaCat(p.categoria));
+    }
+    const lista = Array.from(m.entries())
+      .map(([clave, etiqueta]) => ({ clave, etiqueta }))
+      .sort((a, b) => rangoCat(a.clave) - rangoCat(b.clave));
+    return [{ clave: 'todas', etiqueta: 'Todas' }, ...lista];
+  }, [prendas]);
 
-  @media (max-width: 820px) {
-    .cp-m { padding: 12px; }
-    .cp-m-hoja { grid-template-columns: minmax(0, 1fr); max-height: calc(100vh - 24px); }
-    .cp-m-foto { min-height: 340px; }
-    .cp-m-info { padding: 26px 22px 24px; }
-    .mw .cp-m-nom { font-size: 26px; }
-  }
-  @media (max-width: 600px) { .cp-grid { grid-template-columns: minmax(0, 1fr); } }
-  @media (prefers-reduced-motion: reduce) {
-    .cp-item { opacity: 1; transform: none; transition: none; }
-    .cp-card { transform: none !important; }
-    .cp-card::before, .cp-m, .cp-m-hoja, .cp-like.pop svg, .cp-like.pop .cp-like-aro { animation: none !important; }
-    .cp-img, .cp-m-img, .cp-linea, .cp-prog i { transition: none !important; }
-    .cp-foto.multi .cp-img.on { transform: none; }
-  }
-`;
+  // si la categoría seleccionada ya no existe, volver a "Todas"
+  useEffect(() => {
+    if (cat !== 'todas' && !categorias.some((c) => c.clave === cat)) setCat('todas');
+  }, [categorias, cat]);
+
+  const visibles = cat === 'todas' ? prendas : prendas.filter((p) => claveCat(p.categoria) === cat);
+
+  /* Piezas agrupadas por categoría: cada categoría nueva aparece sola como "Nombre · N pieza(s)" */
+  const grupos = useMemo(() => {
+    const m = new Map<string, { nombre: string; lista: PrendaP[] }>();
+    for (const p of visibles) {
+      const clave = claveCat(p.categoria);
+      const g = m.get(clave);
+      if (g) g.lista.push(p);
+      else m.set(clave, { nombre: etiquetaCat(p.categoria), lista: [p] });
+    }
+    return Array.from(m.entries())
+      .sort((a, b) => rangoCat(a[0]) - rangoCat(b[0]))
+      .map(([clave, g]) => ({ clave, ...g }));
+  }, [visibles]);
+
+  const subtotal = items.reduce((a, i) => a + i.precio * i.qty, 0);
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const cuponOk = cupon && hoy <= cupon.hasta ? cupon : null;
+  const descuento = cuponOk && subtotal > 0
+    ? Math.min(subtotal, cuponOk.tipo === 'porcentaje' ? Math.round((subtotal * cuponOk.valor) / 100) : cuponOk.valor)
+    : 0;
+  const total = subtotal - descuento;
+  const quitarCupon = () => {
+    try { localStorage.removeItem(LS_CUPON); } catch { /* */ }
+    setCupon(null);
+    window.dispatchEvent(new Event(EV_CARRITO));
+  };
+  const cantidad = items.reduce((a, i) => a + i.qty, 0);
+  const pFicha = ficha ? prendas.find((p) => p.id === ficha) : undefined;
+
+  /* ---- Datos de envío ---- */
+  const errores = useMemo(() => validarEnvio(envio), [envio]);
+  const faltan = Object.keys(errores).length;
+  const valido = faltan === 0;
+  const pasoEf = items.length === 0 ? 0 : paso === 2 && !valido ? 1 : paso;
+  const poner = <K extends keyof Envio>(k: K, v: Envio[K]) =>
+    setEnvio((prev) => { const n = { ...prev, [k]: v }; guardar(LS_ENVIO, n); return n; });
+  const tocar = (k: string) => setTocados((t) => (t[k] ? t : { ...t, [k]: true }));
+  const err = (k: keyof Envio) => (tocados[k] ? errores[k] : undefined);
+
+  const abrirCarrito = () => { setPaso(0); setAbierto(true); };
+  const cerrarCarrito = () => setAbierto(false);
+
+  const pedido = () => {
+    const lineas = items.map((i) =>
+      `• ${i.nombre}${i.tamano ? ` (${i.tamano})` : ''} x${i.qty} — ${cop(i.precio * i.qty)}`);
+    const extra = cuponOk && descuento > 0
+      ? `\n\nCupón: ${cuponOk.codigo} (−${cop(descuento)})\nSubtotal: ${cop(subtotal)}`
+      : '';
+    const e = envio;
+    const datos = [
+      '\n\nDatos de entrega',
+      `Nombre: ${e.nombre.trim()}`,
+      `Teléfono: ${soloCelular(e.telefono)}`,
+      e.correo.trim() ? `Correo: ${e.correo.trim()}` : '',
+      e.entrega === 'domicilio'
+        ? `Entrega: Domicilio\nCiudad: ${e.ciudad.trim()}\nBarrio: ${e.barrio.trim()}\nDirección: ${e.direccion.trim()}${e.complemento.trim() ? `, ${e.complemento.trim()}` : ''}`
+        : 'Entrega: Recoger en tienda',
+      e.indicaciones.trim() ? `Indicaciones: ${e.indicaciones.trim()}` : '',
+    ].filter(Boolean).join('\n');
+    const msg = `Hola, quiero hacer este pedido:\n\n${lineas.join('\n')}${extra}\n\nTotal: ${cop(total)}${datos}`;
+    const sep = wa.includes('?') ? '&' : '?';
+    return `${wa}${sep}text=${encodeURIComponent(msg)}`;
+  };
+  const waOk = wa !== '#';
+
+  const pedir = () => {
+    if (!valido || !waOk || items.length === 0) return;
+    window.open(pedido(), '_blank', 'noopener,noreferrer');
+  };
+
+  const totales = (
+    <>
+      {descuento > 0 && (
+        <>
+          <div className="mc-sub"><span>Subtotal</span><span>{cop(subtotal)}</span></div>
+          <div className="mc-sub desc"><span>Cupón {cuponOk?.codigo}</span><span>−{cop(descuento)}</span></div>
+        </>
+      )}
+      <div className="mc-tot"><span>Total</span><b>{cop(total)}</b></div>
+    </>
+  );
+
+  const titulos = ['Tu carrito', 'Datos de envío', 'Confirma tu pedido'];
+  const TABS: { id: Vista; t: string }[] = [
+    { id: 'catalogo', t: 'Catálogo' },
+    { id: 'malla', t: 'Arma tu malla' },
+    { id: 'taller', t: 'Taller de reparación' },
+  ];
+
+  return (
+    <>
+      <style>{`
+        .mc-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px; margin: 0 0 18px; border-radius: 14px; background: #f1ece0; scrollbar-width: none; }
+        .mc-tabs::-webkit-scrollbar { display: none; }
+        .mc-tabs button { flex: 1 0 auto; border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; background: transparent; color: #5d6f68; }
+        .mc-tabs button[aria-selected="true"] { background: var(--v); color: #f3e2a6; box-shadow: 0 4px 12px rgba(11,74,46,.25); }
+
+        .mc-cats { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 16px; margin: 0 -2px; scrollbar-width: none; }
+        .mc-cats::-webkit-scrollbar { display: none; }
+        .mc-chip { flex-shrink: 0; border: 1px solid var(--vm); background: #fff; color: var(--v); border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+        .mc-chip.on { background: var(--v); color: #fff; border-color: var(--v); }
+
+        .mc-grupo { scroll-margin-top: 80px; }
+        .mc-grupo + .mc-grupo { margin-top: 34px; }
+        .mc-grupo-tit { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+        .mc-grupo-tit h4 { margin: 0; font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 26px; color: var(--tx); }
+        .mc-grupo-tit span { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--o); white-space: nowrap; }
+        .mc-grupo-tit i { flex: 1; height: 1px; align-self: center; background: linear-gradient(90deg, #cfc7ae, transparent); }
+
+        .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+
+        /* ── Tarjeta oscura ── */
+        .mc-card { background: #0c1511; color: #ece7d4; border: 1px solid rgba(224,183,63,.18); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+
+        .mc-foto { position: relative; aspect-ratio: 1 / 1; background: #000; overflow: hidden; cursor: zoom-in; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+        .mc-foto.grande { aspect-ratio: auto; height: 100%; min-height: 360px; cursor: default; }
+        .mc-base { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 50% 45%; will-change: transform; animation: mc-fade .5s ease both, mc-respira 11s ease-in-out .5s infinite; -webkit-user-drag: none; }
+        .mc-foto:hover .mc-base { animation-play-state: running, paused; }
+        @keyframes mc-respira { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+        @keyframes mc-fade { from { opacity: 0; } to { opacity: 1; } }
+        .mc-sinfoto { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #6f7a72; }
+        .mc-vela { position: absolute; inset: auto 0 0 0; height: 34%; background: linear-gradient(to top, rgba(0,0,0,.78), transparent); pointer-events: none; }
+
+        .mc-cont { position: absolute; top: 10px; left: 10px; z-index: 4; font-size: 11px; padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.14); color: #f1ecd8; }
+        .mc-like { position: absolute; top: 10px; right: 10px; z-index: 4; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.6); color: #f1ecd8; font-size: 12px; cursor: pointer; transition: transform .15s; }
+        .mc-like:hover { transform: scale(1.06); }
+        .mc-like.on { color: #ff5d8f; }
+        .mc-flecha { position: absolute; top: 50%; z-index: 4; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.55); color: #f1ecd8; display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity .2s; }
+        .mc-flecha.l { left: 8px; } .mc-flecha.r { right: 8px; }
+        .mc-foto:hover .mc-flecha, .mc-flecha:focus-visible { opacity: 1; }
+        @media (hover: none) { .mc-flecha { opacity: .85; } }
+        .mc-puntos { position: absolute; left: 0; right: 0; bottom: 34px; z-index: 4; display: flex; justify-content: center; gap: 7px; }
+        .mc-puntos button { width: 18px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+        .mc-puntos button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.35); transition: all .2s; }
+        .mc-puntos button[data-on="true"]::before { width: 20px; border-radius: 4px; background: #e0b73f; }
+        .mc-pie-foto { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 4; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #cfc9b4; pointer-events: none; }
+        .mc-pie-foto b { color: #e0b73f; font-weight: 600; letter-spacing: .04em; }
+
+        /* cuerpo */
+        .mc-cuerpo { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+        .mc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .mc-sku { font: 500 10.5px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .14em; color: #7f8a82; text-transform: uppercase; }
+        .mc-est { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(224,183,63,.45); color: #e9c552; background: rgba(224,183,63,.08); white-space: nowrap; }
+        .mc-est i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .mc-est.ok { border-color: rgba(143,214,168,.4); color: #8fd6a8; background: rgba(143,214,168,.07); }
+        .mc-est.ago { border-color: rgba(255,138,128,.4); color: #ff8a80; background: rgba(255,138,128,.07); }
+        .mc-nom { font-family: var(--serif), Georgia, serif !important; font-weight: 500 !important; font-size: 19px !important; line-height: 1.15; margin: 2px 0 0; color: #f4efdc; }
+        .mc-nom.grande { font-size: 27px !important; }
+        .mc-desc { margin: 0; font-size: 13px; line-height: 1.5; color: #b9b9aa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .mc-desc.completa { -webkit-line-clamp: unset; display: block; font-size: 14px; }
+        .mc-ficha-link { align-self: flex-start; border: 0; background: none; padding: 0; color: #e0b73f; font-size: 13px; cursor: pointer; }
+        .mc-ficha-link:hover { text-decoration: underline; }
+        .mc-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 2px; }
+        .mc-datos.tres { grid-template-columns: repeat(3, 1fr); }
+        .mc-datos div { background: #101c16; border: 1px solid rgba(255,255,255,.07); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+        .mc-datos small { display: block; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: #7f8a82; margin-bottom: 4px; }
+        .mc-datos b { font-size: 15px; font-weight: 600; color: #f4efdc; overflow-wrap: anywhere; }
+        .mc-tams { display: flex; flex-wrap: wrap; gap: 6px; }
+        .mc-tams button { border: 1px solid rgba(255,255,255,.14); background: transparent; color: #d6d1bd; border-radius: 8px; padding: 5px 11px; font-size: 12px; cursor: pointer; }
+        .mc-tams button[data-on="true"] { border-color: #e0b73f; color: #e0b73f; background: rgba(224,183,63,.1); }
+        .mc-tams button:disabled { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
+        .mc-cat-ficha { margin: 0; font-size: 12px; color: #7f8a82; }
+
+        .mc-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07); }
+        .mc-precio small { display: block; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: #7f8a82; margin-bottom: 3px; }
+        .mc-precio b { font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 22px; color: #f0c24a; }
+        .mc-add { display: inline-flex; align-items: center; gap: 8px; background: #f0c24a; color: #1a1405; border: 0; border-radius: 10px; padding: 11px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .2s, transform .1s; }
+        .mc-add:hover:not(:disabled) { filter: brightness(1.07); }
+        .mc-add:active:not(:disabled) { transform: translateY(1px); }
+        .mc-add:disabled { opacity: .4; cursor: not-allowed; }
+
+        /* ── Ficha completa ── */
+        .mc-modal { position: fixed; z-index: 52; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(920px, calc(100% - 24px)); max-height: calc(100dvh - 24px); background: #0c1511; color: #ece7d4; border: 1px solid rgba(224,183,63,.25); border-radius: 20px; overflow: hidden; display: grid; grid-template-columns: 1.05fr 1fr; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+        .mc-cuerpo-modal { padding: 22px 22px 20px; overflow-y: auto; max-height: calc(100dvh - 24px); }
+        .mc-modal-x { position: absolute; top: 10px; right: 10px; z-index: 6; width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.65) !important; color: #f1ecd8 !important; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.15) !important; }
+        .mc-modal .mc-like { right: 54px; }
+
+        .mc-hbtn { position: relative; border: 0; background: none; color: var(--v); cursor: pointer; padding: 6px; display: grid; place-items: center; }
+        .mc-badge { position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--o); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; }
+
+        .mc-fab { position: fixed; right: 18px; bottom: 82px; z-index: 30; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--v); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 22px rgba(11,74,46,.35); }
+        .mc-fab .mc-badge { top: -3px; right: -3px; }
+
+        /* ── Carrito (3 pasos) ── */
+        .mc-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; }
+        .mc-dr { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: #fff; z-index: 51; display: flex; flex-direction: column; box-shadow: -10px 0 40px rgba(0,0,0,.18); color: var(--tx); }
+        .mc-dh { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #e6e2d6; }
+        .mc-dh-t { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .mc-dh b { font-size: 18px; font-family: var(--serif), Georgia, serif; font-weight: 500; color: var(--v); }
+        .mc-x { border: 0; background: none; cursor: pointer; color: #44514a; padding: 4px; display: grid; place-items: center; }
+
+        .mc-pasos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px 18px 10px; border-bottom: 1px solid #efece0; }
+        .mc-pasos span { display: flex; align-items: center; gap: 7px; padding-top: 8px; border-top: 3px solid #e6e2d6; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: #8a948e; }
+        .mc-pasos span i { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10.5px; border: 1px solid #cfc7ae; }
+        .mc-pasos span.on { border-color: var(--o2); color: var(--v); }
+        .mc-pasos span.on i { background: var(--v); border-color: var(--v); color: #f3e2a6; }
+        .mc-pasos span.hecho { border-color: var(--o); color: var(--v); }
+        .mc-pasos span.hecho i { background: var(--o2); border-color: var(--o2); color: #1a1405; }
+
+        .mc-lista { flex: 1; overflow-y: auto; padding: 8px 18px; }
+        .mc-vacio { text-align: center; color: #6b7a72; font-size: 14px; padding: 48px 12px; }
+        .mc-it { display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f0ede3; }
+        .mc-it img, .mc-it .mc-ph { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--vc); }
+        .mc-it h5 { margin: 0; font-size: 14px; font-weight: 600; font-family: inherit; }
+        .mc-it small { color: #6b7a72; font-size: 12px; line-height: 1.4; display: block; }
+        .mc-it .mc-r { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+        .mc-q { display: inline-flex; align-items: center; border: 1px solid var(--vm); border-radius: 8px; }
+        .mc-q button { width: 28px; height: 28px; border: 0; background: none; font-size: 16px; cursor: pointer; color: var(--v); }
+        .mc-q span { min-width: 22px; text-align: center; font-size: 13px; }
+        .mc-rm { border: 0; background: none; color: #a33; font-size: 12px; cursor: pointer; margin-left: 10px; }
+        .mc-pie { padding: 14px 18px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid #e6e2d6; display: grid; gap: 10px; }
+        .mc-tot { display: flex; justify-content: space-between; font-size: 16px; }
+        .mc-tot b { color: var(--v); }
+        .mc-cupon { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 2px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: #6b5214; background: #faf3dc; border: 1px dashed #c9a24a; }
+        .mc-cupon button { border: 0; background: none; color: #a33; font-size: 12px; cursor: pointer; }
+        .mc-sub { display: flex; justify-content: space-between; font-size: 13px; color: #55645b; }
+        .mc-sub.desc { color: #1f8a4d; }
+        .mc-nota { font-size: 12px; color: #6b7a72; text-align: center; margin: 0; }
+
+        /* Botones principales del carrito (dorados, como el resto de la tienda) */
+        .mc-pedir, .mc-sig { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 50px; border: 0; border-radius: 10px; cursor: pointer; font: 700 14px/1 system-ui, sans-serif;
+          background: linear-gradient(135deg, #f0d680, #e0b73f 55%, #b08d3c); color: #1a1405 !important; text-decoration: none; transition: filter .2s, opacity .2s; }
+        .mc-pedir:hover:not(:disabled), .mc-sig:hover:not(:disabled) { filter: brightness(1.06); }
+        .mc-pedir:disabled, .mc-sig:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.4); }
+        .mc-bloq { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: 12px; color: #8a7a3e; }
+
+        /* Formulario de envío */
+        .mc-form { display: grid; gap: 14px; padding: 16px 0 6px; }
+        .mc-ent { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: #f1ece0; }
+        .mc-ent button { padding: 10px 6px; border: 0; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; background: transparent; color: #5d6f68; }
+        .mc-ent button.on { background: var(--v); color: #f3e2a6; }
+        .mc-c { display: flex; flex-direction: column; gap: 6px; }
+        .mc-c label { font-size: 12px; font-weight: 600; letter-spacing: .03em; color: #4f6159; }
+        .mc-c label em { font-style: normal; font-weight: 400; color: #8a948e; }
+        .mc-c input, .mc-c textarea { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #ddd5bd; background: #fff; font: inherit; font-size: 15px; color: var(--tx); outline: none; resize: vertical; }
+        .mc-c input:focus, .mc-c textarea:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(11,74,46,.1); }
+        .mc-c input[aria-invalid="true"], .mc-c textarea[aria-invalid="true"] { border-color: #c4453c; }
+        .mc-err { font-size: 12px; color: #b3372f; }
+        .mc-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .mc-recoger { margin: 0; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; color: #6b5214; background: #faf3dc; border: 1px dashed #c9a24a; }
+
+        /* Confirmación */
+        .mc-res { display: grid; gap: 14px; padding: 14px 0 8px; }
+        .mc-res h5 { display: flex; align-items: center; justify-content: space-between; margin: 0; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--o); font-family: inherit; font-weight: 700; }
+        .mc-link { border: 0; background: none; cursor: pointer; font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--v); text-decoration: underline; text-underline-offset: 3px; }
+        .mc-caja { padding: 12px 14px; border-radius: 12px; background: #faf8f1; border: 1px solid #ece5cc; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.45; color: #35493f; }
+        .mc-caja b { color: var(--tx); }
+        .mc-rl { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; color: #35493f; }
+        .mc-rl b { white-space: nowrap; color: var(--tx); }
+
+        .mc-aviso { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--tx); color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 999px; z-index: 60; }
+
+        @media (max-width: 820px) {
+          .mc-modal { grid-template-columns: 1fr; overflow-y: auto; align-content: start; }
+          .mc-foto.grande { aspect-ratio: 4 / 5; height: auto; min-height: 0; max-height: 58dvh; }
+          .mc-cuerpo-modal { max-height: none; overflow: visible; }
+        }
+        @media (max-width: 600px) {
+          .mc-grid { gap: 16px; }
+          .mc-grupo-tit h4 { font-size: 22px; }
+          .mc-grupo + .mc-grupo { margin-top: 28px; }
+          .mc-nom { font-size: 18px !important; }
+          .mc-fab { right: 14px; bottom: 76px; }
+          .mc-datos.tres { grid-template-columns: 1fr 1fr; }
+          .mc-dos { grid-template-columns: 1fr; }
+          .mc-pasos span { font-size: 10.5px; gap: 5px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .mc-base { animation: none; }
+        }
+      `}</style>
+
+      <div className="mc-tabs" role="tablist" aria-label="Secciones de la tienda">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={vista === t.id} onClick={() => setVista(t.id)}>{t.t}</button>
+        ))}
+      </div>
+
+      {vista === 'catalogo' && (
+        <>
+          {categorias.length > 2 && (
+            <div className="mc-cats" role="tablist">
+              {categorias.map((c) => (
+                <button key={c.clave} type="button" className={`mc-chip${c.clave === cat ? ' on' : ''}`} onClick={() => setCat(c.clave)}>{c.etiqueta}</button>
+              ))}
+            </div>
+          )}
+
+          {grupos.map(({ clave, nombre, lista }) => (
+            <section key={clave} className="mc-grupo" id={`cat-${clave}`}>
+              <div className="mc-grupo-tit">
+                <h4>{nombre}</h4>
+                <span>{lista.length} {lista.length === 1 ? 'pieza' : 'piezas'}</span>
+                <i aria-hidden="true" />
+              </div>
+              <div className="mc-grid">
+                {lista.map((p) => (
+                  <Tarjeta key={p.id} p={p} liked={likes.includes(p.id)} conteo={conteos[p.id] ?? 0}
+                    onLike={() => alternarLike(p)} onAdd={(v) => agregar(p, v)} onFicha={() => setFicha(p.id)} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </>
+      )}
+
+      {vista === 'malla' && <ArmaMalla onAdd={agregarMalla} />}
+      {vista === 'taller' && <TallerReparacion wa={wa} />}
+
+      {pFicha && (
+        <Ficha p={pFicha} liked={likes.includes(pFicha.id)} conteo={conteos[pFicha.id] ?? 0}
+          onLike={() => alternarLike(pFicha)} onAdd={(v) => agregar(pFicha, v)} onCerrar={() => setFicha(null)} />
+      )}
+
+      {!abierto && !ficha && (
+        <button type="button" className="mc-fab" aria-label={`Ver carrito (${cantidad})`} onClick={abrirCarrito}>
+          <Cart s={24} />
+          {cantidad > 0 && <span className="mc-badge">{cantidad}</span>}
+        </button>
+      )}
+
+      {abierto && (
+        <>
+          <div className="mc-back" onClick={cerrarCarrito} />
+          <aside className="mc-dr" role="dialog" aria-label="Carrito">
+            <div className="mc-dh">
+              <div className="mc-dh-t">
+                {pasoEf > 0 && (
+                  <button type="button" className="mc-x" aria-label="Paso anterior" onClick={() => setPaso(pasoEf - 1)}><Chev dir="l" /></button>
+                )}
+                <b>{titulos[pasoEf]}</b>
+              </div>
+              <button type="button" className="mc-x" aria-label="Cerrar" onClick={cerrarCarrito}><Close /></button>
+            </div>
+
+            {items.length > 0 && (
+              <div className="mc-pasos" aria-label="Progreso del pedido">
+                {PASOS.map((t, i) => (
+                  <span key={t} className={i === pasoEf ? 'on' : i < pasoEf ? 'hecho' : ''} aria-current={i === pasoEf ? 'step' : undefined}>
+                    <i>{i < pasoEf ? <Check s={11} /> : i + 1}</i>{t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* ── Paso 1: carrito ── */}
+            {pasoEf === 0 && (
+              <>
+                <div className="mc-lista">
+                  {cuponOk && (
+                    <div className="mc-cupon">
+                      <span><b>{cuponOk.codigo}</b> · {cuponOk.tipo === 'porcentaje' ? `−${cuponOk.valor}%` : `−${cop(cuponOk.valor)}`}</span>
+                      <button type="button" onClick={quitarCupon}>Quitar</button>
+                    </div>
+                  )}
+                  {items.length === 0 ? (
+                    <p className="mc-vacio">Tu carrito está vacío. Agrega una pieza con el botón “Agregar”.</p>
+                  ) : items.map((i) => (
+                    <div key={i.key} className="mc-it">
+                      {i.foto
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={i.foto} alt={i.nombre} />
+                        : <div className="mc-ph" />}
+                      <div>
+                        <h5>{i.nombre}</h5>
+                        <small>{i.tamano ? `${i.id === ID_MALLA ? '' : 'Tamaño '}${i.tamano} · ` : ''}{cop(i.precio)}</small>
+                        <div className="mc-r">
+                          <span>
+                            <span className="mc-q">
+                              <button type="button" aria-label="Quitar uno" onClick={() => cambiar(i.key, -1)}>−</button>
+                              <span>{i.qty}</span>
+                              <button type="button" aria-label="Agregar uno" onClick={() => cambiar(i.key, 1)} disabled={i.qty >= i.max}>+</button>
+                            </span>
+                            <button type="button" className="mc-rm" onClick={() => quitar(i.key)}>Quitar</button>
+                          </span>
+                          <b>{cop(i.precio * i.qty)}</b>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {items.length > 0 && (
+                  <div className="mc-pie">
+                    {totales}
+                    <button type="button" className="mc-sig" onClick={() => setPaso(1)}>Continuar con mis datos</button>
+                    <p className="mc-nota">El valor del domicilio se confirma según tu zona.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Paso 2: datos de envío ── */}
+            {pasoEf === 1 && (
+              <>
+                <div className="mc-lista">
+                  <form className="mc-form" onSubmit={(e) => { e.preventDefault(); if (valido) setPaso(2); }} noValidate>
+                    <div className="mc-ent" role="group" aria-label="Forma de entrega">
+                      <button type="button" className={envio.entrega === 'domicilio' ? 'on' : ''} onClick={() => poner('entrega', 'domicilio')}>Domicilio</button>
+                      <button type="button" className={envio.entrega === 'recoger' ? 'on' : ''} onClick={() => poner('entrega', 'recoger')}>Recoger en tienda</button>
+                    </div>
+
+                    <Campo id="env-nombre" label="Nombre y apellido" error={err('nombre')}>
+                      <input id="env-nombre" value={envio.nombre} autoComplete="name" placeholder="Ej: María Gómez"
+                        aria-invalid={!!err('nombre')} onBlur={() => tocar('nombre')} onChange={(e) => poner('nombre', e.target.value)} />
+                    </Campo>
+
+                    <Campo id="env-tel" label="Celular / WhatsApp" error={err('telefono')}>
+                      <input id="env-tel" value={envio.telefono} inputMode="tel" autoComplete="tel" placeholder="3001234567"
+                        aria-invalid={!!err('telefono')} onBlur={() => tocar('telefono')} onChange={(e) => poner('telefono', e.target.value)} />
+                    </Campo>
+
+                    <Campo id="env-correo" label="Correo" opcional error={err('correo')}>
+                      <input id="env-correo" type="email" value={envio.correo} autoComplete="email" placeholder="tucorreo@email.com"
+                        aria-invalid={!!err('correo')} onBlur={() => tocar('correo')} onChange={(e) => poner('correo', e.target.value)} />
+                    </Campo>
+
+                    {envio.entrega === 'domicilio' ? (
+                      <>
+                        <div className="mc-dos">
+                          <Campo id="env-ciudad" label="Ciudad o municipio" error={err('ciudad')}>
+                            <input id="env-ciudad" value={envio.ciudad} autoComplete="address-level2" placeholder="Ej: Medellín"
+                              aria-invalid={!!err('ciudad')} onBlur={() => tocar('ciudad')} onChange={(e) => poner('ciudad', e.target.value)} />
+                          </Campo>
+                          <Campo id="env-barrio" label="Barrio" error={err('barrio')}>
+                            <input id="env-barrio" value={envio.barrio} placeholder="Ej: El Poblado"
+                              aria-invalid={!!err('barrio')} onBlur={() => tocar('barrio')} onChange={(e) => poner('barrio', e.target.value)} />
+                          </Campo>
+                        </div>
+
+                        <Campo id="env-dir" label="Dirección" error={err('direccion')}>
+                          <input id="env-dir" value={envio.direccion} autoComplete="street-address" placeholder="Ej: Calle 10 # 43-12"
+                            aria-invalid={!!err('direccion')} onBlur={() => tocar('direccion')} onChange={(e) => poner('direccion', e.target.value)} />
+                        </Campo>
+
+                        <Campo id="env-comp" label="Apartamento, torre o casa" opcional>
+                          <input id="env-comp" value={envio.complemento} placeholder="Ej: Torre 2, apto 504"
+                            onChange={(e) => poner('complemento', e.target.value)} />
+                        </Campo>
+                      </>
+                    ) : (
+                      <p className="mc-recoger">Recogerás tu pedido en la tienda. Te confirmamos la dirección y el horario por WhatsApp.</p>
+                    )}
+
+                    <Campo id="env-ind" label="Indicaciones para la entrega" opcional>
+                      <textarea id="env-ind" rows={2} maxLength={200} value={envio.indicaciones} placeholder="Portería, punto de referencia, horario…"
+                        onChange={(e) => poner('indicaciones', e.target.value)} />
+                    </Campo>
+                  </form>
+                </div>
+
+                <div className="mc-pie">
+                  <div className="mc-tot"><span>Total</span><b>{cop(total)}</b></div>
+                  <button type="button" className="mc-sig" disabled={!valido} onClick={() => setPaso(2)}>Continuar</button>
+                  {!valido && (
+                    <p className="mc-bloq">Completa {faltan === 1 ? 'el campo obligatorio' : `los ${faltan} campos obligatorios`} para continuar.</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── Paso 3: confirmar ── */}
+            {pasoEf === 2 && (
+              <>
+                <div className="mc-lista">
+                  <div className="mc-res">
+                    <h5>Tu pedido <button type="button" className="mc-link" onClick={() => setPaso(0)}>Editar</button></h5>
+                    <div className="mc-caja">
+                      {items.map((i) => (
+                        <div key={i.key} className="mc-rl">
+                          <span>{i.nombre}{i.tamano ? ` (${i.tamano})` : ''} ×{i.qty}</span>
+                          <b>{cop(i.precio * i.qty)}</b>
+                        </div>
+                      ))}
+                    </div>
+
+                    <h5>Entrega <button type="button" className="mc-link" onClick={() => setPaso(1)}>Editar</button></h5>
+                    <div className="mc-caja">
+                      <span><b>{envio.nombre.trim()}</b></span>
+                      <span>{soloCelular(envio.telefono)}{envio.correo.trim() ? ` · ${envio.correo.trim()}` : ''}</span>
+                      {envio.entrega === 'domicilio' ? (
+                        <span>
+                          {envio.direccion.trim()}{envio.complemento.trim() ? `, ${envio.complemento.trim()}` : ''}<br />
+                          {envio.barrio.trim()}, {envio.ciudad.trim()}
+                        </span>
+                      ) : (
+                        <span>Recoger en tienda</span>
+                      )}
+                      {envio.indicaciones.trim() && <span>“{envio.indicaciones.trim()}”</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mc-pie">
+                  {totales}
+                  <button type="button" className="mc-pedir" disabled={!valido || !waOk} onClick={pedir}>
+                    <Check s={18} /> Pedir
+                  </button>
+                  <p className="mc-nota">{waOk ? 'Te confirmamos disponibilidad, envío y forma de pago.' : 'La tienda aún no tiene WhatsApp configurado.'}</p>
+                </div>
+              </>
+            )}
+          </aside>
+        </>
+      )}
+
+      {aviso && <div className="mc-aviso" role="status">{aviso}</div>}
+    </>
+  );
+}

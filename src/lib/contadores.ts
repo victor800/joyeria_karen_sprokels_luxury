@@ -3,6 +3,7 @@ import 'server-only';
 import { listarPrendas } from './prendas';
 import { listarInventario } from './inventario';
 import { listar as listarDomiciliarios } from './domiciliarios-store';
+import { listar as listarClientes } from './clientes-store';
 
 /**
  * Números que aparecen en los círculos del menú lateral.
@@ -22,6 +23,10 @@ const FUENTES: Record<string, () => Promise<number>> = {
 
   // Total de domiciliarios registrados.
   domiciliarios: async () => (await listarDomiciliarios()).length,
+
+  // Total de socios (Clientes VIP). Para contar solo los activos:
+  // (await listarClientes()).filter((c) => c.estado === 'activo').length
+  clientes: async () => (await listarClientes()).length,
 
   // pedidos: async () => (await listarPedidos()).filter((x) => x.estado === 'pendiente').length,
 };
