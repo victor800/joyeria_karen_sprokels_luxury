@@ -168,7 +168,7 @@ const CSS = `
   .mi-c:active .mi-orb { transform: scale(.94); }
   .mi-c[data-on="true"] .mi-orb { box-shadow: 0 0 0 1.5px #ffe9a0, 0 0 22px rgba(240,214,128,.55), 0 10px 22px rgba(0,0,0,.5); }
 
-  /* hoja del menú */
+ 
   .ms-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.55); animation: ms-f .2s both; }
   .ms { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 86dvh; overflow-y: auto; padding: 10px 16px calc(20px + env(safe-area-inset-bottom));
     border-radius: 24px 24px 0 0; background: linear-gradient(180deg, #0d3324, #06180f); border-top: 1px solid rgba(240,214,128,.5);
