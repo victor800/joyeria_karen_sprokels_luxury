@@ -18,14 +18,14 @@ export const PASOS_BASE: Paso[] = [
 ];
 
 /** "Cómo funciona": tarjetas en 2 columnas. En móvil es colapsable (cerrado); en escritorio se ve siempre abierto en 4 columnas. */
-export default function PasosPersonalizado({ pasos = PASOS_BASE, titulo = 'Cómo lo hacemos' }: { pasos?: Paso[]; titulo?: string }) {
+export default function PasosPersonalizado({ pasos = PASOS_BASE, titulo = 'Cómo lo hacemos', plano = false }: { pasos?: Paso[]; titulo?: string; plano?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const id = useId();
 
   return (
     <>
       <style>{CSS}</style>
-      <div className="pp" data-open={abierto}>
+      <div className="pp" data-open={abierto} data-plano={plano}>
         <button type="button" className="pp-h" aria-expanded={abierto} aria-controls={id} onClick={() => setAbierto((a) => !a)}>
           <span className="pp-hl">
             <small>Proceso · {pasos.length} pasos</small>
@@ -98,6 +98,14 @@ const CSS = `
   .pp-ico { width: 38px; height: 38px; }
   .pp-card b { font-size: 13.5px; }
   .pp-tx { font-size: 12px; line-height: 1.45; }
+}
+/* Modo plano: sin cabecera propia (la sección que lo contiene ya es el acordeón) */
+@media (max-width: 860px) {
+  .pp[data-plano="true"] { border: 0; background: none; border-radius: 0; overflow: visible; }
+  .pp[data-plano="true"] .pp-h { display: none; }
+  .pp[data-plano="true"] .pp-b { grid-template-rows: 1fr; transition: none; }
+  .pp[data-plano="true"] .pp-in { visibility: visible; overflow: visible; transition: none; }
+  .pp[data-plano="true"] .pp-grid { padding: 0; }
 }
 @media (min-width: 861px) and (max-width: 1060px) {
   .pp-grid { grid-template-columns: 1fr 1fr; }
