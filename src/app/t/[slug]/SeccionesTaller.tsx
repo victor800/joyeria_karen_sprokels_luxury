@@ -70,6 +70,18 @@ const soloCelular = (t: string) => {
   return d;
 };
 
+/** Nombre de la tienda para los mensajes de WhatsApp */
+export const TIENDA = "Karen Sploker's";
+
+/** Abre WhatsApp con el mensaje ya escrito. `wa` viene del teléfono de Configuración (wa.me/57…). */
+const abrirWA = (wa: string, msg: string) => {
+  const sep = wa.includes('?') ? '&' : '?';
+  window.open(`${wa}${sep}text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+};
+/** Quita las líneas `false` y evita dobles saltos de línea */
+const armarMensaje = (lineas: (string | false)[]) =>
+  lineas.filter((l): l is string => l !== false).join('\n').replace(/\n{3,}/g, '\n\n');
+
 /* ═══════════════════════════════════════════════════════════
    Utilidades de color y geometría
    ═══════════════════════════════════════════════════════════ */
@@ -460,16 +472,19 @@ function dibujar(ctx: CanvasRenderingContext2D, W: number, H: number, c: Cfg, ya
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ARMA TU MANILLA
+   ACORDEÓN COMPARTIDO (malla + taller)
+   - tema: 'oscuro' (malla) | 'claro' (formulario)
+   - alerta: marca la sección en rojo (error de validación)
+   - fijaEscritorio: en pantallas grandes se ve siempre abierta y sin cabecera
    ═══════════════════════════════════════════════════════════ */
 export type DatosMalla = { key: string; nombre: string; tamano: string; precio: number; foto: string };
 
-/** Sección colapsable: título a la izquierda, elección actual a la derecha */
-function Seccion({ id, titulo, resumen, abierta, onToggle, children }: {
+function Seccion({ id, titulo, resumen, abierta, onToggle, children, tema = 'oscuro', alerta = false, fijaEscritorio = false }: {
   id: string; titulo: string; resumen: ReactNode; abierta: boolean; onToggle: (id: string) => void; children: ReactNode;
+  tema?: 'oscuro' | 'claro'; alerta?: boolean; fijaEscritorio?: boolean;
 }) {
   return (
-    <div className="mm-ac" data-open={abierta}>
+    <div className={`mm-ac mm-ac--${tema}`} data-open={abierta} data-alerta={alerta} data-fija={fijaEscritorio}>
       <button type="button" className="mm-ac-h" aria-expanded={abierta} aria-controls={`mm-ac-${id}`} onClick={() => onToggle(id)}>
         <span className="mm-ac-t">{titulo}</span>
         <span className="mm-ac-r">{resumen}</span>
@@ -486,7 +501,54 @@ function Seccion({ id, titulo, resumen, abierta, onToggle, children }: {
   );
 }
 
-export function ArmaMalla({ onAdd }: { onAdd: (d: DatosMalla) => void }) {
+const CSS_ACC = `
+.mm-ac { border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: #101c16; overflow: hidden; transition: border-color .2s; }
+.mm-ac[data-open="true"] { border-color: rgba(224,183,63,.4); }
+.mm-ac-h { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; border: 0; background: none; cursor: pointer; color: #ece7d4; text-align: left; font: inherit; min-height: 52px; }
+.mm-ac-h:hover { background: rgba(255,255,255,.03); }
+.mm-ac-h:focus-visible { outline: 2px solid #e0b73f; outline-offset: -2px; }
+.mm-ac-t { flex: 0 0 auto; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e0b73f; }
+.mm-ac-r { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; font-size: 12.5px; color: #b9b9aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-pt { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.18); }
+.mm-ac-chev { flex: 0 0 auto; color: #e0b73f; transition: transform .25s ease; }
+.mm-ac[data-open="true"] .mm-ac-chev { transform: rotate(180deg); }
+.mm-ac-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+.mm-ac[data-open="true"] .mm-ac-b { grid-template-rows: 1fr; }
+.mm-ac-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear .28s; }
+.mm-ac[data-open="true"] .mm-ac-in { visibility: visible; transition-delay: 0s; }
+.mm-ac-pad { padding: 2px 14px 14px; display: grid; gap: 12px; }
+
+/* Tema claro (formulario) */
+.mm-ac--claro { border-color: #e6e2d6; background: #fff; }
+.mm-ac--claro[data-open="true"] { border-color: var(--v); box-shadow: 0 0 0 3px rgba(11,74,46,.07); }
+.mm-ac--claro .mm-ac-h { color: var(--tx); }
+.mm-ac--claro .mm-ac-h:hover { background: rgba(11,74,46,.04); }
+.mm-ac--claro .mm-ac-h:focus-visible { outline-color: var(--v); }
+.mm-ac--claro .mm-ac-t { color: var(--o); }
+.mm-ac--claro .mm-ac-r { color: #6b7a72; }
+.mm-ac--claro .mm-ac-chev { color: var(--o); }
+
+/* Error de validación */
+.mm-ac[data-alerta="true"] { border-color: #c4453c; }
+.mm-ac[data-alerta="true"] .mm-ac-r { color: #b3372f; font-weight: 600; }
+
+/* En escritorio, la sección "fija" se ve siempre abierta y sin cabecera */
+@media (min-width: 861px) {
+  .mm-ac[data-fija="true"] { border: 0; background: none; box-shadow: none; overflow: visible; }
+  .mm-ac[data-fija="true"] .mm-ac-h { display: none; }
+  .mm-ac[data-fija="true"] .mm-ac-b { grid-template-rows: 1fr; transition: none; }
+  .mm-ac[data-fija="true"] .mm-ac-in { visibility: visible; overflow: visible; transition: none; }
+  .mm-ac[data-fija="true"] .mm-ac-pad { padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-ac-b, .mm-ac-chev, .mm-ac-in { transition: none; }
+}
+`;
+
+/* ═══════════════════════════════════════════════════════════
+   ARMA TU MANILLA
+   ═══════════════════════════════════════════════════════════ */
+export function ArmaMalla({ onAdd, wa = '#', tienda = TIENDA }: { onAdd: (d: DatosMalla) => void; wa?: string; tienda?: string }) {
   const [metalId, setMetalId] = useState('amarillo');
   const [dijeMetalId, setDijeMetalId] = useState('amarillo');
   const [acabado, setAcabado] = useState<'diamantado' | 'liso'>('diamantado');
@@ -500,6 +562,7 @@ export function ArmaMalla({ onAdd }: { onAdd: (d: DatosMalla) => void }) {
   const [puesta, setPuesta] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [abierta, setAbierta] = useState<string | null>('dije');
+  const [desglose, setDesglose] = useState(false);
 
   const alternar = (id: string) => setAbierta((a) => (a === id ? null : id));
 
@@ -612,12 +675,38 @@ export function ArmaMalla({ onAdd }: { onAdd: (d: DatosMalla) => void }) {
     onAdd({ key, nombre: 'Manilla personalizada', tamano: descripcion, precio: calc.total, foto });
   };
 
+  /** Cotización completa lista para enviar por WhatsApp */
+  const cotizar = () => {
+    const msg = armarMensaje([
+      `Hola, *${tienda}* 👋`,
+      'Quiero cotizar una *manilla personalizada*:',
+      '',
+      '✨ *Mi diseño*',
+      `• Balines: ${n} ${diamante ? 'diamantados' : 'lisos'} de ${tam} mm · ${metal.nombre}`,
+      tieneDije ? `• Dije: ${dijeInfo.nombre}${dijeId === 'inicial' ? ` "${letra}"` : ''} · ${dijeMetal.nombre}` : '• Sin dije',
+      `• Hilo macramé: ${hilo.nombre}`,
+      `• Muñeca: ${muneca} cm`,
+      `• Colas: ${cola} cm`,
+      '',
+      '💰 *Cotización estimada*',
+      `• Balines (${n} × ${cop(calc.pb)}): ${cop(calc.balines)}`,
+      tieneDije && `• Dije: ${cop(calc.dije)}`,
+      `• Macramé: ${cop(calc.hiloP)}`,
+      `• Terminales dorados: ${cop(calc.term)}`,
+      `• Armado a mano: ${cop(calc.mano)}`,
+      `*Total: ${cop(calc.total)}*`,
+      '',
+      '¿Me confirmas el valor final y el tiempo de elaboración? ¡Gracias!',
+    ]);
+    abrirWA(wa, msg);
+  };
+
   const swMetal = (m: Metal) => ({ background: `radial-gradient(circle at 35% 30%, ${m.c1}, ${m.c2} 55%, ${m.c3})` });
   const puntoMetal = (m: Metal) => <><i className="mm-pt" style={swMetal(m)} />{m.nombre}</>;
 
   return (
     <>
-      <style>{CSS_MALLA}</style>
+      <style>{CSS_ACC + CSS_MALLA}</style>
       <div className="mm">
         <div className="mm-col-visor">
           <div className="mm-visor">
@@ -741,16 +830,32 @@ export function ArmaMalla({ onAdd }: { onAdd: (d: DatosMalla) => void }) {
           </div>
 
           <div className="mm-resumen">
-            <div className="mm-rl">
-              <span>{n} balines {diamante ? 'diamantados' : 'lisos'} {tam} mm × {cop(calc.pb)}</span>
-              <b>{cop(calc.balines)}</b>
+            <button type="button" className="mm-tot mm-tot-btn" aria-expanded={desglose} aria-controls="mm-desglose" onClick={() => setDesglose((d) => !d)}>
+              <span>
+                Total
+                <small>
+                  {desglose ? 'Ocultar desglose' : 'Ver desglose'}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+                </small>
+              </span>
+              <b>{cop(calc.total)}</b>
+            </button>
+            <div className="mm-desg" id="mm-desglose" data-open={desglose}>
+              <div className="mm-desg-in">
+                <div className="mm-desg-pad">
+                  <div className="mm-rl">
+                    <span>{n} balines {diamante ? 'diamantados' : 'lisos'} {tam} mm × {cop(calc.pb)}</span>
+                    <b>{cop(calc.balines)}</b>
+                  </div>
+                  {tieneDije && <div className="mm-rl"><span>Dije · {dijeInfo.nombre}{dijeId === 'inicial' ? ` ${letra}` : ''}</span><b>{cop(calc.dije)}</b></div>}
+                  <div className="mm-rl"><span>Macramé · {hilo.nombre}</span><b>{cop(calc.hiloP)}</b></div>
+                  <div className="mm-rl"><span>Terminales dorados</span><b>{cop(calc.term)}</b></div>
+                  <div className="mm-rl"><span>Armado a mano</span><b>{cop(calc.mano)}</b></div>
+                </div>
+              </div>
             </div>
-            {tieneDije && <div className="mm-rl"><span>Dije · {dijeInfo.nombre}{dijeId === 'inicial' ? ` ${letra}` : ''}</span><b>{cop(calc.dije)}</b></div>}
-            <div className="mm-rl"><span>Macramé · {hilo.nombre}</span><b>{cop(calc.hiloP)}</b></div>
-            <div className="mm-rl"><span>Terminales dorados</span><b>{cop(calc.term)}</b></div>
-            <div className="mm-rl"><span>Armado a mano</span><b>{cop(calc.mano)}</b></div>
-            <div className="mm-tot"><span>Total</span><b>{cop(calc.total)}</b></div>
             <button type="button" className="mm-add" onClick={agregar}>Agregar manilla al carrito</button>
+            {wa !== '#' && <button type="button" className="mm-wa" onClick={cotizar}>Cotizar por WhatsApp</button>}
             <p className="mm-nota">Precio estimado. Confirmamos el valor final y el tiempo de elaboración por WhatsApp.</p>
           </div>
         </div>
@@ -779,26 +884,7 @@ const CSS_MALLA = `
 .mm-tit { margin: 0; font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 28px; color: #f4efdc; }
 .mm-sub { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: #b9b9aa; }
 
-/* ── Acordeón ── */
 .mm-acs { display: grid; gap: 8px; }
-.mm-ac { border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: #101c16; overflow: hidden; transition: border-color .2s; }
-.mm-ac[data-open="true"] { border-color: rgba(224,183,63,.4); }
-.mm-ac-h { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; border: 0; background: none; cursor: pointer; color: #ece7d4; text-align: left; font: inherit; }
-.mm-ac-h:hover { background: rgba(255,255,255,.03); }
-.mm-ac-h:focus-visible { outline: 2px solid #e0b73f; outline-offset: -2px; }
-.mm-ac-t { flex: 0 0 auto; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e0b73f; }
-.mm-ac-r { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; font-size: 12.5px; color: #b9b9aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mm-pt { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.18); }
-.mm-ac-chev { flex: 0 0 auto; color: #e0b73f; transition: transform .25s ease; }
-.mm-ac[data-open="true"] .mm-ac-chev { transform: rotate(180deg); }
-.mm-ac-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
-.mm-ac[data-open="true"] .mm-ac-b { grid-template-rows: 1fr; }
-.mm-ac-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear .28s; }
-.mm-ac[data-open="true"] .mm-ac-in { visibility: visible; transition-delay: 0s; }
-.mm-ac-pad { padding: 2px 14px 14px; display: grid; gap: 12px; }
-@media (prefers-reduced-motion: reduce) {
-  .mm-ac-b, .mm-ac-chev, .mm-ac-in { transition: none; }
-}
 
 .mm-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .mm-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.14); background: transparent; color: #d6d1bd; border-radius: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
@@ -822,10 +908,24 @@ const CSS_MALLA = `
 .mm-resumen { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.1); }
 .mm-rl { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: #b9b9aa; }
 .mm-rl b { color: #ece7d4; font-weight: 600; white-space: nowrap; }
-.mm-tot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.1); font-size: 14px; }
+.mm-tot { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 0; border: 0; font-size: 14px; }
 .mm-tot b { font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 28px; color: #f0c24a; }
+.mm-tot-btn { width: 100%; background: none; color: #ece7d4; cursor: pointer; text-align: left; font: inherit; padding: 4px 0; }
+.mm-tot-btn > span { display: grid; gap: 4px; }
+.mm-tot-btn small { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #e0b73f; }
+.mm-tot-btn small svg { transition: transform .25s ease; }
+.mm-tot-btn[aria-expanded="true"] small svg { transform: rotate(180deg); }
+.mm-tot-btn:focus-visible { outline: 2px solid #e0b73f; outline-offset: 4px; border-radius: 6px; }
+.mm-desg { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+.mm-desg[data-open="true"] { grid-template-rows: 1fr; }
+.mm-desg-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear .28s; }
+.mm-desg[data-open="true"] .mm-desg-in { visibility: visible; transition-delay: 0s; }
+.mm-desg-pad { display: grid; gap: 8px; padding: 6px 0 10px; }
+@media (prefers-reduced-motion: reduce) { .mm-desg, .mm-tot-btn small svg, .mm-desg-in { transition: none; } }
 .mm-add { width: 100%; min-height: 50px; margin-top: 4px; border: 0; border-radius: 10px; cursor: pointer; font: 700 14px/1 system-ui, sans-serif; background: linear-gradient(135deg, #f0d680, #e0b73f 55%, #b08d3c); color: #1a1405; transition: filter .2s; }
 .mm-add:hover { filter: brightness(1.06); }
+.mm-wa { width: 100%; min-height: 46px; border: 1px solid rgba(224,183,63,.6); border-radius: 10px; cursor: pointer; background: transparent; color: #f0d680; font: 600 13px/1 system-ui, sans-serif; }
+.mm-wa:hover { background: rgba(224,183,63,.12); }
 .mm-nota { margin: 0; font-size: 12px; color: #7f8a82; text-align: center; }
 
 @media (max-width: 860px) {
@@ -851,7 +951,7 @@ const SERVICIOS = [
   { id: 'otro', nombre: 'Otro (te lo revisamos)', desde: 0 },
 ];
 
-export function TallerReparacion({ wa }: { wa: string }) {
+export function TallerReparacion({ wa, tienda = TIENDA }: { wa: string; tienda?: string }) {
   const [sel, setSel] = useState<string[]>([]);
   const [nombre, setNombre] = useState('');
   const [tel, setTel] = useState('');
@@ -859,8 +959,12 @@ export function TallerReparacion({ wa }: { wa: string }) {
   const [entrega, setEntrega] = useState<'tienda' | 'envio'>('tienda');
   const [notas, setNotas] = useState('');
   const [intento, setIntento] = useState(false);
+  const [abierta, setAbierta] = useState<string | null>('pieza'); // la idea principal arranca abierta
+  const [comoAbierto, setComoAbierto] = useState(false);          // "¿Cómo funciona?" arranca cerrado
 
-  const alternar = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const alternar = (id: string) => setAbierta((a) => (a === id ? null : id));
+  const abrir = (id: string) => setAbierta(id);
+  const alternarServicio = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   const errores = {
     servicios: sel.length === 0 ? 'Elige al menos un servicio' : '',
@@ -872,92 +976,140 @@ export function TallerReparacion({ wa }: { wa: string }) {
   const waOk = wa !== '#';
   const desde = SERVICIOS.filter((s) => sel.includes(s.id)).reduce((a, s) => a + s.desde, 0);
 
+  const errPieza = intento && !!errores.pieza;
+  const errServ = intento && !!errores.servicios;
+  const errDatos = intento && (!!errores.nombre || !!errores.tel);
+
   const enviar = () => {
     setIntento(true);
-    if (!valido || !waOk) return;
+    if (!valido) {
+      // Abre la primera sección con error y lleva al cliente hasta ella
+      const primera = errores.pieza ? 'pieza' : errores.servicios ? 'servicios' : 'datos';
+      setAbierta(primera);
+      requestAnimationFrame(() => {
+        document.getElementById(`mm-ac-${primera}`)?.closest('.mm-ac')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+    if (!waOk) return;
     const lista = SERVICIOS.filter((s) => sel.includes(s.id)).map((s) => `• ${s.nombre}`).join('\n');
-    const msg = [
-      'Hola, quiero cotizar una reparación:',
+    const msg = armarMensaje([
+      `Hola, *${tienda}* 👋`,
+      'Quiero cotizar una *reparación*:',
       '',
-      'Servicios:',
+      '🔧 *Servicios*',
       lista,
       '',
-      `Pieza: ${pieza.trim()}`,
-      `Entrega: ${entrega === 'tienda' ? 'Llevo la pieza a la tienda' : 'Prefiero enviarla'}`,
-      notas.trim() ? `Notas: ${notas.trim()}` : '',
+      `💍 *Pieza y daño:* ${pieza.trim()}`,
+      `📦 *Entrega:* ${entrega === 'tienda' ? 'Llevo la pieza a la tienda' : 'Prefiero enviarla'}`,
+      notas.trim() !== '' && `📝 *Notas:* ${notas.trim()}`,
       '',
-      `Nombre: ${nombre.trim()}`,
-      `Teléfono: ${soloCelular(tel)}`,
-    ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
-    const sep = wa.includes('?') ? '&' : '?';
-    window.open(`${wa}${sep}text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+      `👤 *Nombre:* ${nombre.trim()}`,
+      `📱 *Celular:* ${soloCelular(tel)}`,
+      desde > 0 && '',
+      desde > 0 && `💰 Valor de referencia: desde ${cop(desde)} (se confirma tras el diagnóstico)`,
+      '',
+      'Quedo atento a tu respuesta. ¡Gracias!',
+    ]);
+    abrirWA(wa, msg);
   };
 
   const e = (k: keyof typeof errores) => (intento && errores[k] ? <small className="tr-err" role="alert">{errores[k]}</small> : null);
+  const sig = (id: string, texto = 'Continuar') => (
+    <button type="button" className="tr-next" onClick={() => abrir(id)}>{texto}</button>
+  );
+
+  const nombreCorto = nombre.trim().split(/\s+/)[0];
+  const resDatos = errDatos
+    ? 'Revisa tus datos'
+    : nombreCorto && /^3\d{9}$/.test(soloCelular(tel)) ? `${nombreCorto} · ${soloCelular(tel)}` : 'Nombre y celular';
 
   return (
     <>
-      <style>{CSS_TALLER}</style>
+      <style>{CSS_ACC + CSS_TALLER}</style>
       <div className="tr">
         <div className="tr-info">
-          <h3 className="tr-tit">Taller de reparación</h3>
-          <p className="tr-sub">Devolvemos la vida a tus joyas. Diagnóstico sin costo y precio confirmado antes de empezar.</p>
-          <ol className="tr-pasos">
-            <li><i>1</i><div><b>Cuéntanos</b><span>Elige el servicio y describe la pieza.</span></div></li>
-            <li><i>2</i><div><b>Diagnóstico gratis</b><span>La revisamos y te damos el valor final.</span></div></li>
-            <li><i>3</i><div><b>Reparamos</b><span>Te avisamos por WhatsApp cuando esté lista.</span></div></li>
-          </ol>
-          <p className="tr-foto">Tip: después de enviar, comparte una foto de la pieza por el chat para cotizar más rápido.</p>
+          <div>
+            <h3 className="tr-tit">Taller de reparación</h3>
+            <p className="tr-sub">Devolvemos la vida a tus joyas. Diagnóstico sin costo y precio confirmado antes de empezar.</p>
+          </div>
+
+          {/* En móvil es colapsable; en escritorio se ve siempre abierto */}
+          <Seccion id="como" titulo="¿Cómo funciona?" resumen="3 pasos" abierta={comoAbierto} onToggle={() => setComoAbierto((x) => !x)} fijaEscritorio>
+            <ol className="tr-pasos">
+              <li><i>1</i><div><b>Cuéntanos</b><span>Elige el servicio y describe la pieza.</span></div></li>
+              <li><i>2</i><div><b>Diagnóstico gratis</b><span>La revisamos y te damos el valor final.</span></div></li>
+              <li><i>3</i><div><b>Reparamos</b><span>Te avisamos por WhatsApp cuando esté lista.</span></div></li>
+            </ol>
+            <p className="tr-foto">Tip: después de enviar, comparte una foto de la pieza por el chat para cotizar más rápido.</p>
+          </Seccion>
         </div>
 
         <form className="tr-form" noValidate onSubmit={(ev) => { ev.preventDefault(); enviar(); }}>
-          <div className="tr-g">
-            <h5>¿Qué necesitas?</h5>
-            <div className="tr-serv">
-              {SERVICIOS.map((s) => (
-                <button key={s.id} type="button" data-on={sel.includes(s.id)} aria-pressed={sel.includes(s.id)} onClick={() => alternar(s.id)}>
-                  <span>{s.nombre}</span>
-                  <em>{s.desde > 0 ? `desde ${cop(s.desde)}` : 'A cotizar'}</em>
-                </button>
-              ))}
-            </div>
-            {e('servicios')}
-          </div>
+          <div className="tr-acs">
+            {/* ── Item principal: la idea / el caso ── */}
+            <Seccion id="pieza" tema="claro" alerta={errPieza} titulo="Tu pieza"
+              resumen={errPieza ? 'Cuéntanos qué le pasó' : pieza.trim() || 'Cuéntanos qué le pasó'}
+              abierta={abierta === 'pieza'} onToggle={alternar}>
+              <div className="tr-c">
+                <label htmlFor="tr-pieza">¿Qué pieza es y qué le pasó?</label>
+                <textarea id="tr-pieza" rows={3} maxLength={300} value={pieza} placeholder="Ej: Cadena de 50 cm, se rompió cerca del broche"
+                  aria-invalid={errPieza} onChange={(x) => setPieza(x.target.value)} />
+                {e('pieza')}
+              </div>
+              {sig('servicios')}
+            </Seccion>
 
-          <div className="tr-c">
-            <label htmlFor="tr-pieza">Pieza y daño</label>
-            <textarea id="tr-pieza" rows={3} maxLength={300} value={pieza} placeholder="Ej: Cadena de 50 cm, se rompió cerca del broche"
-              aria-invalid={intento && !!errores.pieza} onChange={(x) => setPieza(x.target.value)} />
-            {e('pieza')}
-          </div>
+            <Seccion id="servicios" tema="claro" alerta={errServ} titulo="Servicio"
+              resumen={errServ ? 'Elige al menos uno' : sel.length ? `${sel.length} ${sel.length === 1 ? 'elegido' : 'elegidos'}` : 'Elige uno o más'}
+              abierta={abierta === 'servicios'} onToggle={alternar}>
+              <div className="tr-serv">
+                {SERVICIOS.map((s) => (
+                  <button key={s.id} type="button" data-on={sel.includes(s.id)} aria-pressed={sel.includes(s.id)} onClick={() => alternarServicio(s.id)}>
+                    <span>{s.nombre}</span>
+                    <em>{s.desde > 0 ? `desde ${cop(s.desde)}` : 'A cotizar'}</em>
+                  </button>
+                ))}
+              </div>
+              {e('servicios')}
+              {sig('datos')}
+            </Seccion>
 
-          <div className="tr-dos">
-            <div className="tr-c">
-              <label htmlFor="tr-nombre">Nombre y apellido</label>
-              <input id="tr-nombre" value={nombre} autoComplete="name" placeholder="Ej: María Gómez"
-                aria-invalid={intento && !!errores.nombre} onChange={(x) => setNombre(x.target.value)} />
-              {e('nombre')}
-            </div>
-            <div className="tr-c">
-              <label htmlFor="tr-tel">Celular / WhatsApp</label>
-              <input id="tr-tel" value={tel} inputMode="tel" autoComplete="tel" placeholder="3001234567"
-                aria-invalid={intento && !!errores.tel} onChange={(x) => setTel(x.target.value)} />
-              {e('tel')}
-            </div>
-          </div>
+            <Seccion id="datos" tema="claro" alerta={errDatos} titulo="Tus datos" resumen={resDatos}
+              abierta={abierta === 'datos'} onToggle={alternar}>
+              <div className="tr-dos">
+                <div className="tr-c">
+                  <label htmlFor="tr-nombre">Nombre y apellido</label>
+                  <input id="tr-nombre" value={nombre} autoComplete="name" placeholder="Ej: María Gómez"
+                    aria-invalid={intento && !!errores.nombre} onChange={(x) => setNombre(x.target.value)} />
+                  {e('nombre')}
+                </div>
+                <div className="tr-c">
+                  <label htmlFor="tr-tel">Celular / WhatsApp</label>
+                  <input id="tr-tel" value={tel} inputMode="tel" autoComplete="tel" placeholder="3001234567"
+                    aria-invalid={intento && !!errores.tel} onChange={(x) => setTel(x.target.value)} />
+                  {e('tel')}
+                </div>
+              </div>
+              {sig('entrega')}
+            </Seccion>
 
-          <div className="tr-c">
-            <label>Entrega de la pieza</label>
-            <div className="tr-ent" role="group" aria-label="Entrega de la pieza">
-              <button type="button" className={entrega === 'tienda' ? 'on' : ''} onClick={() => setEntrega('tienda')}>La llevo a la tienda</button>
-              <button type="button" className={entrega === 'envio' ? 'on' : ''} onClick={() => setEntrega('envio')}>Prefiero enviarla</button>
-            </div>
-          </div>
+            <Seccion id="entrega" tema="claro" titulo="Entrega" resumen={entrega === 'tienda' ? 'La llevo a la tienda' : 'La envío'}
+              abierta={abierta === 'entrega'} onToggle={alternar}>
+              <div className="tr-ent" role="group" aria-label="Entrega de la pieza">
+                <button type="button" className={entrega === 'tienda' ? 'on' : ''} onClick={() => setEntrega('tienda')}>La llevo a la tienda</button>
+                <button type="button" className={entrega === 'envio' ? 'on' : ''} onClick={() => setEntrega('envio')}>Prefiero enviarla</button>
+              </div>
+            </Seccion>
 
-          <div className="tr-c">
-            <label htmlFor="tr-notas">Notas <em>(opcional)</em></label>
-            <textarea id="tr-notas" rows={2} maxLength={200} value={notas} placeholder="Urgencia, material, recuerdo especial…"
-              onChange={(x) => setNotas(x.target.value)} />
+            <Seccion id="notas" tema="claro" titulo="Notas" resumen={notas.trim() ? 'Agregadas' : 'Opcional'}
+              abierta={abierta === 'notas'} onToggle={alternar}>
+              <div className="tr-c">
+                <label htmlFor="tr-notas">Urgencia, material, recuerdo especial…</label>
+                <textarea id="tr-notas" rows={2} maxLength={200} value={notas} placeholder="Cuéntanos lo que quieras que sepamos"
+                  onChange={(x) => setNotas(x.target.value)} />
+              </div>
+            </Seccion>
           </div>
 
           <div className="tr-pie">
@@ -975,7 +1127,7 @@ const CSS_TALLER = `
 .tr { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 22px; align-items: start; }
 .tr-info { background: #0c1511; color: #ece7d4; border: 1px solid rgba(224,183,63,.2); border-radius: 20px; padding: 22px 20px; display: grid; gap: 14px; position: sticky; top: 76px; }
 .tr-tit { margin: 0; font-family: var(--serif), Georgia, serif; font-weight: 500; font-size: 28px; color: #f4efdc; }
-.tr-sub { margin: 0; font-size: 14px; line-height: 1.55; color: #b9b9aa; }
+.tr-sub { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: #b9b9aa; }
 .tr-pasos { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 14px; }
 .tr-pasos li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
 .tr-pasos i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 13px; background: #e0b73f; color: #1a1405; }
@@ -983,8 +1135,8 @@ const CSS_TALLER = `
 .tr-pasos span { display: block; font-size: 13px; line-height: 1.45; color: #b9b9aa; }
 .tr-foto { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; color: #e9c552; background: rgba(224,183,63,.08); border: 1px dashed rgba(224,183,63,.4); }
 
-.tr-form { background: #fff; border: 1px solid #e6e2d6; border-radius: 20px; padding: 20px 18px; display: grid; gap: 16px; color: var(--tx); }
-.tr-g h5 { margin: 0 0 8px; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--o); }
+.tr-form { background: #fff; border: 1px solid #e6e2d6; border-radius: 20px; padding: 16px 14px; display: grid; gap: 16px; color: var(--tx); }
+.tr-acs { display: grid; gap: 8px; }
 .tr-serv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tr-serv button { text-align: left; display: grid; gap: 3px; padding: 11px 12px; border-radius: 12px; border: 1px solid #ddd5bd; background: #fff; cursor: pointer; font: inherit; color: var(--tx); }
 .tr-serv button span { font-size: 13px; font-weight: 600; line-height: 1.25; }
@@ -992,25 +1144,27 @@ const CSS_TALLER = `
 .tr-serv button[data-on="true"] { border-color: var(--v); background: #f1f6f2; box-shadow: 0 0 0 2px rgba(11,74,46,.12); }
 .tr-c { display: flex; flex-direction: column; gap: 6px; }
 .tr-c label { font-size: 12px; font-weight: 600; letter-spacing: .03em; color: #4f6159; }
-.tr-c label em { font-style: normal; font-weight: 400; color: #8a948e; }
-.tr-c input, .tr-c textarea { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #ddd5bd; background: #fff; font: inherit; font-size: 15px; color: var(--tx); outline: none; resize: vertical; }
+.tr-c input, .tr-c textarea { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #ddd5bd; background: #fff; font: inherit; font-size: 16px; color: var(--tx); outline: none; resize: vertical; }
 .tr-c input:focus, .tr-c textarea:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(11,74,46,.1); }
 .tr-c input[aria-invalid="true"], .tr-c textarea[aria-invalid="true"] { border-color: #c4453c; }
 .tr-err { font-size: 12px; color: #b3372f; }
 .tr-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tr-ent { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: #f1ece0; }
-.tr-ent button { padding: 10px 6px; border: 0; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; background: transparent; color: #5d6f68; }
+.tr-ent button { padding: 11px 6px; border: 0; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; background: transparent; color: #5d6f68; }
 .tr-ent button.on { background: var(--v); color: #f3e2a6; }
+.tr-next { justify-self: end; border: 0; border-radius: 9px; padding: 9px 16px; cursor: pointer; font: 700 13px/1 system-ui, sans-serif; background: #f1f6f2; color: var(--v); }
+.tr-next:hover { background: #e3eee6; }
 .tr-pie { display: grid; gap: 10px; }
 .tr-desde { margin: 0; font-size: 13px; color: #55645b; text-align: center; }
 .tr-desde b { color: var(--v); }
-.tr-send { width: 100%; min-height: 50px; border: 0; border-radius: 10px; cursor: pointer; font: 700 14px/1 system-ui, sans-serif; background: linear-gradient(135deg, #f0d680, #e0b73f 55%, #b08d3c); color: #1a1405; }
+.tr-send { width: 100%; min-height: 52px; border: 0; border-radius: 10px; cursor: pointer; font: 700 14px/1 system-ui, sans-serif; background: linear-gradient(135deg, #f0d680, #e0b73f 55%, #b08d3c); color: #1a1405; }
 .tr-send:disabled { opacity: .45; cursor: not-allowed; }
 .tr-nota { margin: 0; font-size: 12px; color: #6b7a72; text-align: center; }
 
 @media (max-width: 860px) {
-  .tr { grid-template-columns: 1fr; }
-  .tr-info { position: static; }
+  .tr { grid-template-columns: 1fr; gap: 14px; }
+  .tr-info { position: static; padding: 18px 16px; gap: 12px; }
+  .tr-tit { font-size: 24px; }
 }
 @media (max-width: 520px) {
   .tr-serv, .tr-dos { grid-template-columns: 1fr; }

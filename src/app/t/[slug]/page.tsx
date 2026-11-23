@@ -10,6 +10,8 @@ import PromocionesPublicas, { type PromoP } from './PromocionesPublicas';
 import CarruselColecciones from './CarruselColecciones';
 import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
+import MenuInferior from './MenuInferior';
+import Plegable from './Plegable';
 import { estadoPromo, type Promocion } from '@/types/promocion';
 import { rutaFoto } from '@/lib/foto-url';
 import { listar as leerPromociones } from '@/lib/promociones-store';
@@ -25,6 +27,9 @@ export const revalidate = 60;
 
 type Params = { params: Promise<{ slug: string }> };
 
+/** Nombre de la marca (se usa en el encabezado, el pie y los mensajes de WhatsApp) */
+const MARCA = "Karen Sploker's";
+
 const cop = (v?: string) => {
   const n = Number(String(v ?? '').replace(/[.,\s]/g, ''));
   return Number.isFinite(n) && n > 0 ? `$${n.toLocaleString('es-CO')}` : null;
@@ -39,6 +44,7 @@ const instagramUrl = (v?: string) => {
   const u = instagramUser(v).replace(/^@/, '');
   return u ? `https://instagram.com/${u}` : '#';
 };
+/** Enlace de WhatsApp a partir del teléfono guardado en Configuración de la tienda */
 const waLink = (tel?: string) => {
   const d = (tel || '').replace(/\D/g, '');
   return d ? `https://wa.me/${d.length <= 10 ? '57' + d : d}` : '#';
@@ -149,8 +155,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const f = await leerConfigPublica(slug).catch(() => null);
   if (!f) return { title: 'Tienda no encontrada' };
   return {
-    title: f.nombre,
-    description: f.encabezado || `Joyería fina en oro certificado · ${f.nombre}`,
+    title: MARCA,
+    description: f.encabezado || `Joyería fina en oro certificado · ${MARCA}`,
   };
 }
 
@@ -192,7 +198,7 @@ export default async function TiendaPublica({ params }: Params) {
   const PRENDAS = normalizarPrendas(crudas, f as unknown as Record<string, unknown>);
   const PROMOS = await promosActivas();
 
-  const nombre = f.nombre || 'Joyería';
+  const nombre = MARCA;
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
   const ig = instagramUser(f.instagram);
   const dom = cop(f.domicilio);
@@ -323,7 +329,6 @@ export default async function TiendaPublica({ params }: Params) {
         /* Pie */
         .mw-pie { background: var(--vd); color: #f4efdc; border-top: 1px solid rgba(224,183,63,.25); scroll-margin-top: 68px; }
         .mw-pie .mw-wrap { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.3fr; gap: 30px; padding-top: 48px; padding-bottom: 28px; }
-        .mw-pie h4 { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; margin: 0 0 14px; color: var(--o2); font-weight: 600; }
         .mw-pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 13px; color: #a9b8ae; }
         .mw-pie p { font-size: 13px; color: #a9b8ae; line-height: 1.6; margin: 14px 0 0; max-width: 260px; }
         .mw-wa { display: inline-flex; border: 1px solid var(--o2); color: #f4efdc !important; padding: 10px 18px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-top: 14px; }
@@ -331,29 +336,59 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-copy { border-top: 1px solid rgba(255,255,255,.08); padding: 16px 28px; text-align: center; font-size: 12px; color: #6f8277; }
         .mw-wafab { position: fixed; right: 18px; bottom: 18px; z-index: 30; width: 52px; height: 52px; border-radius: 50%; background: #1faa59; color: #fff !important; display: grid; place-items: center; box-shadow: 0 8px 22px rgba(31,170,89,.4); }
 
+        /* Tablet y móvil: el nombre va centrado arriba, logo a la izquierda y carrito a la derecha */
         @media (max-width: 1060px) {
-          .mw-nav { display: none; } .mw-head .mw-wrap { grid-template-columns: 1fr auto; }
+          .mw-nav { display: none; }
+          .mw-head .mw-wrap { grid-template-columns: 1fr auto 1fr; gap: 10px; }
+          .mw-head .mw-marca { display: contents; }
+          .mw-head .mw-logo { grid-column: 1; justify-self: start; width: 40px; height: 40px; }
+          .mw-head .mw-marca span { grid-column: 2; justify-self: center; text-align: center; font-size: 15px; letter-spacing: .16em; max-width: 56vw; }
+          .mw-head .mw-iconos { grid-column: 3; }
         }
         @media (max-width: 960px) {
           .mw-ben .mw-wrap { grid-template-columns: repeat(2, 1fr); gap: 18px 0; }
           .mw-b:nth-child(3) { border-left: 0; }
           .mw-pie .mw-wrap { grid-template-columns: 1fr 1fr; }
         }
+        /* Menú inferior: espacio para que no tape el pie y el WhatsApp ya va en el menú */
+        @media (max-width: 860px) {
+          .mw-wafab { display: none; }
+          .mw-copy { padding-bottom: calc(16px + 78px + env(safe-area-inset-bottom)); }
+        }
         @media (max-width: 600px) {
-          .mw-wrap { padding: 0 16px; } .mw-head .mw-wrap { height: 58px; } .mw-marca { font-size: 13px; }
+          .mw-wrap { padding: 0 16px; } .mw-head .mw-wrap { height: 58px; }
+          .mw-head .mw-marca span { font-size: 13.5px; letter-spacing: .12em; }
+          .mw-head .mw-logo { width: 36px; height: 36px; }
+
+          /* Hero más compacto: el logo ya está arriba */
+          .mw-hero { min-height: 74svh; }
+          .mw .mw-hero-in { padding-top: 36px; padding-bottom: 36px; }
+          .mw-hero-logo { display: none; }
+          .mw-hero p { font-size: 13.5px; margin-bottom: 22px; }
          .mw .hv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; opacity: 0; transition: opacity 1.8s ease;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
   mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
   -webkit-mask-composite: source-in; mask-composite: intersect; }
           .mw-btn { flex: 1; padding: 15px 16px; }
           .mw-oro-in { padding: 12px 16px; } .mw-oro-in > span { width: 100%; } .mw-oro-in div { gap: 18px; width: 100%; justify-content: space-between; } .mw-oro-in b { font-size: 15px; }
-          .mw-ben .mw-wrap { grid-template-columns: 1fr; gap: 14px; }
-          .mw-b { padding: 0; } .mw-b + .mw-b { border-left: 0; }
+
+          /* Beneficios: en móvil, fila deslizable de etiquetas en vez de 4 bloques */
+          .mw-ben .mw-wrap { display: flex; gap: 8px; padding-top: 12px; padding-bottom: 12px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+          .mw-ben .mw-wrap::-webkit-scrollbar { display: none; }
+          .mw-b { flex: 0 0 auto; gap: 8px; padding: 7px 14px 7px 8px; border: 1px solid rgba(176,141,60,.45); border-radius: 999px; background: rgba(255,255,255,.5); scroll-snap-align: start; white-space: nowrap; }
+          .mw-b + .mw-b { border-left: 1px solid rgba(176,141,60,.45); }
+          .mw-b:nth-child(3) { border-left: 1px solid rgba(176,141,60,.45); }
+          .mw-b > span { width: 28px; height: 28px; border: 0; background: rgba(11,74,46,.08); }
+          .mw-b > span svg { width: 16px; height: 16px; }
+          .mw-b b { font-size: 12.5px; } .mw-b small { display: none; }
+
           .mw-sec { padding-top: 44px; } .mw .mw-dark { padding: 44px 0 40px; }
-          .mw-hero-logo { margin-bottom: 16px; } .mw-hero-logo img { width: 84px; }
           .mw-dark .mc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
           .mw-dark .mc-card .mc-top { flex-wrap: wrap; } .mw-dark .mc-card .mc-nom { font-size: 14px !important; } .mw-dark .mc-card .mc-precio b { font-size: 15px; }
-          .mw-pie .mw-wrap { grid-template-columns: 1fr; gap: 24px; } .mw-wafab { right: 14px; bottom: 14px; width: 48px; height: 48px; }
+
+          /* Pie: marca arriba y el resto en bloques plegables */
+          .mw-pie .mw-wrap { grid-template-columns: 1fr; gap: 0; padding-top: 32px; }
+          .mw-pie-marca { padding-bottom: 22px; }
         }
         @media (prefers-reduced-motion: reduce) { .mw-hero-txt > *, .mw-hero-logo img { animation: none; } }
       `}</style>
@@ -443,32 +478,29 @@ export default async function TiendaPublica({ params }: Params) {
 
       <footer className="mw-pie" id="contacto">
         <div className="mw-wrap">
-          <div>
+          <div className="mw-pie-marca">
             <a className="mw-marca" href="#inicio">{logo}<span>{nombre}</span></a>
             <p>{lema}</p>
           </div>
-          <div>
-            <h4>Tienda</h4>
+          <Plegable titulo="Tienda">
             <ul>{cats.length ? cats.map((c) => <li key={c.n}><a href={`#cat-${slugCat(c.n)}`}>{c.n}</a></li>) : <li>Próximamente</li>}</ul>
-          </div>
-          <div>
-            <h4>Entregas</h4>
+          </Plegable>
+          <Plegable titulo="Entregas">
             <ul>
               <li>Domicilio: {dom ?? 'por definir'}</li>
               <li>{f.horario || 'Horario por definir'}</li>
               <li>{f.cobertura || 'Cobertura por definir'}</li>
               {f.seguro && <li>Seguro por envío: {f.seguro}%</li>}
             </ul>
-          </div>
-          <div>
-            <h4>Contacto</h4>
+          </Plegable>
+          <Plegable titulo="Contacto">
             <ul>
               {f.telefono && <li>WhatsApp {f.telefono}</li>}
               {ig && <li><a href={instagramUrl(f.instagram)} target="_blank" rel="noopener noreferrer">{ig}</a></li>}
               {f.direccion && <li><Ic n="pin" s={13} /> {f.direccion}</li>}
             </ul>
             <a className="mw-wa" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>
-          </div>
+          </Plegable>
         </div>
         <div className="mw-copy">© {nombre}. Todos los derechos reservados.</div>
       </footer>
@@ -476,6 +508,8 @@ export default async function TiendaPublica({ params }: Params) {
       <a className="mw-wafab" href={wa} target="_blank" rel="noopener noreferrer" aria-label="Escribir por WhatsApp">
         <Ic n="wa" s={26} />
       </a>
+
+      <MenuInferior wa={wa} />
     </div>
   );
 }
