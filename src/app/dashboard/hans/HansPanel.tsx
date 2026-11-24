@@ -1,20 +1,134 @@
 // 📁 RUTA: src/app/dashboard/hans/HansPanel.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const LOGO_HANS = '/hans.jpeg';
 
 type Tipo = 'menudeo' | 'mayorista' | 'ambos' | 'tejida';
 type Oro = '' | '18k' | '24k';
+type Metal = 'dorado' | 'plateado' | 'rosado';
 type Item = {
   id: string; codigo: string; nombre: string; categoria: string; tipo: Tipo; material: string;
   precio_menudeo: string; precio_mayorista: string; min_mayorista: string; stock: string;
   descripcion: string; foto_url: string; video_url: string; activo: string; creado: string;
-  // Oro (opcionales; el backend debe aceptarlos)
   oro?: Oro; gramos?: string; mano_obra?: string; mano_obra_mayor?: string;
+  diseno?: string; // JSON del diseñador de pulsera
 };
 type Config = { oro18: number; oro24: number; actualizado: string };
+
+/* ---------- Diseño de pulsera ---------- */
+type Dis = {
+  v: 1; longitud: number; ancho: number; hilo1: string; hilo2: string; metal: Metal;
+  balines: { tipo: string; mm: number; cant: number }[];
+  inicial: { txt: string; estilo: 'placa' | 'cuadrada' | 'letra'; tam: 'pequena' | 'mediana' | 'grande' } | null;
+  dije: { id: string } | null;
+};
+type TipoB = { id: string; nombre: string; factor: number };
+type DijeCfg = { id: string; nombre: string; gramos: number };
+type Piezas = {
+  tipos: TipoB[];
+  pesos: Record<string, number>; // mm -> gramos (oro 18k, balín liso)
+  inicial: { pequena: number; mediana: number; grande: number };
+  dijes: DijeCfg[];
+};
+
+const DENS_24 = 1.24; // el oro 24k pesa ~24 % más que el 18k para la misma pieza
+const INI_MM = { pequena: 7, mediana: 9, grande: 12 };
+const INI_TXT = { pequena: 'Pequeña (7 mm)', mediana: 'Mediana (9 mm)', grande: 'Grande (12 mm)' };
+const PRESET_DIJES = ['corazon', 'estrella', 'cruz', 'luna', 'mariposa', 'trebol', 'hamsa', 'infinito', 'ancla', 'medalla'];
+
+const DEF_PIEZAS: Piezas = {
+  tipos: [
+    { id: 'liso', nombre: 'Liso', factor: 1 },
+    { id: 'diamantado', nombre: 'Diamantado', factor: 0.92 },
+    { id: 'facetado', nombre: 'Facetado', factor: 0.95 },
+    { id: 'martillado', nombre: 'Martillado', factor: 0.97 },
+    { id: 'estriado', nombre: 'Estriado (rayado)', factor: 0.94 },
+  ],
+  pesos: { '2': 0.03, '2.5': 0.05, '3': 0.07, '4': 0.15, '5': 0.28, '6': 0.48, '8': 1.1, '10': 2.1 },
+  inicial: { pequena: 0.3, mediana: 0.6, grande: 1.0 },
+  dijes: [
+    { id: 'corazon', nombre: 'Corazón', gramos: 0.5 },
+    { id: 'estrella', nombre: 'Estrella', gramos: 0.5 },
+    { id: 'cruz', nombre: 'Cruz', gramos: 0.6 },
+    { id: 'luna', nombre: 'Luna', gramos: 0.5 },
+    { id: 'mariposa', nombre: 'Mariposa', gramos: 0.6 },
+    { id: 'trebol', nombre: 'Trébol', gramos: 0.6 },
+    { id: 'hamsa', nombre: 'Mano de Fátima', gramos: 0.9 },
+    { id: 'infinito', nombre: 'Infinito', gramos: 0.5 },
+    { id: 'ancla', nombre: 'Ancla', gramos: 0.7 },
+    { id: 'medalla', nombre: 'Medalla redonda', gramos: 0.5 },
+  ],
+};
+
+const HILOS = [
+  { n: 'Negro', c: '#1a1a1a' }, { n: 'Blanco', c: '#f4f1ea' }, { n: 'Rojo', c: '#c0272d' }, { n: 'Azul', c: '#1f4fa3' },
+  { n: 'Verde', c: '#1d7a46' }, { n: 'Café', c: '#6b4226' }, { n: 'Morado', c: '#6a3d9a' }, { n: 'Rosado', c: '#e86ea0' },
+  { n: 'Amarillo', c: '#f2c230' }, { n: 'Naranja', c: '#ef7d22' }, { n: 'Turquesa', c: '#20b2aa' }, { n: 'Gris', c: '#7b838a' },
+];
+const LETRAS = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'.split('');
+
+const defDis = (): Dis => ({
+  v: 1, longitud: 17, ancho: 4, hilo1: '#1a1a1a', hilo2: '', metal: 'dorado',
+  balines: [{ tipo: 'liso', mm: 4, cant: 5 }], inicial: null, dije: null,
+});
+
+function parseDis(s?: string): Dis | null {
+  if (!s) return null;
+  try {
+    const d = JSON.parse(s);
+    if (!d || typeof d !== 'object' || !Array.isArray(d.balines)) return null;
+    const base = defDis();
+    return {
+      ...base, ...d,
+      balines: d.balines.map((b: { tipo?: string; mm?: number; cant?: number }) => ({ tipo: String(b.tipo || 'liso'), mm: Number(b.mm) || 4, cant: Math.max(0, Math.min(60, Number(b.cant) || 0)) })),
+      inicial: d.inicial && d.inicial.txt ? { txt: String(d.inicial.txt).slice(0, 2), estilo: d.inicial.estilo || 'placa', tam: d.inicial.tam || 'mediana' } : null,
+      dije: d.dije && d.dije.id ? { id: String(d.dije.id) } : null,
+    };
+  } catch { return null; }
+}
+
+function normPiezas(raw: unknown): Piezas {
+  const r = raw as Partial<Piezas> | null;
+  if (!r || typeof r !== 'object' || !r.pesos || !Array.isArray(r.tipos) || !Array.isArray(r.dijes)) return DEF_PIEZAS;
+  return {
+    tipos: r.tipos.length ? r.tipos : DEF_PIEZAS.tipos,
+    pesos: Object.keys(r.pesos).length ? r.pesos : DEF_PIEZAS.pesos,
+    inicial: { ...DEF_PIEZAS.inicial, ...(r.inicial || {}) },
+    dijes: r.dijes.length ? r.dijes : DEF_PIEZAS.dijes,
+  };
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const sizesOf = (p: Piezas) => Object.keys(p.pesos).map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+
+function pesoBalin(b: { tipo: string; mm: number }, p: Piezas, oro?: string) {
+  let base = p.pesos[String(b.mm)];
+  if (base == null) {
+    const sz = sizesOf(p);
+    if (sz.length) {
+      const n = sz.reduce((a, c) => (Math.abs(c - b.mm) < Math.abs(a - b.mm) ? c : a));
+      base = p.pesos[String(n)] * Math.pow(b.mm / n, 3);
+    }
+  }
+  const f = p.tipos.find((t) => t.id === b.tipo)?.factor ?? 1;
+  return (base || 0) * f * (oro === '24k' ? DENS_24 : 1);
+}
+
+function totalGramos(d: Dis, p: Piezas, oro?: string) {
+  const dens = oro === '24k' ? DENS_24 : 1;
+  const bal = d.balines.reduce((s, b) => s + pesoBalin(b, p, oro) * b.cant, 0);
+  const ini = d.inicial ? (p.inicial[d.inicial.tam] || 0) * dens : 0;
+  const dij = d.dije ? (p.dijes.find((x) => x.id === d.dije!.id)?.gramos || 0) * dens : 0;
+  return { balines: r2(bal), inicial: r2(ini), dije: r2(dij), total: r2(bal + ini + dij) };
+}
+
+function largoBalines(d: Dis) {
+  const bal = d.balines.reduce((s, b) => s + (b.mm / 10 + 0.03) * b.cant, 0);
+  const ini = d.inicial ? (INI_MM[d.inicial.tam] / 10) * (d.inicial.estilo === 'letra' ? 0.85 : 1) : 0;
+  return bal + ini;
+}
 
 const TIPOS: { v: Tipo; t: string }[] = [
   { v: 'menudeo', t: 'Menudeo' },
@@ -27,38 +141,362 @@ const SEP = '|';
 const MAX_FOTOS = 6;
 const MAX_VIDEO_MB = 50;
 const VERDE = '#0b4a2e';
-const FACTOR_18K = 0.75; // 18k = 75% de oro puro
+const FACTOR_18K = 0.75;
 
 const FORM_VACIO = {
   nombre: '', categoria: '', tipo: 'ambos' as Tipo, material: '', precio_menudeo: '', precio_mayorista: '',
   min_mayorista: '', stock: '1', descripcion: '', foto_url: '', video_url: '',
-  oro: '' as Oro, gramos: '', mano_obra: '', mano_obra_mayor: '',
+  oro: '' as Oro, gramos: '', mano_obra: '', mano_obra_mayor: '', diseno: '',
 };
 
 const parseFotos = (v: string) => (v || '').split(SEP).map((x) => x.trim()).filter(Boolean);
 const num = (s?: string) => Number(String(s || '').replace(/\D/g, '')) || 0;
 const gr = (s?: string) => Number(String(s || '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
 const copN = (n: number) => (n > 0 ? `$${Math.round(n).toLocaleString('es-CO')}` : '—');
-const cop = (s: string) => copN(num(s));
 const tipoTxt = (t: string) => TIPOS.find((x) => x.v === t)?.t ?? t;
+const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/** Precio por gramo según quilataje */
 const precioGramo = (oro: string | undefined, c: Config) => (oro === '18k' ? c.oro18 : oro === '24k' ? c.oro24 : 0);
 
-/** Precio final de una prenda. Si lleva oro y hay precio configurado, se calcula; si no, el manual. */
-function precioItem(
-  x: { oro?: string; gramos?: string; mano_obra?: string; mano_obra_mayor?: string; precio_menudeo: string; precio_mayorista: string },
-  cual: 'menudeo' | 'mayorista',
-  c: Config,
-): { valor: number; auto: boolean } {
+type PrecioX = { oro?: string; gramos?: string; mano_obra?: string; mano_obra_mayor?: string; precio_menudeo: string; precio_mayorista: string };
+function precioItem(x: PrecioX, cual: 'menudeo' | 'mayorista', c: Config): { valor: number; auto: boolean } {
   const pg = precioGramo(x.oro, c);
   const g = gr(x.gramos);
   if (x.oro && pg > 0 && g > 0) {
     const mo = num(cual === 'menudeo' ? x.mano_obra : x.mano_obra_mayor);
-    const bruto = g * pg + mo;
-    return { valor: Math.round(bruto / 100) * 100, auto: true };
+    return { valor: Math.round((g * pg + mo) / 100) * 100, auto: true };
   }
   return { valor: num(cual === 'menudeo' ? x.precio_menudeo : x.precio_mayorista), auto: false };
+}
+/** Si la prenda tiene diseño, los gramos salen del diseño con los pesos vigentes. */
+const conG = <T extends { diseno?: string; oro?: string; gramos?: string }>(x: T, p: Piezas): T => {
+  const d = parseDis(x.diseno);
+  return d ? { ...x, gramos: String(totalGramos(d, p, x.oro).total) } : x;
+};
+
+/* =====================================================================
+   MOTOR 3D (canvas 2D con proyección propia, sin librerías)
+   ===================================================================== */
+type Pal = { hi: string; mid: string; lo: string; edge: string };
+const METAL: Record<Metal, Pal> = {
+  dorado: { hi: '#fff3b0', mid: '#e6b422', lo: '#8a5a00', edge: '#6b4300' },
+  plateado: { hi: '#ffffff', mid: '#c4cbd2', lo: '#5d6670', edge: '#46505a' },
+  rosado: { hi: '#ffe3d6', mid: '#e0a08a', lo: '#8c4a3a', edge: '#6b3328' },
+};
+const hex2rgb = (h: string): [number, number, number] => {
+  const m = /^#?([0-9a-f]{6})$/i.exec((h || '').trim());
+  if (!m) return [40, 40, 40];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const shade = (h: string, a: number) => {
+  const [r, g, b] = hex2rgb(h);
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round(a >= 0 ? v + (255 - v) * a : v * (1 + a))));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+};
+const palHilo = (c: string): Pal => ({ hi: shade(c, 0.38), mid: c, lo: shade(c, -0.5), edge: shade(c, -0.6) });
+const kindOf = (id: string) =>
+  id.includes('diamant') ? 'diamantado' : id.includes('facet') ? 'facetado' : id.includes('martill') ? 'martillado'
+    : id.includes('estri') || id.includes('rayad') ? 'estriado' : 'liso';
+
+type V3 = [number, number, number];
+type Scene = {
+  R: number; metal: Metal; hasDije: boolean;
+  spheres: { p: V3; r: number; col: string | null; kind: string; seed: number }[];
+  planes: { c: V3; u: V3; t: 'ini' | 'dije'; ini: Dis['inicial']; dijeId: string }[];
+};
+const EMPTY: Scene = { R: 2.7, metal: 'dorado', hasDije: false, spheres: [], planes: [] };
+
+function buildScene(d: Dis): Scene {
+  const R = Math.max(4, d.longitud) / (2 * Math.PI);
+  const thr = d.ancho / 20; // radio del hilo en cm
+  const gap = 0.03;
+  const at = (s: number): { p: V3; u: V3 } => {
+    const th = s / R;
+    return { p: [R * Math.sin(th), 0, R * Math.cos(th)], u: [Math.cos(th), 0, -Math.sin(th)] };
+  };
+  const spheres: Scene['spheres'] = [];
+  const planes: Scene['planes'] = [];
+  const ini = d.inicial;
+  const iw = ini ? (INI_MM[ini.tam] / 10) * (ini.estilo === 'letra' ? 0.85 : 1) : 0;
+  let L = 0, Rr = 0;
+  if (ini) {
+    L = -iw / 2 - gap; Rr = iw / 2 + gap;
+    const a = at(0);
+    planes.push({ c: a.p, u: a.u, t: 'ini', ini, dijeId: '' });
+  }
+  const seq = d.balines.flatMap((b) => Array(Math.max(0, Math.min(60, b.cant | 0))).fill(b) as typeof d.balines).slice(0, 90);
+  let side = 1;
+  seq.forEach((b, i) => {
+    const dm = b.mm / 10;
+    let s: number;
+    if (!ini && i === 0) { s = 0; L = -dm / 2 - gap; Rr = dm / 2 + gap; }
+    else if (side === 1) { s = Rr + dm / 2; Rr = s + dm / 2 + gap; side = -1; }
+    else { s = L - dm / 2; L = s - dm / 2 - gap; side = 1; }
+    if (Math.abs(s) > Math.PI * R * 0.88) return;
+    spheres.push({ p: at(s).p, r: dm / 2, col: null, kind: kindOf(b.tipo), seed: i });
+  });
+  // hilo trenzado
+  const N = Math.max(40, Math.round((2 * Math.PI * R) / (thr * 1.1)));
+  for (let i = 0; i < N; i++) {
+    const th = -Math.PI + ((i + 0.5) / N) * 2 * Math.PI;
+    const s = th * R;
+    if (seq.length + (ini ? 1 : 0) > 0 && s >= L - 0.02 && s <= Rr + 0.02) continue;
+    const alt = Math.floor(i / 2) % 2 === 0;
+    const col = d.hilo2 ? (alt ? d.hilo1 : d.hilo2) : alt ? d.hilo1 : shade(d.hilo1, 0.12);
+    spheres.push({ p: at(s).p, r: thr, col, kind: 'hilo', seed: i });
+  }
+  // cierre (nudo metálico atrás)
+  [-0.07, 0.07].forEach((o) => spheres.push({ p: at(Math.PI * R + o * R).p, r: thr * 1.25, col: null, kind: 'liso', seed: 1 }));
+  // dije
+  let hasDije = false;
+  if (d.dije) {
+    hasDije = true;
+    const attachY = ini ? -(INI_MM[ini.tam] / 20) : -thr;
+    planes.push({ c: [0, attachY - 0.8, R + 0.06], u: [1, 0, 0], t: 'dije', ini: null, dijeId: d.dije.id });
+  }
+  return { R, metal: d.metal, hasDije, spheres, planes };
+}
+
+function drawBead(c: CanvasRenderingContext2D, X: number, Y: number, r: number, pal: Pal, kind: string, seed: number) {
+  if (r < 0.4) return;
+  const g = c.createRadialGradient(X - r * 0.35, Y - r * 0.4, r * 0.1, X, Y, r);
+  g.addColorStop(0, pal.hi); g.addColorStop(0.5, pal.mid); g.addColorStop(1, pal.lo);
+  c.fillStyle = g;
+  c.beginPath(); c.arc(X, Y, r, 0, Math.PI * 2); c.fill();
+  if (kind !== 'hilo') {
+    c.save();
+    c.beginPath(); c.arc(X, Y, r, 0, Math.PI * 2); c.clip();
+    c.translate(X, Y); c.rotate(seed * 0.7);
+    c.lineWidth = Math.max(0.5, r * 0.05);
+    if (kind === 'diamantado' || kind === 'facetado') {
+      const step = Math.max(2.2, r * (kind === 'diamantado' ? 0.55 : 1.0));
+      for (let t = -2 * r; t <= 2 * r; t += step) {
+        c.strokeStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.moveTo(t - 2 * r, -2 * r); c.lineTo(t + 2 * r, 2 * r); c.stroke();
+        if (kind === 'diamantado') { c.strokeStyle = 'rgba(70,35,0,.3)'; c.beginPath(); c.moveTo(t + 2 * r, -2 * r); c.lineTo(t - 2 * r, 2 * r); c.stroke(); }
+        else { c.strokeStyle = 'rgba(70,35,0,.25)'; c.beginPath(); c.moveTo(-2 * r, t); c.lineTo(2 * r, t); c.stroke(); }
+      }
+    } else if (kind === 'martillado') {
+      for (let j = 0; j < 11; j++) {
+        const ang = j * 2.4 + 1, rad = r * (0.2 + 0.65 * (((j * 37) % 10) / 10));
+        c.fillStyle = 'rgba(80,40,0,.25)'; c.beginPath(); c.arc(Math.cos(ang) * rad, Math.sin(ang) * rad, r * 0.17, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.arc(Math.cos(ang) * rad - r * 0.04, Math.sin(ang) * rad - r * 0.05, r * 0.08, 0, Math.PI * 2); c.fill();
+      }
+    } else if (kind === 'estriado') {
+      c.strokeStyle = 'rgba(70,35,0,.32)'; c.lineWidth = Math.max(0.6, r * 0.07);
+      for (let t = -r; t <= r; t += r * 0.38) { c.beginPath(); c.moveTo(-2 * r, t); c.lineTo(2 * r, t); c.stroke(); }
+    }
+    c.restore();
+  }
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  c.beginPath(); c.ellipse(X - r * 0.38, Y - r * 0.42, r * 0.2, r * 0.13, -0.6, 0, Math.PI * 2); c.fill();
+}
+
+function rr(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+}
+
+/** Dibuja el dije en milímetros, con el eje y hacia abajo. */
+function drawDije(c: CanvasRenderingContext2D, id: string, pal: Pal, back: boolean) {
+  const g = c.createLinearGradient(-6, -7, 6, 7);
+  g.addColorStop(0, back ? pal.mid : pal.hi); g.addColorStop(0.5, pal.mid); g.addColorStop(1, pal.lo);
+  c.fillStyle = g; c.strokeStyle = pal.edge; c.lineWidth = 0.45; c.lineJoin = 'round'; c.lineCap = 'round';
+  const part = (fn: () => void) => { c.beginPath(); fn(); c.fill(); c.stroke(); };
+  const line = (fn: () => void) => { c.save(); c.strokeStyle = g; c.lineWidth = 1.7; c.beginPath(); fn(); c.stroke(); c.restore(); };
+  switch (id) {
+    case 'corazon':
+      part(() => { c.moveTo(0, 5.5); c.bezierCurveTo(-9, -1, -5, -7.5, 0, -3); c.bezierCurveTo(5, -7.5, 9, -1, 0, 5.5); }); break;
+    case 'estrella':
+      part(() => { for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 2.8 : 6.6; i ? c.lineTo(Math.cos(a) * r, Math.sin(a) * r) : c.moveTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); }); break;
+    case 'cruz':
+      part(() => { [[-1.7, -6.5], [1.7, -6.5], [1.7, -3], [4.8, -3], [4.8, 0.2], [1.7, 0.2], [1.7, 6.5], [-1.7, 6.5], [-1.7, 0.2], [-4.8, 0.2], [-4.8, -3], [-1.7, -3]].forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); }); break;
+    case 'luna':
+      part(() => { c.moveTo(1.5, -6.4); c.bezierCurveTo(-8, -5.5, -8, 5.5, 1.5, 6.4); c.bezierCurveTo(-4, 3.2, -4, -3.2, 1.5, -6.4); }); break;
+    case 'mariposa':
+      part(() => c.ellipse(-3.5, -2.6, 3.4, 3.2, -0.5, 0, Math.PI * 2));
+      part(() => c.ellipse(3.5, -2.6, 3.4, 3.2, 0.5, 0, Math.PI * 2));
+      part(() => c.ellipse(-2.7, 3, 2.7, 2.4, 0.4, 0, Math.PI * 2));
+      part(() => c.ellipse(2.7, 3, 2.7, 2.4, -0.4, 0, Math.PI * 2));
+      part(() => c.ellipse(0, 0.4, 0.9, 4.8, 0, 0, Math.PI * 2)); break;
+    case 'trebol':
+      [[-2.3, 0], [2.3, 0], [0, -2.3], [0, 2.3]].forEach(([x, y]) => part(() => c.arc(x, y, 2.7, 0, Math.PI * 2)));
+      part(() => rr(c, -0.5, 1, 1.1, 5.6, 0.5)); break;
+    case 'hamsa':
+      [[-5.4, -1.5, 2, 5], [-3.2, -6, 1.9, 8.5], [-0.95, -7.4, 1.9, 9.8], [1.3, -6, 1.9, 8.5], [3.4, -1.5, 2, 5]].forEach(([x, y, w, h]) => part(() => rr(c, x, y, w, h, 0.9)));
+      part(() => rr(c, -4.8, -0.6, 9.6, 7.4, 2.6)); break;
+    case 'infinito':
+      line(() => { for (let t = 0; t <= Math.PI * 2 + 0.05; t += 0.08) { const d = 1 + Math.sin(t) ** 2, x = (6.6 * Math.cos(t)) / d, y = (6.6 * Math.sin(t) * Math.cos(t)) / d; t ? c.lineTo(x, y) : c.moveTo(x, y); } }); break;
+    case 'ancla':
+      line(() => { c.moveTo(0, -4.5); c.lineTo(0, 5.2); c.moveTo(-2.6, -2); c.lineTo(2.6, -2); c.moveTo(-5.2, 1.2); c.arc(0, 0.4, 5.2, Math.PI * 0.08, Math.PI * 0.92); c.moveTo(5.2, 0.4); c.lineTo(5.2, 1.6); c.moveTo(-5.2, 0.4); c.lineTo(-5.2, 1.6); });
+      line(() => { c.arc(0, -5.6, 1.2, 0, Math.PI * 2); }); break;
+    case 'medalla':
+      part(() => c.arc(0, 0, 5.8, 0, Math.PI * 2));
+      c.save(); c.strokeStyle = back ? pal.mid : pal.lo; c.globalAlpha = 0.6; c.lineWidth = 0.5; c.beginPath(); c.arc(0, 0, 4.4, 0, Math.PI * 2); c.stroke(); c.restore(); break;
+    default:
+      part(() => rr(c, -4.5, -5.8, 9, 11.6, 2.6));
+      c.save(); c.strokeStyle = pal.lo; c.globalAlpha = 0.5; c.lineWidth = 0.5; c.beginPath(); rr(c, -3.3, -4.6, 6.6, 9.2, 1.8); c.stroke(); c.restore();
+  }
+  // argolla
+  c.save(); c.strokeStyle = g; c.lineWidth = 0.9; c.beginPath(); c.arc(0, -7.6, 1.3, 0, Math.PI * 2); c.stroke(); c.restore();
+}
+
+function drawInicial(c: CanvasRenderingContext2D, ini: NonNullable<Dis['inicial']>, pal: Pal, back: boolean) {
+  const s = INI_MM[ini.tam];
+  const g = c.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+  g.addColorStop(0, back ? pal.mid : pal.hi); g.addColorStop(0.5, pal.mid); g.addColorStop(1, pal.lo);
+  c.lineJoin = 'round'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const one = ini.txt.length < 2;
+  if (ini.estilo === 'letra') {
+    if (back) return;
+    c.font = `700 ${s * (one ? 1.15 : 0.8)}px Georgia, 'Times New Roman', serif`;
+    c.lineWidth = 0.5; c.strokeStyle = pal.edge; c.fillStyle = g;
+    c.strokeText(ini.txt, 0, 0.3); c.fillText(ini.txt, 0, 0.3); return;
+  }
+  c.fillStyle = g; c.strokeStyle = pal.edge; c.lineWidth = 0.45;
+  c.beginPath();
+  if (ini.estilo === 'placa') c.arc(0, 0, s / 2, 0, Math.PI * 2); else rr(c, -s / 2, -s / 2, s, s, s * 0.22);
+  c.fill(); c.stroke();
+  c.save(); c.globalAlpha = 0.5; c.strokeStyle = back ? pal.mid : pal.lo; c.lineWidth = 0.35; c.beginPath();
+  if (ini.estilo === 'placa') c.arc(0, 0, s / 2 - 0.9, 0, Math.PI * 2); else rr(c, -s / 2 + 0.9, -s / 2 + 0.9, s - 1.8, s - 1.8, s * 0.15);
+  c.stroke(); c.restore();
+  if (back) return;
+  c.font = `700 ${s * (one ? 0.62 : 0.44)}px Georgia, 'Times New Roman', serif`;
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.fillText(ini.txt, 0.18, 0.38);
+  c.fillStyle = pal.lo; c.fillText(ini.txt, 0, 0.1);
+}
+
+function render(c: CanvasRenderingContext2D, w: number, h: number, sc: Scene, yaw: number, pitch: number, time: number) {
+  c.clearRect(0, 0, w, h);
+  const bg = c.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#14573f'); bg.addColorStop(1, '#06191a');
+  c.fillStyle = bg; c.fillRect(0, 0, w, h);
+  const gl = c.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.42, Math.max(w, h) * 0.6);
+  gl.addColorStop(0, 'rgba(240,193,75,.2)'); gl.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gl; c.fillRect(0, 0, w, h);
+
+  const R = sc.R, sp0 = Math.sin(0.6), cp0 = Math.cos(0.6);
+  const top = R * sp0 + 0.4, bot = R * sp0 + (sc.hasDije ? 2.6 * cp0 : 0.6);
+  const S = Math.min(w / (2 * R + 2.2), (h * 0.84) / (top + bot));
+  const cx = w / 2, cy = h * 0.06 + (h * 0.84 - (top + bot) * S) / 2 + top * S;
+  const D = 26;
+  const cyw = Math.cos(yaw), syw = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const proj = (x: number, y: number, z: number) => {
+    const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw;
+    const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+    const k = D / (D - z2);
+    return { x: cx + x1 * S * k, y: cy - y2 * S * k, z: z2, k };
+  };
+  const pal = METAL[sc.metal];
+
+  // sombra en el piso
+  const f = proj(0, sc.hasDije ? -2.9 : -1.3, 0);
+  c.save(); c.translate(f.x, f.y); c.scale(1, 0.26);
+  const sh = c.createRadialGradient(0, 0, 0, 0, 0, R * S * 1.15); sh.addColorStop(0, 'rgba(0,0,0,.4)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, R * S * 1.15, 0, Math.PI * 2); c.fill(); c.restore();
+
+  const items: { z: number; f: () => void }[] = [];
+  sc.spheres.forEach((s) => {
+    const p = proj(...s.p);
+    items.push({ z: p.z, f: () => drawBead(c, p.x, p.y, s.r * S * p.k, s.col ? palHilo(s.col) : pal, s.kind, s.seed) });
+  });
+  sc.planes.forEach((pl) => {
+    const P0 = proj(...pl.c);
+    const Pu = proj(pl.c[0] + pl.u[0] * 0.1, pl.c[1] + pl.u[1] * 0.1, pl.c[2] + pl.u[2] * 0.1);
+    const Pw = proj(pl.c[0], pl.c[1] - 0.1, pl.c[2]);
+    const a = Pu.x - P0.x, b = Pu.y - P0.y, cc = Pw.x - P0.x, d = Pw.y - P0.y;
+    const back = a * d - b * cc < 0;
+    items.push({
+      z: P0.z + 0.03,
+      f: () => {
+        c.save();
+        c.transform(a, b, cc, d, P0.x, P0.y);
+        if (pl.t === 'dije') {
+          c.translate(0, -8.5); c.rotate(Math.sin(time * 1.6) * 0.07); c.translate(0, 8.5);
+          drawDije(c, pl.dijeId, pal, back);
+        } else if (pl.ini) drawInicial(c, pl.ini, pal, back);
+        c.restore();
+      },
+    });
+  });
+  items.sort((p, q) => p.z - q.z).forEach((i) => i.f());
+
+  c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '11px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  c.fillText('Arrastra para girar', w / 2, h - 10);
+}
+
+function Pulsera3D({ dis, h = 320 }: { dis: Dis; h?: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const disRef = useRef(dis);
+  disRef.current = dis;
+  const st = useRef({ yaw: 0, pitch: 0.6, drag: false, lx: 0, ly: 0, idle: 0 });
+
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    let raf = 0, key = '', scene: Scene = EMPTY;
+    const t0 = performance.now();
+    const loop = (now: number) => {
+      const w = cv.clientWidth || 300;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const k = JSON.stringify(disRef.current);
+      if (k !== key) { key = k; scene = buildScene(disRef.current); }
+      const s = st.current;
+      if (!reduce && !s.drag && now - s.idle > 1500) s.yaw += 0.008;
+      render(ctx, w, h, scene, s.yaw, s.pitch, (now - t0) / 1000);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [h]);
+
+  return (
+    <canvas
+      ref={ref}
+      aria-label="Vista 3D de la pulsera"
+      style={{ width: '100%', height: h, display: 'block', borderRadius: 16, touchAction: 'none', cursor: 'grab' }}
+      onPointerDown={(e) => { const s = st.current; s.drag = true; s.lx = e.clientX; s.ly = e.clientY; e.currentTarget.setPointerCapture(e.pointerId); }}
+      onPointerMove={(e) => {
+        const s = st.current;
+        if (!s.drag) return;
+        s.yaw += (e.clientX - s.lx) * 0.01;
+        s.pitch = Math.max(0.05, Math.min(1.35, s.pitch + (e.clientY - s.ly) * 0.008));
+        s.lx = e.clientX; s.ly = e.clientY; s.idle = performance.now();
+      }}
+      onPointerUp={() => { st.current.drag = false; st.current.idle = performance.now(); }}
+      onPointerCancel={() => { st.current.drag = false; st.current.idle = performance.now(); }}
+    />
+  );
+}
+
+/* ---------- Formulario de piezas (config) ---------- */
+type PF = {
+  pesos: { mm: string; g: string }[];
+  tipos: { id: string; nombre: string; f: string }[];
+  ini: { pequena: string; mediana: string; grande: string };
+  dijes: { id: string; nombre: string; g: string }[];
+};
+const pfFrom = (p: Piezas): PF => ({
+  pesos: sizesOf(p).map((n) => ({ mm: String(n), g: String(p.pesos[String(n)]) })),
+  tipos: p.tipos.map((t) => ({ id: t.id, nombre: t.nombre, f: String(Math.round(t.factor * 1000) / 10) })),
+  ini: { pequena: String(p.inicial.pequena), mediana: String(p.inicial.mediana), grande: String(p.inicial.grande) },
+  dijes: p.dijes.map((d) => ({ id: d.id, nombre: d.nombre, g: String(d.gramos) })),
+});
+function pfTo(pf: PF): Piezas | null {
+  const pesos: Record<string, number> = {};
+  pf.pesos.forEach((r) => { const mm = gr(r.mm), g = gr(r.g); if (mm > 0 && g > 0) pesos[String(mm)] = g; });
+  const tipos = pf.tipos.filter((t) => t.id).map((t) => ({ id: t.id, nombre: t.nombre.trim() || t.id, factor: (gr(t.f) || 100) / 100 }));
+  if (!Object.keys(pesos).length || !tipos.length) return null;
+  return {
+    pesos, tipos,
+    inicial: { pequena: gr(pf.ini.pequena), mediana: gr(pf.ini.mediana), grande: gr(pf.ini.grande) },
+    dijes: pf.dijes.filter((d) => d.id).map((d) => ({ id: d.id, nombre: d.nombre.trim() || d.id, gramos: gr(d.g) })),
+  };
 }
 
 export default function HansPanel() {
@@ -67,6 +505,11 @@ export default function HansPanel() {
   const [cats, setCats] = useState<string[]>(CATS_BASE);
   const [cfg, setCfg] = useState<Config>({ oro18: 0, oro24: 0, actualizado: '' });
   const [cfgForm, setCfgForm] = useState({ oro18: '', oro24: '' });
+  const [piezas, setPiezas] = useState<Piezas>(DEF_PIEZAS);
+  const [pf, setPf] = useState<PF>(pfFrom(DEF_PIEZAS));
+  const [nuevoMm, setNuevoMm] = useState('');
+  const [nuevoTipo, setNuevoTipo] = useState('');
+  const [nuevoDije, setNuevoDije] = useState('');
   const [guardandoCfg, setGuardandoCfg] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [errCarga, setErrCarga] = useState('');
@@ -82,6 +525,7 @@ export default function HansPanel() {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [borrar, setBorrar] = useState<Item | null>(null);
+  const [ver3d, setVer3d] = useState<Item | null>(null);
 
   const avisar = (t: string, ms = 3500) => { setAviso(t); setTimeout(() => setAviso(''), ms); };
 
@@ -105,6 +549,8 @@ export default function HansPanel() {
           const n: Config = { oro18: num(String(k.oro18)), oro24: num(String(k.oro24)), actualizado: k.actualizado || '' };
           setCfg(n);
           setCfgForm({ oro18: n.oro18 ? String(n.oro18) : '', oro24: n.oro24 ? String(n.oro24) : '' });
+          const pz = normPiezas(k.piezas);
+          setPiezas(pz); setPf(pfFrom(pz));
         }
       } catch {
         setErrCarga('No se pudo cargar Joyería Hans (el backend se crea en el Paso 2).');
@@ -115,14 +561,14 @@ export default function HansPanel() {
   }, []);
 
   useEffect(() => {
-    if (!abierto && !borrar) return;
+    if (!abierto && !borrar && !ver3d) return;
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (borrar) setBorrar(null); else setAbierto(false);
+      if (borrar) setBorrar(null); else if (ver3d) setVer3d(null); else setAbierto(false);
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [abierto, borrar]);
+  }, [abierto, borrar, ver3d]);
 
   const set = (k: keyof typeof FORM_VACIO) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -150,6 +596,7 @@ export default function HansPanel() {
       precio_menudeo: x.precio_menudeo || '', precio_mayorista: x.precio_mayorista || '', min_mayorista: x.min_mayorista || '',
       stock: x.stock || '1', descripcion: x.descripcion || '', foto_url: x.foto_url || '', video_url: x.video_url || '',
       oro: (x.oro as Oro) || '', gramos: x.gramos || '', mano_obra: x.mano_obra || '', mano_obra_mayor: x.mano_obra_mayor || '',
+      diseno: x.diseno || '',
     });
     setError('');
     setAbierto(true);
@@ -227,23 +674,30 @@ export default function HansPanel() {
     }
   }
 
+  /* ---------- Diseñador ---------- */
+  const dis = useMemo(() => parseDis(form.diseno), [form.diseno]);
+  const disOn = !!dis;
+  const upDis = (fn: (d: Dis) => Dis) => setForm((f) => ({ ...f, diseno: JSON.stringify(fn(parseDis(f.diseno) ?? defDis())) }));
+  const toggleDis = (on: boolean) => setForm((f) => ({ ...f, diseno: on ? JSON.stringify(defDis()) : '' }));
+  const pesoDis = dis ? totalGramos(dis, piezas, form.oro) : null;
+  const formEf = { ...form, gramos: pesoDis ? String(pesoDis.total) : form.gramos };
+  const sizes = sizesOf(piezas);
+
   async function guardar() {
     setError('');
     if (!form.nombre.trim()) return setError('Ponle un nombre al artículo');
     if (!form.categoria.trim()) return setError('Elige o crea una categoría');
-    if (form.oro && !gr(form.gramos)) return setError('Indica los gramos de oro de la prenda');
+    if (form.oro && !gr(formEf.gramos)) return setError(disOn ? 'El diseño no tiene piezas: agrega balines, inicial o dije' : 'Indica los gramos de oro de la prenda');
     setGuardando(true);
     try {
       const editando = editId !== null;
-      const payload: Record<string, string> = { ...form };
-      // Guardamos el precio calculado como "foto" para que la tienda pública lo lea directo.
+      const payload: Record<string, string> = { ...formEf };
       if (form.oro) {
-        const m = precioItem(form, 'menudeo', cfg);
-        const w = precioItem(form, 'mayorista', cfg);
+        const m = precioItem(formEf, 'menudeo', cfg);
+        const w = precioItem(formEf, 'mayorista', cfg);
         if (m.auto) payload.precio_menudeo = String(m.valor);
         if (w.auto) payload.precio_mayorista = String(w.valor);
       }
-      // Todo artículo nuevo nace INHABILITADO: el admin lo revisa y lo enciende.
       if (!editando) payload.activo = 'false';
 
       const res = await fetch(editando ? `/api/hans/${editId}` : '/api/hans', {
@@ -258,7 +712,6 @@ export default function HansPanel() {
         setLista((l) => l.map((x) => (x.id === editId ? d : x)));
         avisar('Cambios guardados.');
       } else {
-        // Garantía: si el backend lo creó publicado, lo apagamos.
         if (d.activo !== 'false') {
           try {
             const r2 = await fetch(`/api/hans/${d.id}`, {
@@ -307,7 +760,7 @@ export default function HansPanel() {
     }
   }
 
-  /* ---------- Configuración: precio del oro ---------- */
+  /* ---------- Configuración ---------- */
   const calc18desde24 = () => {
     const v24 = num(cfgForm.oro24);
     if (!v24) return avisar('Primero escribe el precio del oro 24k.');
@@ -317,26 +770,28 @@ export default function HansPanel() {
   async function guardarConfig() {
     const nuevo: Config = { oro18: num(cfgForm.oro18), oro24: num(cfgForm.oro24), actualizado: new Date().toISOString() };
     if (!nuevo.oro18 && !nuevo.oro24) return avisar('Escribe al menos un precio de oro por gramo.');
+    const pn = pfTo(pf);
+    if (!pn) return avisar('Revisa la tabla de balines: debe haber al menos un tamaño con peso y un tipo.');
     setGuardandoCfg(true);
     try {
       const res = await fetch('/api/hans/config', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oro18: nuevo.oro18, oro24: nuevo.oro24 }),
+        body: JSON.stringify({ oro18: nuevo.oro18, oro24: nuevo.oro24, piezas: pn }),
       });
       if (!res.ok) throw new Error();
-      setCfg(nuevo);
+      setCfg(nuevo); setPiezas(pn);
 
-      // Recalcula y aplica a todas las prendas de oro
-      const afectadas = lista.filter((x) => x.oro && gr(x.gramos) > 0 && precioGramo(x.oro, nuevo) > 0);
+      const afectadas = lista.filter((x) => x.oro && precioGramo(x.oro, nuevo) > 0 && gr(conG(x, pn).gramos) > 0);
       let fallos = 0;
       const resultados = await Promise.all(
         afectadas.map(async (x) => {
-          const m = precioItem(x, 'menudeo', nuevo).valor;
-          const w = precioItem(x, 'mayorista', nuevo).valor;
+          const xe = conG(x, pn);
+          const m = precioItem(xe, 'menudeo', nuevo).valor;
+          const w = precioItem(xe, 'mayorista', nuevo).valor;
           try {
             const r = await fetch(`/api/hans/${x.id}`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ precio_menudeo: String(m), precio_mayorista: String(w) }),
+              body: JSON.stringify({ gramos: xe.gramos || '', precio_menudeo: String(m), precio_mayorista: String(w) }),
             });
             if (!r.ok) throw new Error();
             return await r.json();
@@ -348,8 +803,8 @@ export default function HansPanel() {
       setLista((l) => l.map((x) => mapa.get(x.id) ?? x));
       avisar(
         fallos
-          ? `Precio guardado. ${afectadas.length - fallos} prendas actualizadas, ${fallos} fallaron: reintenta.`
-          : `Precio del oro guardado. ${afectadas.length} prenda${afectadas.length === 1 ? '' : 's'} actualizada${afectadas.length === 1 ? '' : 's'}.`,
+          ? `Configuración guardada. ${afectadas.length - fallos} prendas actualizadas, ${fallos} fallaron: reintenta.`
+          : `Configuración guardada. ${afectadas.length} prenda${afectadas.length === 1 ? '' : 's'} recalculada${afectadas.length === 1 ? '' : 's'}.`,
         5000,
       );
     } catch {
@@ -362,9 +817,12 @@ export default function HansPanel() {
   const fotosForm = parseFotos(form.foto_url);
   const verMayor = form.tipo === 'mayorista' || form.tipo === 'ambos';
   const verMenudeo = form.tipo !== 'mayorista';
-  const prevM = precioItem(form, 'menudeo', cfg);
-  const prevW = precioItem(form, 'mayorista', cfg);
+  const prevM = precioItem(formEf, 'menudeo', cfg);
+  const prevW = precioItem(formEf, 'mayorista', cfg);
   const sinPrecioOro = !!form.oro && precioGramo(form.oro, cfg) === 0;
+  const exceso = dis ? largoBalines(dis) > dis.longitud * 0.85 : false;
+  const nombreTipo = (id: string) => piezas.tipos.find((t) => t.id === id)?.nombre ?? id;
+  const nombreDije = (id: string) => piezas.dijes.find((t) => t.id === id)?.nombre ?? id;
 
   return (
     <main className="d-cont simple">
@@ -411,23 +869,24 @@ export default function HansPanel() {
         .hn-pre b { font-size: 16px; font-weight: 500; color: #f0c14b; }
         .hn-pre em { font-style: normal; font-size: 10.5px; color: #93a09a; display: block; }
         .hn-video { width: 100%; border-radius: 10px; background: #000; max-height: 180px; }
-        .hn-acc { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+        .hn-acc { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
         .hn-sw { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; font-size: 11.5px; color: #b4bdb7; }
         .hn-tog { position: relative; width: 34px; height: 20px; padding: 0; border-radius: 99px; cursor: pointer; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); }
         .hn-tog::after { content: ""; position: absolute; top: 2px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #cfd6d1; transition: .2s; }
         .hn-tog[aria-checked="true"] { background: #f0c14b; border-color: #f0c14b; }
         .hn-tog[aria-checked="true"]::after { left: 15px; background: #14201a; }
         .hn-b { height: 34px; padding: 0 14px; border-radius: 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: 0; background: #f0c14b; color: #1b1608; }
+        .hn-b.v { background: transparent; color: #f0c14b; border: 1px solid rgba(240,193,75,.6); }
         .hn-b.x { width: 34px; padding: 0; background: rgba(255,255,255,.06); color: #c9d1cc; border: 1px solid rgba(255,255,255,.12); }
         .hn-b.x:hover { background: #b04a3f; color: #fff; }
         .hn-vacio { text-align: center; padding: 60px 20px; color: #7a857e; background: #faf8f2; border: 1px dashed #d8d3c4; border-radius: 20px; }
         .hn-modal { position: fixed; inset: 0; background: rgba(10,20,15,.55); display: grid; place-items: center; z-index: 100; padding: 16px; }
-        .hn-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 680px; max-height: 92vh; overflow-y: auto; padding: 26px; }
+        .hn-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; padding: 26px; }
         .hn-hoja h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
         .hn-sub { font-size: 13px; color: #7a857e; margin: 0 0 18px; }
         .hn-f { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-        .hn-f label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #44514a; }
-        .hn-f input, .hn-f select, .hn-f textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; box-sizing: border-box; }
+        .hn-f label, .hn-lb { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #44514a; }
+        .hn-f input, .hn-f select, .hn-f textarea, .hn-in { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; box-sizing: border-box; }
         .hn-f .full { grid-column: 1 / -1; }
         .hn-nc { display: flex; gap: 8px; }
         .hn-nc button { flex-shrink: 0; padding: 0 14px; border-radius: 10px; border: 1px solid #b08d3c; background: #fffdf8; color: #7a6a30; cursor: pointer; font: inherit; font-size: 12.5px; }
@@ -435,9 +894,31 @@ export default function HansPanel() {
         .hn-sec strong { display: block; font-size: 13px; margin-bottom: 4px; }
         .hn-sec > span { display: block; font-size: 12px; color: #7a857e; margin-bottom: 10px; }
         .hn-sec.oro { background: #fffaf0; border-color: #ecd9a3; }
+        .hn-sec.dis { background: #f3faf5; border-color: #bfdcc9; }
+        .hn-chk { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 6px; }
+        .hn-chk input { width: 18px; height: 18px; accent-color: ${VERDE}; }
         .hn-calc { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #0b2d1f; color: #f6e7b4; font-size: 13px; display: flex; gap: 18px; flex-wrap: wrap; }
         .hn-calc b { color: #f0c14b; font-weight: 600; }
         .hn-warn { margin-top: 10px; font-size: 12.5px; color: #8a5a00; background: #fff3d6; padding: 8px 12px; border-radius: 10px; }
+        .hn-sub2 { margin: 16px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #2f5d46; }
+        .hn-sws { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+        .hn-swc { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); cursor: pointer; padding: 0; }
+        .hn-swc[aria-pressed="true"] { box-shadow: 0 0 0 2px ${VERDE}, 0 0 0 4px #f0c14b; }
+        .hn-swc.none { background: #fff; font-size: 11px; color: #777; display: grid; place-items: center; }
+        .hn-col { width: 34px; height: 30px; padding: 0; border: 1px solid rgba(128,128,128,.4); border-radius: 8px; background: #fff; cursor: pointer; }
+        .hn-seg { display: inline-flex; border: 1px solid rgba(128,128,128,.4); border-radius: 10px; overflow: hidden; }
+        .hn-seg button { font: inherit; font-size: 12.5px; padding: 8px 14px; border: 0; background: #fff; cursor: pointer; }
+        .hn-seg button[aria-pressed="true"] { background: ${VERDE}; color: #f6e7b4; }
+        .hn-rowb { display: grid; grid-template-columns: 1.3fr .8fr .7fr 1.1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .hn-rowb .res { font-size: 12px; color: #44514a; }
+        .hn-mini { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid #b08d3c; background: #fffdf8; color: #7a6a30; cursor: pointer; font: inherit; font-size: 12.5px; }
+        .hn-mini.d { width: 36px; padding: 0; border-color: rgba(176,74,63,.5); color: #b04a3f; }
+        .hn-az { display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-bottom: 10px; }
+        .hn-az button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 0; border-radius: 8px; border: 1px solid rgba(128,128,128,.35); background: #fff; cursor: pointer; }
+        .hn-az button[aria-pressed="true"] { background: ${VERDE}; color: #f6e7b4; border-color: ${VERDE}; }
+        .hn-resumen { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #fff; border: 1px solid #bfdcc9; font-size: 13px; display: grid; gap: 4px; }
+        .hn-resumen div { display: flex; justify-content: space-between; }
+        .hn-resumen .t { border-top: 1px solid #e3eee7; padding-top: 6px; margin-top: 2px; font-weight: 700; color: ${VERDE}; }
         .hn-ths { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
         .hn-th { position: relative; aspect-ratio: 4 / 5; border-radius: 12px; overflow: hidden; background: #0e3b27; border: 1px solid rgba(128,128,128,.35); }
         .hn-th img { width: 100%; height: 100%; object-fit: cover; }
@@ -458,8 +939,10 @@ export default function HansPanel() {
         .hn-dlg .b button { flex: 1; font: inherit; font-size: 13px; padding: 11px; border-radius: 99px; cursor: pointer; }
         .hn-no { border: 1px solid rgba(216,185,95,.5); background: transparent; color: #ecd07a; }
         .hn-si { border: 0; font-weight: 600; color: #fff; background: linear-gradient(135deg, #c65a4d, #a23c32); }
-        /* Configuración */
-        .hn-cfg { max-width: 760px; }
+        .hn-v3 { width: 100%; max-width: 640px; background: #fff; border-radius: 24px; padding: 16px; max-height: 94vh; overflow-y: auto; }
+        .hn-v3 h3 { margin: 4px 4px 10px; font-size: 20px; font-weight: 500; }
+        .hn-v3 ul { margin: 12px 4px 4px; padding: 0 0 0 18px; font-size: 13px; line-height: 1.7; color: #33433a; }
+        .hn-cfg { max-width: 820px; }
         .hn-cfgc { background: #fff; border: 1px solid #ece7d6; border-radius: 20px; padding: 24px; margin-bottom: 16px; }
         .hn-cfgc h2 { margin: 0 0 4px; font-size: 22px; font-weight: 500; color: #0b2d1f; }
         .hn-cfgc > p { margin: 0 0 18px; font-size: 13px; color: #7a857e; line-height: 1.5; }
@@ -472,8 +955,18 @@ export default function HansPanel() {
         .hn-cfgb { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
         .hn-cfgb .d-btn { background: ${VERDE}; }
         .hn-nota { font-size: 12px; color: #7a857e; margin-top: 12px; line-height: 1.55; }
+        .hn-tb { display: grid; gap: 8px; }
+        .hn-tr { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px; align-items: center; }
+        .hn-tr .u { font-size: 12px; color: #8a978f; }
+        .hn-add { display: flex; gap: 8px; margin-top: 10px; }
+        .hn-add input { flex: 1; min-width: 0; }
+        .hn-sticky { position: sticky; bottom: 12px; z-index: 5; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #0b2d1f; border: 1px solid rgba(216,185,95,.5); border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+        .hn-sticky span { color: #f3ead2; font-size: 13px; flex: 1 1 200px; }
+        .hn-sticky .d-btn { background: #f0c14b; color: #1b1608; }
         @media (max-width: 640px) {
           .hn-f, .hn-ro { grid-template-columns: 1fr; }
+          .hn-rowb { grid-template-columns: 1fr 1fr; }
+          .hn-az { grid-template-columns: repeat(7, 1fr); }
           .hn-hero { padding: 18px; }
           .hn-marca { gap: 16px; }
           .hn-logo { width: 110px; height: 110px; border-radius: 22px; }
@@ -508,7 +1001,7 @@ export default function HansPanel() {
           <section className="hn-cfgc">
             <h2>Precio del oro</h2>
             <p>
-              Escribe el precio por gramo. Al guardar, se recalculan automáticamente todas las prendas de Hans que tengan oro
+              Escribe el precio por gramo. Al guardar, se recalculan todas las prendas con oro
               (gramos × precio del gramo + mano de obra) y se actualizan en el catálogo.
             </p>
             <div className="hn-ro">
@@ -530,17 +1023,131 @@ export default function HansPanel() {
               </div>
             </div>
             <div className="hn-cfgb">
-              <button type="button" className="d-btn" onClick={guardarConfig} disabled={guardandoCfg}>
-                {guardandoCfg ? 'APLICANDO…' : 'GUARDAR Y APLICAR A TODAS LAS PRENDAS'}
-              </button>
               <button type="button" className="hn-b2" onClick={calc18desde24}>Calcular 18k desde 24k (75 %)</button>
             </div>
             <p className="hn-nota">
               Vigente: 24k {copN(cfg.oro24)} · 18k {copN(cfg.oro18)}
               {cfg.actualizado ? ` · actualizado ${new Date(cfg.actualizado).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}.
-              <br />Hay {nOro} prenda{nOro === 1 ? '' : 's'} con oro. Las prendas sin oro conservan su precio manual. En cada prenda (Editar) eliges 18k o 24k, los gramos y la mano de obra.
+              <br />Hay {nOro} prenda{nOro === 1 ? '' : 's'} con oro. Las prendas sin oro conservan su precio manual.
             </p>
           </section>
+
+          <section className="hn-cfgc">
+            <h2>Balines: peso por tamaño</h2>
+            <p>
+              Peso en gramos de un balín <b>liso en oro 18 k</b> según su diámetro. Los valores iniciales son estimados:
+              ajústalos con tu balanza. El oro 24 k se calcula automáticamente ×{DENS_24} (más denso).
+            </p>
+            <div className="hn-tb">
+              {pf.pesos.map((r, i) => (
+                <div className="hn-tr" key={i}>
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={r.mm} onChange={(e) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, mm: e.target.value } : x)) }))} />
+                    <span className="u">mm</span>
+                  </div>
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={r.g} onChange={(e) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, g: e.target.value } : x)) }))} />
+                    <span className="u">g</span>
+                  </div>
+                  <button type="button" className="hn-mini d" aria-label="Quitar tamaño" onClick={() => setPf((p) => ({ ...p, pesos: p.pesos.filter((_, j) => j !== i) }))}>✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" inputMode="decimal" placeholder="Nuevo tamaño en mm (ej.: 3.5)" value={nuevoMm} onChange={(e) => setNuevoMm(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const mm = gr(nuevoMm);
+                if (!mm) return;
+                if (pf.pesos.some((r) => gr(r.mm) === mm)) return setNuevoMm('');
+                const ref = pf.pesos.map((r) => ({ mm: gr(r.mm), g: gr(r.g) })).filter((r) => r.mm > 0 && r.g > 0)
+                  .sort((a, b) => Math.abs(a.mm - mm) - Math.abs(b.mm - mm))[0];
+                const est = ref ? Math.round(ref.g * Math.pow(mm / ref.mm, 3) * 1000) / 1000 : 0.1;
+                setPf((p) => ({ ...p, pesos: [...p.pesos, { mm: String(mm), g: String(est) }].sort((a, b) => gr(a.mm) - gr(b.mm)) }));
+                setNuevoMm('');
+              }}>+ Agregar tamaño</button>
+            </div>
+          </section>
+
+          <section className="hn-cfgc">
+            <h2>Tipos de balín</h2>
+            <p>El % indica cuánto pesa cada tipo frente al liso (100 %). Un diamantado pesa menos porque pierde metal al tallarse.</p>
+            <div className="hn-tb">
+              {pf.tipos.map((t, i) => (
+                <div className="hn-tr" key={t.id}>
+                  <input className="hn-in" value={t.nombre} onChange={(e) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={t.f} onChange={(e) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, f: e.target.value } : x)) }))} />
+                    <span className="u">%</span>
+                  </div>
+                  {t.id !== 'liso' ? (
+                    <button type="button" className="hn-mini d" aria-label="Quitar tipo" onClick={() => setPf((p) => ({ ...p, tipos: p.tipos.filter((_, j) => j !== i) }))}>✕</button>
+                  ) : <span />}
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" placeholder="Nuevo tipo (ej.: Diamantado fino)" value={nuevoTipo} onChange={(e) => setNuevoTipo(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const n = nuevoTipo.trim();
+                if (!n) return;
+                const id = slug(n) || `t${Date.now().toString(36)}`;
+                if (pf.tipos.some((t) => t.id === id)) return setNuevoTipo('');
+                setPf((p) => ({ ...p, tipos: [...p.tipos, { id, nombre: n, f: '100' }] }));
+                setNuevoTipo('');
+              }}>+ Agregar tipo</button>
+            </div>
+            <p className="hn-nota">El aspecto en 3D se reconoce por el nombre: diamantado, facetado, martillado, estriado/rayado. Otros se ven lisos.</p>
+          </section>
+
+          <section className="hn-cfgc">
+            <h2>Inicial y dijes</h2>
+            <p>Peso en gramos (oro 18 k) de la placa de inicial según su tamaño y de cada dije.</p>
+            <div className="hn-ro" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              {(['pequena', 'mediana', 'grande'] as const).map((k) => (
+                <div key={k}>
+                  <label>{INI_TXT[k]}</label>
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={pf.ini[k]} onChange={(e) => setPf((p) => ({ ...p, ini: { ...p.ini, [k]: e.target.value } }))} />
+                    <span className="u">g</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hn-sub2">Dijes</div>
+            <div className="hn-tb">
+              {pf.dijes.map((d, i) => (
+                <div className="hn-tr" key={d.id}>
+                  <input className="hn-in" value={d.nombre} onChange={(e) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={d.g} onChange={(e) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, g: e.target.value } : x)) }))} />
+                    <span className="u">g</span>
+                  </div>
+                  {!PRESET_DIJES.includes(d.id) ? (
+                    <button type="button" className="hn-mini d" aria-label="Quitar dije" onClick={() => setPf((p) => ({ ...p, dijes: p.dijes.filter((_, j) => j !== i) }))}>✕</button>
+                  ) : <span />}
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" placeholder="Nuevo dije (ej.: Tortuga)" value={nuevoDije} onChange={(e) => setNuevoDije(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const n = nuevoDije.trim();
+                if (!n) return;
+                const id = `c-${slug(n) || Date.now().toString(36)}`;
+                if (pf.dijes.some((d) => d.id === id)) return setNuevoDije('');
+                setPf((p) => ({ ...p, dijes: [...p.dijes, { id, nombre: n, g: '0.5' }] }));
+                setNuevoDije('');
+              }}>+ Agregar dije</button>
+            </div>
+            <p className="hn-nota">Los dijes que agregues se muestran en 3D como una placa genérica.</p>
+          </section>
+
+          <div className="hn-sticky">
+            <span>Al guardar se recalculan pesos y precios de todas las prendas con oro.</span>
+            <button type="button" className="d-btn" onClick={guardarConfig} disabled={guardandoCfg}>
+              {guardandoCfg ? 'APLICANDO…' : 'GUARDAR Y APLICAR A TODAS'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -574,8 +1181,10 @@ export default function HansPanel() {
               {visibles.map((x) => {
                 const fotos = parseFotos(x.foto_url);
                 const on = x.activo === 'true';
-                const pm = precioItem(x, 'menudeo', cfg);
-                const pw = precioItem(x, 'mayorista', cfg);
+                const xe = conG(x, piezas);
+                const pm = precioItem(xe, 'menudeo', cfg);
+                const pw = precioItem(xe, 'mayorista', cfg);
+                const tiene3d = !!parseDis(x.diseno);
                 return (
                   <article key={x.id} className={`hn-card ${on ? '' : 'off'}`}>
                     <div className="hn-foto">
@@ -588,7 +1197,7 @@ export default function HansPanel() {
                       {fotos.length > 1 && <span className="hn-cnt">{fotos.length} fotos</span>}
                       <span className="hn-tipo">{tipoTxt(x.tipo)}</span>
                       {!on && <span className="hn-rev">EN REVISIÓN</span>}
-                      {x.oro && <span className="hn-oro">Oro {x.oro}{gr(x.gramos) ? ` · ${gr(x.gramos)} g` : ''}</span>}
+                      {x.oro && <span className="hn-oro">Oro {x.oro}{gr(xe.gramos) ? ` · ${gr(xe.gramos)} g` : ''}</span>}
                     </div>
                     <div className="hn-info">
                       <small>{x.categoria} · {x.codigo}</small>
@@ -613,6 +1222,7 @@ export default function HansPanel() {
                           <button type="button" role="switch" aria-checked={on} className="hn-tog" onClick={() => alternar(x)} aria-label={on ? 'Inhabilitar' : 'Publicar'} />
                           <span>{on ? 'Publicado' : 'Inhabilitado'}</span>
                         </div>
+                        {tiene3d && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
                         <button type="button" className="hn-b" onClick={() => abrirEditar(x)}>Editar</button>
                         <button type="button" className="hn-b x" onClick={() => setBorrar(x)} aria-label={`Eliminar ${x.nombre}`}>✕</button>
                       </div>
@@ -624,6 +1234,28 @@ export default function HansPanel() {
           )}
         </>
       )}
+
+      {ver3d && (() => {
+        const d = parseDis(ver3d.diseno);
+        if (!d) return null;
+        const t = totalGramos(d, piezas, ver3d.oro);
+        return (
+          <div className="hn-modal" onMouseDown={(e) => e.target === e.currentTarget && setVer3d(null)}>
+            <div className="hn-v3" role="dialog" aria-modal="true" aria-label={`Vista 3D de ${ver3d.nombre}`}>
+              <h3>{ver3d.nombre}</h3>
+              <Pulsera3D dis={d} h={400} />
+              <ul>
+                <li>Largo {d.longitud} cm · ancho {d.ancho} mm · acabado {d.metal}</li>
+                {d.balines.filter((b) => b.cant > 0).map((b, i) => <li key={i}>{b.cant} balín{b.cant === 1 ? '' : 'es'} {nombreTipo(b.tipo).toLowerCase()} de {b.mm} mm</li>)}
+                {d.inicial && <li>Inicial «{d.inicial.txt}» · {d.inicial.estilo} · {INI_TXT[d.inicial.tam]}</li>}
+                {d.dije && <li>Dije: {nombreDije(d.dije.id)}</li>}
+                <li><b>Peso total en oro: {t.total} g</b></li>
+              </ul>
+              <div className="hn-btns"><button type="button" className="hn-b2" onClick={() => setVer3d(null)}>Cerrar</button></div>
+            </div>
+          </div>
+        );
+      })()}
 
       {borrar && (
         <div className="hn-modal" onMouseDown={(e) => e.target === e.currentTarget && setBorrar(null)}>
@@ -662,9 +1294,132 @@ export default function HansPanel() {
               </div>
               <div>
                 <label htmlFor="hn-t">Tipo de venta</label>
-                <select id="hn-t" value={form.tipo} onChange={set('tipo')}>{TIPOS.map((t) => <option key={t.v} value={t.v}>{t.t}</option>)}</select>
+                <select id="hn-t" value={form.tipo} onChange={(e) => {
+                  const v = e.target.value as Tipo;
+                  setForm((f) => ({ ...f, tipo: v, diseno: v === 'tejida' && !f.diseno ? JSON.stringify(defDis()) : f.diseno }));
+                }}>{TIPOS.map((t) => <option key={t.v} value={t.v}>{t.t}</option>)}</select>
               </div>
               <div><label htmlFor="hn-m">Material</label><input id="hn-m" value={form.material} onChange={set('material')} placeholder="Ej.: Acero, hilo encerado, plata" /></div>
+            </div>
+
+            <div className="hn-sec dis">
+              <label className="hn-chk">
+                <input type="checkbox" checked={disOn} onChange={(e) => toggleDis(e.target.checked)} />
+                Diseñador de pulsera (balines, inicial, dije y vista 3D)
+              </label>
+              {!disOn && <span>Actívalo para armar la pulsera pieza por pieza: el peso en oro se calcula solo y ves cómo queda en 3D.</span>}
+
+              {dis && (
+                <>
+                  <Pulsera3D dis={dis} h={320} />
+
+                  <div className="hn-sub2">Hilo y medidas</div>
+                  <label className="hn-lb">Color del hilo</label>
+                  <div className="hn-sws">
+                    {HILOS.map((h) => (
+                      <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={h.n} aria-pressed={dis.hilo1 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo1: h.c }))} />
+                    ))}
+                    <input type="color" className="hn-col" aria-label="Color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo1) ? dis.hilo1 : '#1a1a1a'} onChange={(e) => upDis((d) => ({ ...d, hilo1: e.target.value }))} />
+                  </div>
+                  <label className="hn-lb" style={{ marginTop: 10 }}>Segundo color (trenzado, opcional)</label>
+                  <div className="hn-sws">
+                    <button type="button" className="hn-swc none" aria-pressed={!dis.hilo2} onClick={() => upDis((d) => ({ ...d, hilo2: '' }))}>—</button>
+                    {HILOS.map((h) => (
+                      <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={`${h.n} (segundo color)`} aria-pressed={dis.hilo2 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo2: h.c }))} />
+                    ))}
+                    <input type="color" className="hn-col" aria-label="Segundo color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo2) ? dis.hilo2 : '#ffffff'} onChange={(e) => upDis((d) => ({ ...d, hilo2: e.target.value }))} />
+                  </div>
+                  <div className="hn-f" style={{ marginTop: 12, marginBottom: 0 }}>
+                    <div>
+                      <label htmlFor="d-l">Largo de la pulsera (cm)</label>
+                      <select id="d-l" value={dis.longitud} onChange={(e) => upDis((d) => ({ ...d, longitud: Number(e.target.value) }))}>
+                        {[14, 15, 16, 17, 18, 19, 20, 21, 22].map((n) => <option key={n} value={n}>{n} cm</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="d-a">Ancho del tejido (mm)</label>
+                      <select id="d-a" value={dis.ancho} onChange={(e) => upDis((d) => ({ ...d, ancho: Number(e.target.value) }))}>
+                        {[3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n} mm</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <label className="hn-lb" style={{ marginTop: 12 }}>Acabado del metal</label>
+                  <div className="hn-seg" role="group" aria-label="Acabado del metal">
+                    {(['dorado', 'plateado', 'rosado'] as Metal[]).map((m) => (
+                      <button key={m} type="button" aria-pressed={dis.metal === m} onClick={() => upDis((d) => ({ ...d, metal: m }))}>{m[0].toUpperCase() + m.slice(1)}</button>
+                    ))}
+                  </div>
+
+                  <div className="hn-sub2">Balines</div>
+                  {dis.balines.map((b, i) => (
+                    <div className="hn-rowb" key={i}>
+                      <select className="hn-in" aria-label="Tipo de balín" value={b.tipo} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)) }))}>
+                        {!piezas.tipos.some((t) => t.id === b.tipo) && <option value={b.tipo}>{b.tipo}</option>}
+                        {piezas.tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      </select>
+                      <select className="hn-in" aria-label="Tamaño" value={b.mm} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, mm: Number(e.target.value) } : x)) }))}>
+                        {!sizes.includes(b.mm) && <option value={b.mm}>{b.mm} mm</option>}
+                        {sizes.map((s) => <option key={s} value={s}>{s} mm</option>)}
+                      </select>
+                      <input className="hn-in" type="number" min={0} max={60} aria-label="Cantidad" value={b.cant} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, cant: Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)) } : x)) }))} />
+                      <span className="res">{r2(pesoBalin(b, piezas, form.oro))} g c/u · {r2(pesoBalin(b, piezas, form.oro) * b.cant)} g</span>
+                      <button type="button" className="hn-mini d" aria-label="Quitar balín" onClick={() => upDis((d) => ({ ...d, balines: d.balines.filter((_, j) => j !== i) }))}>✕</button>
+                    </div>
+                  ))}
+                  <button type="button" className="hn-mini" onClick={() => upDis((d) => ({ ...d, balines: [...d.balines, { tipo: piezas.tipos[0]?.id || 'liso', mm: sizes[Math.min(2, sizes.length - 1)] || 4, cant: 2 }] }))}>+ Agregar balín</button>
+                  {exceso && dis && <div className="hn-warn">Los balines y la inicial miden unos {largoBalines(dis).toFixed(1)} cm y la pulsera {dis.longitud} cm: no caben bien. Reduce cantidades o alarga la pulsera.</div>}
+
+                  <div className="hn-sub2">Inicial</div>
+                  <label className="hn-chk">
+                    <input type="checkbox" checked={!!dis.inicial} onChange={(e) => upDis((d) => ({ ...d, inicial: e.target.checked ? { txt: 'A', estilo: 'placa', tam: 'mediana' } : null }))} />
+                    Incluir inicial al centro
+                  </label>
+                  {dis.inicial && (
+                    <>
+                      <div className="hn-az" role="group" aria-label="Elegir letra">
+                        {LETRAS.map((l) => (
+                          <button key={l} type="button" aria-pressed={dis.inicial?.txt === l} onClick={() => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: l } : d.inicial }))}>{l}</button>
+                        ))}
+                      </div>
+                      <div className="hn-f" style={{ marginBottom: 0 }}>
+                        <div>
+                          <label htmlFor="d-it">Texto (1 o 2 letras)</label>
+                          <input id="d-it" maxLength={2} value={dis.inicial.txt} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: e.target.value.toUpperCase().slice(0, 2) || 'A' } : d.inicial }))} />
+                        </div>
+                        <div>
+                          <label htmlFor="d-ie">Estilo</label>
+                          <select id="d-ie" value={dis.inicial.estilo} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, estilo: e.target.value as 'placa' | 'cuadrada' | 'letra' } : d.inicial }))}>
+                            <option value="placa">Placa redonda</option>
+                            <option value="cuadrada">Placa cuadrada</option>
+                            <option value="letra">Letra suelta</option>
+                          </select>
+                        </div>
+                        <div className="full">
+                          <label htmlFor="d-iz">Tamaño</label>
+                          <select id="d-iz" value={dis.inicial.tam} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, tam: e.target.value as 'pequena' | 'mediana' | 'grande' } : d.inicial }))}>
+                            {(['pequena', 'mediana', 'grande'] as const).map((k) => <option key={k} value={k}>{INI_TXT[k]} · {piezas.inicial[k]} g</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="hn-sub2">Dije</div>
+                  <select className="hn-in" aria-label="Dije" value={dis.dije?.id || ''} onChange={(e) => upDis((d) => ({ ...d, dije: e.target.value ? { id: e.target.value } : null }))}>
+                    <option value="">Sin dije</option>
+                    {piezas.dijes.map((x) => <option key={x.id} value={x.id}>{x.nombre} · {x.gramos} g</option>)}
+                  </select>
+
+                  {pesoDis && (
+                    <div className="hn-resumen">
+                      <div><span>Balines ({dis.balines.reduce((s, b) => s + b.cant, 0)} u.)</span><span>{pesoDis.balines} g</span></div>
+                      <div><span>Inicial</span><span>{pesoDis.inicial} g</span></div>
+                      <div><span>Dije</span><span>{pesoDis.dije} g</span></div>
+                      <div className="t"><span>Peso total{form.oro ? ` en oro ${form.oro}` : ' (elige quilataje abajo)'}</span><span>{pesoDis.total} g</span></div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="hn-sec oro">
@@ -679,7 +1434,8 @@ export default function HansPanel() {
                     <option value="24k">Oro 24 k</option>
                   </select>
                 </div>
-                {form.oro && <div><label htmlFor="hn-g">Gramos de oro</label><input id="hn-g" inputMode="decimal" value={form.gramos} onChange={set('gramos')} placeholder="Ej.: 3.5" /></div>}
+                {form.oro && !disOn && <div><label htmlFor="hn-g">Gramos de oro</label><input id="hn-g" inputMode="decimal" value={form.gramos} onChange={set('gramos')} placeholder="Ej.: 3.5" /></div>}
+                {form.oro && disOn && <div><label>Gramos de oro (del diseño)</label><input readOnly value={`${formEf.gramos} g`} /></div>}
                 {form.oro && verMenudeo && <div><label htmlFor="hn-mo">Mano de obra menudeo ($)</label><input id="hn-mo" inputMode="numeric" value={form.mano_obra} onChange={set('mano_obra')} placeholder="Ej.: 40000" /></div>}
                 {form.oro && verMayor && <div><label htmlFor="hn-mw">Mano de obra mayorista ($)</label><input id="hn-mw" inputMode="numeric" value={form.mano_obra_mayor} onChange={set('mano_obra_mayor')} placeholder="Ej.: 25000" /></div>}
               </div>
