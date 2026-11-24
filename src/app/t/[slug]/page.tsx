@@ -635,7 +635,12 @@ export default async function TiendaPublica({ params }: Params) {
 
       <WhatsAppFlotante wa={wa} tienda={nombre} />
 
-      <MenuInferior />
+                  <MenuInferior
+        wa={wa}
+        instagram={INSTAGRAM}
+        promos={PROMOS.length > 0}
+        colecciones={cats.length > 0}
+      />
     </div>
   );
 }
