@@ -1,4 +1,4 @@
-// 📁 RUTA: tu Sidebar.tsx actual (el mismo archivo, junto a sidebar.css)
+// 📁 RUTA: src/components/dashboard/Sidebar.tsx  (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import { Insignia, useContadores } from '@/components/InsigniaContador';
 const ICONOS: Record<string, string> = {
   inicio: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   prendas: 'M6 3h12l4 6-10 12L2 9zM2 9h20M9 3l3 6 3-6',
+  hans: 'M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 13v3M9 21h6M10 16l-1 5M14 16l1 5',
   pedidos: 'M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0',
   domi: 'M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   clientes: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
@@ -49,6 +50,7 @@ const GRUPOS: Grupo[] = [
     titulo: 'Catálogo',
     items: [
       { href: '/dashboard/prendas', t: 'Prendas', i: 'prendas', contador: 'prendas' },
+      { href: '/dashboard/hans', t: 'Joyería Hans', i: 'hans' },
       { href: '/dashboard/inventario', t: 'Inventario', i: 'inventario', contador: 'inventario' },
       { href: '/dashboard/boveda', t: 'Bóveda de oro', i: 'boveda' },
     ],
