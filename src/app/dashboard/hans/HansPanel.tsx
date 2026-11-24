@@ -174,9 +174,7 @@ const conG = <T extends { diseno?: string; oro?: string; gramos?: string }>(x: T
   return d ? { ...x, gramos: String(totalGramos(d, p, x.oro).total) } : x;
 };
 
-/* =====================================================================
-   MOTOR 3D (canvas 2D con proyección propia, sin librerías)
-   ===================================================================== */
+
 type Pal = { hi: string; mid: string; lo: string; edge: string };
 const METAL: Record<Metal, Pal> = {
   dorado: { hi: '#fff3b0', mid: '#e6b422', lo: '#8a5a00', edge: '#6b4300' },
@@ -827,11 +825,12 @@ export default function HansPanel() {
   return (
     <main className="d-cont simple">
       <style>{`
-        .hn-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; padding: 22px 28px; border-radius: 26px; background: radial-gradient(120% 140% at 0% 0%, #12503a 0%, #0b2d1f 55%, #07211a 100%); border: 1px solid rgba(216,185,95,.45); box-shadow: 0 10px 30px rgba(7,33,26,.25); }
-        .hn-marca { display: flex; align-items: center; gap: 28px; min-width: 0; }
-        .hn-logo { width: 170px; height: 170px; flex-shrink: 0; border-radius: 28px; overflow: hidden; background: #fff; border: 3px solid #d8b95f; box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 6px rgba(216,185,95,.15); display: grid; place-items: center; padding: 6px; box-sizing: border-box; }
-        .hn-logo img { width: 100%; height: 100%; object-fit: contain; }
-        .hn-marca h1 { margin: 0; font-size: 38px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
+        /* ===== HERO: logo sobre fondo negro, grande ===== */
+        .hn-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; padding: 26px 32px; border-radius: 26px; background: linear-gradient(115deg, #000 0%, #030a07 42%, #0b2d1f 100%); border: 1px solid rgba(216,185,95,.6); box-shadow: 0 10px 30px rgba(7,33,26,.25); }
+        .hn-marca { display: flex; align-items: center; gap: 32px; min-width: 0; }
+        .hn-logo { width: 230px; height: 230px; flex-shrink: 0; border-radius: 34px; overflow: hidden; background: #000; border: 3px solid #d8b95f; box-shadow: 0 0 0 7px rgba(216,185,95,.14), 0 0 50px rgba(240,193,75,.28), 0 14px 34px rgba(0,0,0,.6); display: grid; place-items: center; padding: 0; box-sizing: border-box; }
+        .hn-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 30px; }
+        .hn-marca h1 { margin: 0; font-size: 46px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
         .hn-marca p { margin: 8px 0 0; font-size: 14px; color: rgba(243,234,210,.78); }
         .hn-hero .d-btn { background: #f0c14b; color: #1b1608; }
         .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; }
@@ -884,7 +883,7 @@ export default function HansPanel() {
         .hn-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; padding: 26px; }
         .hn-hoja h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
         .hn-sub { font-size: 13px; color: #7a857e; margin: 0 0 18px; }
-        .hn-f { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .hn-f { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; margin-bottom: 14px; }
         .hn-f label, .hn-lb { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #44514a; }
         .hn-f input, .hn-f select, .hn-f textarea, .hn-in { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; box-sizing: border-box; }
         .hn-f .full { grid-column: 1 / -1; }
@@ -942,35 +941,68 @@ export default function HansPanel() {
         .hn-v3 { width: 100%; max-width: 640px; background: #fff; border-radius: 24px; padding: 16px; max-height: 94vh; overflow-y: auto; }
         .hn-v3 h3 { margin: 4px 4px 10px; font-size: 20px; font-weight: 500; }
         .hn-v3 ul { margin: 12px 4px 4px; padding: 0 0 0 18px; font-size: 13px; line-height: 1.7; color: #33433a; }
-        .hn-cfg { max-width: 820px; }
-        .hn-cfgc { background: #fff; border: 1px solid #ece7d6; border-radius: 20px; padding: 24px; margin-bottom: 16px; }
-        .hn-cfgc h2 { margin: 0 0 4px; font-size: 22px; font-weight: 500; color: #0b2d1f; }
+
+        /* ===== Configuración: tarjetas colapsables ===== */
+        .hn-cfg { width: 100%; padding-bottom: 90px; }
+        .hn-cfgc { background: #fff; border: 1px solid #ece7d6; border-radius: 20px; padding: 20px 24px; margin-bottom: 14px; }
+        .hn-cfgc > summary, .hn-ds > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; -webkit-tap-highlight-color: transparent; }
+        .hn-cfgc > summary::-webkit-details-marker, .hn-ds > summary::-webkit-details-marker { display: none; }
+        .hn-cfgc > summary::after, .hn-ds > summary::after { content: "⌄"; font-size: 24px; line-height: 1; color: #b08d3c; transition: transform .2s; }
+        .hn-cfgc > summary::after { margin-left: auto; }
+        .hn-cfgc[open] > summary::after, .hn-ds[open] > summary::after { transform: rotate(180deg); }
+        .hn-cfgc > summary h2 { margin: 0; font-size: 22px; font-weight: 500; color: #0b2d1f; }
+        .hn-cfgc[open] > summary { margin-bottom: 8px; }
         .hn-cfgc > p { margin: 0 0 18px; font-size: 13px; color: #7a857e; line-height: 1.5; }
-        .hn-ro { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .hn-ro { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+        .hn-ro3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        .hn-ro > div { min-width: 0; }
         .hn-ro label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #44514a; letter-spacing: .04em; }
         .hn-ro .in { display: flex; align-items: center; border: 1px solid #d8b95f; border-radius: 12px; background: #fffdf8; overflow: hidden; }
         .hn-ro .in span { padding: 0 10px 0 14px; color: #7a6a30; font-weight: 600; }
-        .hn-ro .in input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; padding: 12px 8px; }
-        .hn-ro .in em { font-style: normal; padding: 0 14px; font-size: 12px; color: #8a978f; }
+        .hn-ro .in input { flex: 1; width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; padding: 12px 8px; }
+        .hn-ro .in em { font-style: normal; padding: 0 14px; font-size: 12px; color: #8a978f; flex-shrink: 0; }
         .hn-cfgb { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
         .hn-cfgb .d-btn { background: ${VERDE}; }
         .hn-nota { font-size: 12px; color: #7a857e; margin-top: 12px; line-height: 1.55; }
-        .hn-tb { display: grid; gap: 8px; }
-        .hn-tr { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px; align-items: center; }
-        .hn-tr .u { font-size: 12px; color: #8a978f; }
-        .hn-add { display: flex; gap: 8px; margin-top: 10px; }
+
+        /* Tablas centradas */
+        .hn-tb { display: grid; gap: 8px; max-width: 520px; margin: 0 auto; }
+        .hn-tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 36px; gap: 8px; align-items: center; }
+        .hn-tr .hn-nc { position: relative; }
+        .hn-tr .hn-nc input { min-width: 0; text-align: center; padding-right: 34px; }
+        .hn-tr .u { position: absolute; right: 12px; font-size: 12px; color: #8a978f; pointer-events: none; }
+        .hn-th2 { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a978f; font-weight: 700; text-align: center; }
+        .hn-tr:not(.hn-th2):nth-child(odd) { background: #faf8f2; border-radius: 10px; padding: 4px; margin: 0 -4px; }
+        .hn-add { display: flex; gap: 8px; max-width: 520px; margin: 12px auto 0; }
         .hn-add input { flex: 1; min-width: 0; }
+
         .hn-sticky { position: sticky; bottom: 12px; z-index: 5; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #0b2d1f; border: 1px solid rgba(216,185,95,.5); border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
         .hn-sticky span { color: #f3ead2; font-size: 13px; flex: 1 1 200px; }
         .hn-sticky .d-btn { background: #f0c14b; color: #1b1608; }
+
+        /* ===== Diseñador: bloques colapsables ===== */
+        .hn-ds { margin-top: 12px; border: 1px solid #cfe3d6; border-radius: 12px; background: #fff; padding: 0 14px; }
+        .hn-ds[open] { padding-bottom: 14px; }
+        .hn-ds > summary { padding: 13px 0; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #2f5d46; }
+        .hn-ds > summary span { flex: 1; }
+        .hn-ds > summary small { font-weight: 500; letter-spacing: 0; text-transform: none; color: #7a857e; font-size: 12px; }
+        .hn-ds[open] > summary { border-bottom: 1px solid #e3eee7; margin-bottom: 12px; }
+        .hn-p3 { position: sticky; top: -1px; z-index: 4; padding: 6px 0; background: #f3faf5; }
+
         @media (max-width: 640px) {
-          .hn-f, .hn-ro { grid-template-columns: 1fr; }
-          .hn-rowb { grid-template-columns: 1fr 1fr; }
+          .hn-f, .hn-ro, .hn-ro3 { grid-template-columns: 1fr; }
           .hn-az { grid-template-columns: repeat(7, 1fr); }
-          .hn-hero { padding: 18px; }
-          .hn-marca { gap: 16px; }
-          .hn-logo { width: 110px; height: 110px; border-radius: 22px; }
-          .hn-marca h1 { font-size: 26px; }
+          .hn-hero { padding: 22px 16px; flex-direction: column; text-align: center; }
+          .hn-marca { flex-direction: column; gap: 16px; }
+          .hn-logo { width: 200px; height: 200px; border-radius: 30px; }
+          .hn-marca h1 { font-size: 32px; }
+          .hn-cfgc { padding: 16px; }
+          .hn-cfgc > summary h2 { font-size: 19px; }
+          .hn-modal { padding: 0; align-items: end; }
+          .hn-hoja, .hn-v3 { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 18px 14px; }
+          .hn-rowb { grid-template-columns: 1fr 1fr 74px 36px; }
+          .hn-rowb .res { order: 5; grid-column: 1 / -1; text-align: center; background: #f3faf5; padding: 5px; border-radius: 8px; }
+          .hn-sticky { bottom: 8px; }
         }
       `}</style>
 
@@ -998,8 +1030,8 @@ export default function HansPanel() {
 
       {tab === 'config' && (
         <div className="hn-cfg">
-          <section className="hn-cfgc">
-            <h2>Precio del oro</h2>
+          <details className="hn-cfgc" open>
+            <summary><h2>Precio del oro</h2></summary>
             <p>
               Escribe el precio por gramo. Al guardar, se recalculan todas las prendas con oro
               (gramos × precio del gramo + mano de obra) y se actualizan en el catálogo.
@@ -1030,15 +1062,16 @@ export default function HansPanel() {
               {cfg.actualizado ? ` · actualizado ${new Date(cfg.actualizado).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}.
               <br />Hay {nOro} prenda{nOro === 1 ? '' : 's'} con oro. Las prendas sin oro conservan su precio manual.
             </p>
-          </section>
+          </details>
 
-          <section className="hn-cfgc">
-            <h2>Balines: peso por tamaño</h2>
+          <details className="hn-cfgc">
+            <summary><h2>Balines: peso por tamaño</h2></summary>
             <p>
               Peso en gramos de un balín <b>liso en oro 18 k</b> según su diámetro. Los valores iniciales son estimados:
               ajústalos con tu balanza. El oro 24 k se calcula automáticamente ×{DENS_24} (más denso).
             </p>
             <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Diámetro (mm)</span><span>Peso (g)</span><span /></div>
               {pf.pesos.map((r, i) => (
                 <div className="hn-tr" key={i}>
                   <div className="hn-nc" style={{ alignItems: 'center' }}>
@@ -1066,12 +1099,13 @@ export default function HansPanel() {
                 setNuevoMm('');
               }}>+ Agregar tamaño</button>
             </div>
-          </section>
+          </details>
 
-          <section className="hn-cfgc">
-            <h2>Tipos de balín</h2>
+          <details className="hn-cfgc">
+            <summary><h2>Tipos de balín</h2></summary>
             <p>El % indica cuánto pesa cada tipo frente al liso (100 %). Un diamantado pesa menos porque pierde metal al tallarse.</p>
             <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Nombre</span><span>Peso vs liso (%)</span><span /></div>
               {pf.tipos.map((t, i) => (
                 <div className="hn-tr" key={t.id}>
                   <input className="hn-in" value={t.nombre} onChange={(e) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
@@ -1097,16 +1131,16 @@ export default function HansPanel() {
               }}>+ Agregar tipo</button>
             </div>
             <p className="hn-nota">El aspecto en 3D se reconoce por el nombre: diamantado, facetado, martillado, estriado/rayado. Otros se ven lisos.</p>
-          </section>
+          </details>
 
-          <section className="hn-cfgc">
-            <h2>Inicial y dijes</h2>
+          <details className="hn-cfgc">
+            <summary><h2>Inicial y dijes</h2></summary>
             <p>Peso en gramos (oro 18 k) de la placa de inicial según su tamaño y de cada dije.</p>
-            <div className="hn-ro" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className="hn-ro hn-ro3">
               {(['pequena', 'mediana', 'grande'] as const).map((k) => (
                 <div key={k}>
                   <label>{INI_TXT[k]}</label>
-                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                  <div className="hn-nc hn-tr" style={{ alignItems: 'center', display: 'flex' }}>
                     <input className="hn-in" inputMode="decimal" value={pf.ini[k]} onChange={(e) => setPf((p) => ({ ...p, ini: { ...p.ini, [k]: e.target.value } }))} />
                     <span className="u">g</span>
                   </div>
@@ -1115,6 +1149,7 @@ export default function HansPanel() {
             </div>
             <div className="hn-sub2">Dijes</div>
             <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Nombre</span><span>Peso (g)</span><span /></div>
               {pf.dijes.map((d, i) => (
                 <div className="hn-tr" key={d.id}>
                   <input className="hn-in" value={d.nombre} onChange={(e) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
@@ -1140,7 +1175,7 @@ export default function HansPanel() {
               }}>+ Agregar dije</button>
             </div>
             <p className="hn-nota">Los dijes que agregues se muestran en 3D como una placa genérica.</p>
-          </section>
+          </details>
 
           <div className="hn-sticky">
             <span>Al guardar se recalculan pesos y precios de todas las prendas con oro.</span>
@@ -1311,104 +1346,112 @@ export default function HansPanel() {
 
               {dis && (
                 <>
-                  <Pulsera3D dis={dis} h={320} />
+                  <div className="hn-p3"><Pulsera3D dis={dis} h={280} /></div>
 
-                  <div className="hn-sub2">Hilo y medidas</div>
-                  <label className="hn-lb">Color del hilo</label>
-                  <div className="hn-sws">
-                    {HILOS.map((h) => (
-                      <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={h.n} aria-pressed={dis.hilo1 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo1: h.c }))} />
-                    ))}
-                    <input type="color" className="hn-col" aria-label="Color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo1) ? dis.hilo1 : '#1a1a1a'} onChange={(e) => upDis((d) => ({ ...d, hilo1: e.target.value }))} />
-                  </div>
-                  <label className="hn-lb" style={{ marginTop: 10 }}>Segundo color (trenzado, opcional)</label>
-                  <div className="hn-sws">
-                    <button type="button" className="hn-swc none" aria-pressed={!dis.hilo2} onClick={() => upDis((d) => ({ ...d, hilo2: '' }))}>—</button>
-                    {HILOS.map((h) => (
-                      <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={`${h.n} (segundo color)`} aria-pressed={dis.hilo2 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo2: h.c }))} />
-                    ))}
-                    <input type="color" className="hn-col" aria-label="Segundo color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo2) ? dis.hilo2 : '#ffffff'} onChange={(e) => upDis((d) => ({ ...d, hilo2: e.target.value }))} />
-                  </div>
-                  <div className="hn-f" style={{ marginTop: 12, marginBottom: 0 }}>
-                    <div>
-                      <label htmlFor="d-l">Largo de la pulsera (cm)</label>
-                      <select id="d-l" value={dis.longitud} onChange={(e) => upDis((d) => ({ ...d, longitud: Number(e.target.value) }))}>
-                        {[14, 15, 16, 17, 18, 19, 20, 21, 22].map((n) => <option key={n} value={n}>{n} cm</option>)}
-                      </select>
+                  <details className="hn-ds" open>
+                    <summary><span>Hilo y medidas</span><small>{dis.longitud} cm · {dis.ancho} mm</small></summary>
+                    <label className="hn-lb">Color del hilo</label>
+                    <div className="hn-sws">
+                      {HILOS.map((h) => (
+                        <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={h.n} aria-pressed={dis.hilo1 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo1: h.c }))} />
+                      ))}
+                      <input type="color" className="hn-col" aria-label="Color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo1) ? dis.hilo1 : '#1a1a1a'} onChange={(e) => upDis((d) => ({ ...d, hilo1: e.target.value }))} />
                     </div>
-                    <div>
-                      <label htmlFor="d-a">Ancho del tejido (mm)</label>
-                      <select id="d-a" value={dis.ancho} onChange={(e) => upDis((d) => ({ ...d, ancho: Number(e.target.value) }))}>
-                        {[3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n} mm</option>)}
-                      </select>
+                    <label className="hn-lb" style={{ marginTop: 10 }}>Segundo color (trenzado, opcional)</label>
+                    <div className="hn-sws">
+                      <button type="button" className="hn-swc none" aria-pressed={!dis.hilo2} onClick={() => upDis((d) => ({ ...d, hilo2: '' }))}>—</button>
+                      {HILOS.map((h) => (
+                        <button key={h.c} type="button" className="hn-swc" title={h.n} aria-label={`${h.n} (segundo color)`} aria-pressed={dis.hilo2 === h.c} style={{ background: h.c }} onClick={() => upDis((d) => ({ ...d, hilo2: h.c }))} />
+                      ))}
+                      <input type="color" className="hn-col" aria-label="Segundo color personalizado" value={/^#[0-9a-f]{6}$/i.test(dis.hilo2) ? dis.hilo2 : '#ffffff'} onChange={(e) => upDis((d) => ({ ...d, hilo2: e.target.value }))} />
                     </div>
-                  </div>
-                  <label className="hn-lb" style={{ marginTop: 12 }}>Acabado del metal</label>
-                  <div className="hn-seg" role="group" aria-label="Acabado del metal">
-                    {(['dorado', 'plateado', 'rosado'] as Metal[]).map((m) => (
-                      <button key={m} type="button" aria-pressed={dis.metal === m} onClick={() => upDis((d) => ({ ...d, metal: m }))}>{m[0].toUpperCase() + m.slice(1)}</button>
-                    ))}
-                  </div>
-
-                  <div className="hn-sub2">Balines</div>
-                  {dis.balines.map((b, i) => (
-                    <div className="hn-rowb" key={i}>
-                      <select className="hn-in" aria-label="Tipo de balín" value={b.tipo} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)) }))}>
-                        {!piezas.tipos.some((t) => t.id === b.tipo) && <option value={b.tipo}>{b.tipo}</option>}
-                        {piezas.tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                      </select>
-                      <select className="hn-in" aria-label="Tamaño" value={b.mm} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, mm: Number(e.target.value) } : x)) }))}>
-                        {!sizes.includes(b.mm) && <option value={b.mm}>{b.mm} mm</option>}
-                        {sizes.map((s) => <option key={s} value={s}>{s} mm</option>)}
-                      </select>
-                      <input className="hn-in" type="number" min={0} max={60} aria-label="Cantidad" value={b.cant} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, cant: Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)) } : x)) }))} />
-                      <span className="res">{r2(pesoBalin(b, piezas, form.oro))} g c/u · {r2(pesoBalin(b, piezas, form.oro) * b.cant)} g</span>
-                      <button type="button" className="hn-mini d" aria-label="Quitar balín" onClick={() => upDis((d) => ({ ...d, balines: d.balines.filter((_, j) => j !== i) }))}>✕</button>
-                    </div>
-                  ))}
-                  <button type="button" className="hn-mini" onClick={() => upDis((d) => ({ ...d, balines: [...d.balines, { tipo: piezas.tipos[0]?.id || 'liso', mm: sizes[Math.min(2, sizes.length - 1)] || 4, cant: 2 }] }))}>+ Agregar balín</button>
-                  {exceso && dis && <div className="hn-warn">Los balines y la inicial miden unos {largoBalines(dis).toFixed(1)} cm y la pulsera {dis.longitud} cm: no caben bien. Reduce cantidades o alarga la pulsera.</div>}
-
-                  <div className="hn-sub2">Inicial</div>
-                  <label className="hn-chk">
-                    <input type="checkbox" checked={!!dis.inicial} onChange={(e) => upDis((d) => ({ ...d, inicial: e.target.checked ? { txt: 'A', estilo: 'placa', tam: 'mediana' } : null }))} />
-                    Incluir inicial al centro
-                  </label>
-                  {dis.inicial && (
-                    <>
-                      <div className="hn-az" role="group" aria-label="Elegir letra">
-                        {LETRAS.map((l) => (
-                          <button key={l} type="button" aria-pressed={dis.inicial?.txt === l} onClick={() => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: l } : d.inicial }))}>{l}</button>
-                        ))}
+                    <div className="hn-f" style={{ marginTop: 12, marginBottom: 0 }}>
+                      <div>
+                        <label htmlFor="d-l">Largo de la pulsera (cm)</label>
+                        <select id="d-l" value={dis.longitud} onChange={(e) => upDis((d) => ({ ...d, longitud: Number(e.target.value) }))}>
+                          {[14, 15, 16, 17, 18, 19, 20, 21, 22].map((n) => <option key={n} value={n}>{n} cm</option>)}
+                        </select>
                       </div>
-                      <div className="hn-f" style={{ marginBottom: 0 }}>
-                        <div>
-                          <label htmlFor="d-it">Texto (1 o 2 letras)</label>
-                          <input id="d-it" maxLength={2} value={dis.inicial.txt} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: e.target.value.toUpperCase().slice(0, 2) || 'A' } : d.inicial }))} />
-                        </div>
-                        <div>
-                          <label htmlFor="d-ie">Estilo</label>
-                          <select id="d-ie" value={dis.inicial.estilo} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, estilo: e.target.value as 'placa' | 'cuadrada' | 'letra' } : d.inicial }))}>
-                            <option value="placa">Placa redonda</option>
-                            <option value="cuadrada">Placa cuadrada</option>
-                            <option value="letra">Letra suelta</option>
-                          </select>
-                        </div>
-                        <div className="full">
-                          <label htmlFor="d-iz">Tamaño</label>
-                          <select id="d-iz" value={dis.inicial.tam} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, tam: e.target.value as 'pequena' | 'mediana' | 'grande' } : d.inicial }))}>
-                            {(['pequena', 'mediana', 'grande'] as const).map((k) => <option key={k} value={k}>{INI_TXT[k]} · {piezas.inicial[k]} g</option>)}
-                          </select>
-                        </div>
+                      <div>
+                        <label htmlFor="d-a">Ancho del tejido (mm)</label>
+                        <select id="d-a" value={dis.ancho} onChange={(e) => upDis((d) => ({ ...d, ancho: Number(e.target.value) }))}>
+                          {[3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n} mm</option>)}
+                        </select>
                       </div>
-                    </>
-                  )}
+                    </div>
+                    <label className="hn-lb" style={{ marginTop: 12 }}>Acabado del metal</label>
+                    <div className="hn-seg" role="group" aria-label="Acabado del metal">
+                      {(['dorado', 'plateado', 'rosado'] as Metal[]).map((m) => (
+                        <button key={m} type="button" aria-pressed={dis.metal === m} onClick={() => upDis((d) => ({ ...d, metal: m }))}>{m[0].toUpperCase() + m.slice(1)}</button>
+                      ))}
+                    </div>
+                  </details>
 
-                  <div className="hn-sub2">Dije</div>
-                  <select className="hn-in" aria-label="Dije" value={dis.dije?.id || ''} onChange={(e) => upDis((d) => ({ ...d, dije: e.target.value ? { id: e.target.value } : null }))}>
-                    <option value="">Sin dije</option>
-                    {piezas.dijes.map((x) => <option key={x.id} value={x.id}>{x.nombre} · {x.gramos} g</option>)}
-                  </select>
+                  <details className="hn-ds" open>
+                    <summary><span>Balines</span><small>{dis.balines.reduce((s, b) => s + b.cant, 0)} u.</small></summary>
+                    {dis.balines.map((b, i) => (
+                      <div className="hn-rowb" key={i}>
+                        <select className="hn-in" aria-label="Tipo de balín" value={b.tipo} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)) }))}>
+                          {!piezas.tipos.some((t) => t.id === b.tipo) && <option value={b.tipo}>{b.tipo}</option>}
+                          {piezas.tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                        </select>
+                        <select className="hn-in" aria-label="Tamaño" value={b.mm} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, mm: Number(e.target.value) } : x)) }))}>
+                          {!sizes.includes(b.mm) && <option value={b.mm}>{b.mm} mm</option>}
+                          {sizes.map((s) => <option key={s} value={s}>{s} mm</option>)}
+                        </select>
+                        <input className="hn-in" type="number" min={0} max={60} aria-label="Cantidad" value={b.cant} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, cant: Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)) } : x)) }))} />
+                        <span className="res">{r2(pesoBalin(b, piezas, form.oro))} g c/u · {r2(pesoBalin(b, piezas, form.oro) * b.cant)} g</span>
+                        <button type="button" className="hn-mini d" aria-label="Quitar balín" onClick={() => upDis((d) => ({ ...d, balines: d.balines.filter((_, j) => j !== i) }))}>✕</button>
+                      </div>
+                    ))}
+                    <button type="button" className="hn-mini" onClick={() => upDis((d) => ({ ...d, balines: [...d.balines, { tipo: piezas.tipos[0]?.id || 'liso', mm: sizes[Math.min(2, sizes.length - 1)] || 4, cant: 2 }] }))}>+ Agregar balín</button>
+                    {exceso && <div className="hn-warn">Los balines y la inicial miden unos {largoBalines(dis).toFixed(1)} cm y la pulsera {dis.longitud} cm: no caben bien. Reduce cantidades o alarga la pulsera.</div>}
+                  </details>
+
+                  <details className="hn-ds">
+                    <summary><span>Inicial</span><small>{dis.inicial ? `«${dis.inicial.txt}»` : 'Sin inicial'}</small></summary>
+                    <label className="hn-chk">
+                      <input type="checkbox" checked={!!dis.inicial} onChange={(e) => upDis((d) => ({ ...d, inicial: e.target.checked ? { txt: 'A', estilo: 'placa', tam: 'mediana' } : null }))} />
+                      Incluir inicial al centro
+                    </label>
+                    {dis.inicial && (
+                      <>
+                        <div className="hn-az" role="group" aria-label="Elegir letra">
+                          {LETRAS.map((l) => (
+                            <button key={l} type="button" aria-pressed={dis.inicial?.txt === l} onClick={() => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: l } : d.inicial }))}>{l}</button>
+                          ))}
+                        </div>
+                        <div className="hn-f" style={{ marginBottom: 0 }}>
+                          <div>
+                            <label htmlFor="d-it">Texto (1 o 2 letras)</label>
+                            <input id="d-it" maxLength={2} value={dis.inicial.txt} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, txt: e.target.value.toUpperCase().slice(0, 2) || 'A' } : d.inicial }))} />
+                          </div>
+                          <div>
+                            <label htmlFor="d-ie">Estilo</label>
+                            <select id="d-ie" value={dis.inicial.estilo} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, estilo: e.target.value as 'placa' | 'cuadrada' | 'letra' } : d.inicial }))}>
+                              <option value="placa">Placa redonda</option>
+                              <option value="cuadrada">Placa cuadrada</option>
+                              <option value="letra">Letra suelta</option>
+                            </select>
+                          </div>
+                          <div className="full">
+                            <label htmlFor="d-iz">Tamaño</label>
+                            <select id="d-iz" value={dis.inicial.tam} onChange={(e) => upDis((d) => ({ ...d, inicial: d.inicial ? { ...d.inicial, tam: e.target.value as 'pequena' | 'mediana' | 'grande' } : d.inicial }))}>
+                              {(['pequena', 'mediana', 'grande'] as const).map((k) => <option key={k} value={k}>{INI_TXT[k]} · {piezas.inicial[k]} g</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </details>
+
+                  <details className="hn-ds">
+                    <summary><span>Dije</span><small>{dis.dije ? nombreDije(dis.dije.id) : 'Sin dije'}</small></summary>
+                    <select className="hn-in" aria-label="Dije" value={dis.dije?.id || ''} onChange={(e) => upDis((d) => ({ ...d, dije: e.target.value ? { id: e.target.value } : null }))}>
+                      <option value="">Sin dije</option>
+                      {piezas.dijes.map((x) => <option key={x.id} value={x.id}>{x.nombre} · {x.gramos} g</option>)}
+                    </select>
+                  </details>
 
                   {pesoDis && (
                     <div className="hn-resumen">
