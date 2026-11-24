@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import HansConfig, { type PF } from './HansConfig';
 
 const LOGO_HANS = '/hans.jpeg';
 
@@ -37,6 +36,7 @@ type Piezas = {
 const DENS_24 = 1.24; // el oro 24k pesa ~24 % más que el 18k para la misma pieza
 const INI_MM = { pequena: 7, mediana: 9, grande: 12 };
 const INI_TXT = { pequena: 'Pequeña (7 mm)', mediana: 'Mediana (9 mm)', grande: 'Grande (12 mm)' };
+const PRESET_DIJES = ['corazon', 'estrella', 'cruz', 'luna', 'mariposa', 'trebol', 'hamsa', 'infinito', 'ancla', 'medalla'];
 
 const DEF_PIEZAS: Piezas = {
   tipos: [
@@ -154,6 +154,7 @@ const num = (s?: string) => Number(String(s || '').replace(/\D/g, '')) || 0;
 const gr = (s?: string) => Number(String(s || '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
 const copN = (n: number) => (n > 0 ? `$${Math.round(n).toLocaleString('es-CO')}` : '—');
 const tipoTxt = (t: string) => TIPOS.find((x) => x.v === t)?.t ?? t;
+const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const precioGramo = (oro: string | undefined, c: Config) => (oro === '18k' ? c.oro18 : oro === '24k' ? c.oro24 : 0);
 
@@ -175,7 +176,7 @@ const conG = <T extends { diseno?: string; oro?: string; gramos?: string }>(x: T
 
 
 type Pal = { hi: string; mid: string; lo: string; edge: string };
-export const METAL: Record<Metal, Pal> = {
+const METAL: Record<Metal, Pal> = {
   dorado: { hi: '#fff3b0', mid: '#e6b422', lo: '#8a5a00', edge: '#6b4300' },
   plateado: { hi: '#ffffff', mid: '#c4cbd2', lo: '#5d6670', edge: '#46505a' },
   rosado: { hi: '#ffe3d6', mid: '#e0a08a', lo: '#8c4a3a', edge: '#6b3328' },
@@ -296,7 +297,7 @@ function rr(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: num
 }
 
 /** Dibuja el dije en milímetros, con el eje y hacia abajo. */
-export function drawDije(c: CanvasRenderingContext2D, id: string, pal: Pal, back: boolean) {
+function drawDije(c: CanvasRenderingContext2D, id: string, pal: Pal, back: boolean) {
   const g = c.createLinearGradient(-6, -7, 6, 7);
   g.addColorStop(0, back ? pal.mid : pal.hi); g.addColorStop(0.5, pal.mid); g.addColorStop(1, pal.lo);
   c.fillStyle = g; c.strokeStyle = pal.edge; c.lineWidth = 0.45; c.lineJoin = 'round'; c.lineCap = 'round';
@@ -339,7 +340,7 @@ export function drawDije(c: CanvasRenderingContext2D, id: string, pal: Pal, back
   c.save(); c.strokeStyle = g; c.lineWidth = 0.9; c.beginPath(); c.arc(0, -7.6, 1.3, 0, Math.PI * 2); c.stroke(); c.restore();
 }
 
-export function drawInicial(c: CanvasRenderingContext2D, ini: NonNullable<Dis['inicial']>, pal: Pal, back: boolean) {
+function drawInicial(c: CanvasRenderingContext2D, ini: NonNullable<Dis['inicial']>, pal: Pal, back: boolean) {
   const s = INI_MM[ini.tam];
   const g = c.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
   g.addColorStop(0, back ? pal.mid : pal.hi); g.addColorStop(0.5, pal.mid); g.addColorStop(1, pal.lo);
@@ -472,6 +473,12 @@ function Pulsera3D({ dis, h = 320 }: { dis: Dis; h?: number }) {
 }
 
 /* ---------- Formulario de piezas (config) ---------- */
+type PF = {
+  pesos: { mm: string; g: string }[];
+  tipos: { id: string; nombre: string; f: string }[];
+  ini: { pequena: string; mediana: string; grande: string };
+  dijes: { id: string; nombre: string; g: string }[];
+};
 const pfFrom = (p: Piezas): PF => ({
   pesos: sizesOf(p).map((n) => ({ mm: String(n), g: String(p.pesos[String(n)]) })),
   tipos: p.tipos.map((t) => ({ id: t.id, nombre: t.nombre, f: String(Math.round(t.factor * 1000) / 10) })),
@@ -498,6 +505,9 @@ export default function HansPanel() {
   const [cfgForm, setCfgForm] = useState({ oro18: '', oro24: '' });
   const [piezas, setPiezas] = useState<Piezas>(DEF_PIEZAS);
   const [pf, setPf] = useState<PF>(pfFrom(DEF_PIEZAS));
+  const [nuevoMm, setNuevoMm] = useState('');
+  const [nuevoTipo, setNuevoTipo] = useState('');
+  const [nuevoDije, setNuevoDije] = useState('');
   const [guardandoCfg, setGuardandoCfg] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [errCarga, setErrCarga] = useState('');
@@ -889,6 +899,7 @@ export default function HansPanel() {
         .hn-calc { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #0b2d1f; color: #f6e7b4; font-size: 13px; display: flex; gap: 18px; flex-wrap: wrap; }
         .hn-calc b { color: #f0c14b; font-weight: 600; }
         .hn-warn { margin-top: 10px; font-size: 12.5px; color: #8a5a00; background: #fff3d6; padding: 8px 12px; border-radius: 10px; }
+        .hn-sub2 { margin: 16px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #2f5d46; }
         .hn-sws { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
         .hn-swc { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); cursor: pointer; padding: 0; }
         .hn-swc[aria-pressed="true"] { box-shadow: 0 0 0 2px ${VERDE}, 0 0 0 4px #f0c14b; }
@@ -931,29 +942,67 @@ export default function HansPanel() {
         .hn-v3 h3 { margin: 4px 4px 10px; font-size: 20px; font-weight: 500; }
         .hn-v3 ul { margin: 12px 4px 4px; padding: 0 0 0 18px; font-size: 13px; line-height: 1.7; color: #33433a; }
 
+        /* ===== Configuración: tarjetas colapsables ===== */
+        .hn-cfg { width: 100%; padding-bottom: 90px; }
+        .hn-cfgc { background: #fff; border: 1px solid #ece7d6; border-radius: 20px; padding: 20px 24px; margin-bottom: 14px; }
+        .hn-cfgc > summary, .hn-ds > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; -webkit-tap-highlight-color: transparent; }
+        .hn-cfgc > summary::-webkit-details-marker, .hn-ds > summary::-webkit-details-marker { display: none; }
+        .hn-cfgc > summary::after, .hn-ds > summary::after { content: "⌄"; font-size: 24px; line-height: 1; color: #b08d3c; transition: transform .2s; }
+        .hn-cfgc > summary::after { margin-left: auto; }
+        .hn-cfgc[open] > summary::after, .hn-ds[open] > summary::after { transform: rotate(180deg); }
+        .hn-cfgc > summary h2 { margin: 0; font-size: 22px; font-weight: 500; color: #0b2d1f; }
+        .hn-cfgc[open] > summary { margin-bottom: 8px; }
+        .hn-cfgc > p { margin: 0 0 18px; font-size: 13px; color: #7a857e; line-height: 1.5; }
+        .hn-ro { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+        .hn-ro3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        .hn-ro > div { min-width: 0; }
+        .hn-ro label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #44514a; letter-spacing: .04em; }
+        .hn-ro .in { display: flex; align-items: center; border: 1px solid #d8b95f; border-radius: 12px; background: #fffdf8; overflow: hidden; }
+        .hn-ro .in span { padding: 0 10px 0 14px; color: #7a6a30; font-weight: 600; }
+        .hn-ro .in input { flex: 1; width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; padding: 12px 8px; }
+        .hn-ro .in em { font-style: normal; padding: 0 14px; font-size: 12px; color: #8a978f; flex-shrink: 0; }
+        .hn-cfgb { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+        .hn-cfgb .d-btn { background: ${VERDE}; }
+        .hn-nota { font-size: 12px; color: #7a857e; margin-top: 12px; line-height: 1.55; }
+
+        /* Tablas centradas */
+        .hn-tb { display: grid; gap: 8px; max-width: 520px; margin: 0 auto; }
+        .hn-tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 36px; gap: 8px; align-items: center; }
+        .hn-tr .hn-nc { position: relative; }
+        .hn-tr .hn-nc input { min-width: 0; text-align: center; padding-right: 34px; }
+        .hn-tr .u { position: absolute; right: 12px; font-size: 12px; color: #8a978f; pointer-events: none; }
+        .hn-th2 { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a978f; font-weight: 700; text-align: center; }
+        .hn-tr:not(.hn-th2):nth-child(odd) { background: #faf8f2; border-radius: 10px; padding: 4px; margin: 0 -4px; }
+        .hn-add { display: flex; gap: 8px; max-width: 520px; margin: 12px auto 0; }
+        .hn-add input { flex: 1; min-width: 0; }
+
+        .hn-sticky { position: sticky; bottom: 12px; z-index: 5; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #0b2d1f; border: 1px solid rgba(216,185,95,.5); border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+        .hn-sticky span { color: #f3ead2; font-size: 13px; flex: 1 1 200px; }
+        .hn-sticky .d-btn { background: #f0c14b; color: #1b1608; }
+
         /* ===== Diseñador: bloques colapsables ===== */
         .hn-ds { margin-top: 12px; border: 1px solid #cfe3d6; border-radius: 12px; background: #fff; padding: 0 14px; }
         .hn-ds[open] { padding-bottom: 14px; }
-        .hn-ds > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; -webkit-tap-highlight-color: transparent; padding: 13px 0; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #2f5d46; }
-        .hn-ds > summary::-webkit-details-marker { display: none; }
-        .hn-ds > summary::after { content: "⌄"; font-size: 24px; line-height: 1; color: #b08d3c; transition: transform .2s; }
-        .hn-ds[open] > summary::after { transform: rotate(180deg); }
+        .hn-ds > summary { padding: 13px 0; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #2f5d46; }
         .hn-ds > summary span { flex: 1; }
         .hn-ds > summary small { font-weight: 500; letter-spacing: 0; text-transform: none; color: #7a857e; font-size: 12px; }
         .hn-ds[open] > summary { border-bottom: 1px solid #e3eee7; margin-bottom: 12px; }
         .hn-p3 { position: sticky; top: -1px; z-index: 4; padding: 6px 0; background: #f3faf5; }
 
         @media (max-width: 640px) {
-          .hn-f { grid-template-columns: 1fr; }
+          .hn-f, .hn-ro, .hn-ro3 { grid-template-columns: 1fr; }
           .hn-az { grid-template-columns: repeat(7, 1fr); }
           .hn-hero { padding: 22px 16px; flex-direction: column; text-align: center; }
           .hn-marca { flex-direction: column; gap: 16px; }
           .hn-logo { width: 200px; height: 200px; border-radius: 30px; }
           .hn-marca h1 { font-size: 32px; }
+          .hn-cfgc { padding: 16px; }
+          .hn-cfgc > summary h2 { font-size: 19px; }
           .hn-modal { padding: 0; align-items: end; }
           .hn-hoja, .hn-v3 { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 18px 14px; }
           .hn-rowb { grid-template-columns: 1fr 1fr 74px 36px; }
           .hn-rowb .res { order: 5; grid-column: 1 / -1; text-align: center; background: #f3faf5; padding: 5px; border-radius: 8px; }
+          .hn-sticky { bottom: 8px; }
         }
       `}</style>
 
@@ -980,18 +1029,161 @@ export default function HansPanel() {
       {errCarga && <div className="hn-errc" role="alert">{errCarga}</div>}
 
       {tab === 'config' && (
-        <HansConfig
-          cfg={cfg}
-          cfgForm={cfgForm}
-          setCfgForm={setCfgForm}
-          nOro={nOro}
-          pf={pf}
-          setPf={setPf}
-          calc18desde24={calc18desde24}
-          guardarConfig={guardarConfig}
-          guardando={guardandoCfg}
-          draw={{ pal: METAL.dorado, dije: drawDije, inicial: drawInicial }}
-        />
+        <div className="hn-cfg">
+          <details className="hn-cfgc" open>
+            <summary><h2>Precio del oro</h2></summary>
+            <p>
+              Escribe el precio por gramo. Al guardar, se recalculan todas las prendas con oro
+              (gramos × precio del gramo + mano de obra) y se actualizan en el catálogo.
+            </p>
+            <div className="hn-ro">
+              <div>
+                <label htmlFor="o24">ORO 24 K</label>
+                <div className="in">
+                  <span>$</span>
+                  <input id="o24" inputMode="numeric" value={cfgForm.oro24 ? num(cfgForm.oro24).toLocaleString('es-CO') : ''} onChange={(e) => setCfgForm((f) => ({ ...f, oro24: e.target.value.replace(/\D/g, '') }))} placeholder="0" />
+                  <em>/ gramo</em>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="o18">ORO 18 K</label>
+                <div className="in">
+                  <span>$</span>
+                  <input id="o18" inputMode="numeric" value={cfgForm.oro18 ? num(cfgForm.oro18).toLocaleString('es-CO') : ''} onChange={(e) => setCfgForm((f) => ({ ...f, oro18: e.target.value.replace(/\D/g, '') }))} placeholder="0" />
+                  <em>/ gramo</em>
+                </div>
+              </div>
+            </div>
+            <div className="hn-cfgb">
+              <button type="button" className="hn-b2" onClick={calc18desde24}>Calcular 18k desde 24k (75 %)</button>
+            </div>
+            <p className="hn-nota">
+              Vigente: 24k {copN(cfg.oro24)} · 18k {copN(cfg.oro18)}
+              {cfg.actualizado ? ` · actualizado ${new Date(cfg.actualizado).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}.
+              <br />Hay {nOro} prenda{nOro === 1 ? '' : 's'} con oro. Las prendas sin oro conservan su precio manual.
+            </p>
+          </details>
+
+          <details className="hn-cfgc">
+            <summary><h2>Balines: peso por tamaño</h2></summary>
+            <p>
+              Peso en gramos de un balín <b>liso en oro 18 k</b> según su diámetro. Los valores iniciales son estimados:
+              ajústalos con tu balanza. El oro 24 k se calcula automáticamente ×{DENS_24} (más denso).
+            </p>
+            <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Diámetro (mm)</span><span>Peso (g)</span><span /></div>
+              {pf.pesos.map((r, i) => (
+                <div className="hn-tr" key={i}>
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={r.mm} onChange={(e) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, mm: e.target.value } : x)) }))} />
+                    <span className="u">mm</span>
+                  </div>
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={r.g} onChange={(e) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, g: e.target.value } : x)) }))} />
+                    <span className="u">g</span>
+                  </div>
+                  <button type="button" className="hn-mini d" aria-label="Quitar tamaño" onClick={() => setPf((p) => ({ ...p, pesos: p.pesos.filter((_, j) => j !== i) }))}>✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" inputMode="decimal" placeholder="Nuevo tamaño en mm (ej.: 3.5)" value={nuevoMm} onChange={(e) => setNuevoMm(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const mm = gr(nuevoMm);
+                if (!mm) return;
+                if (pf.pesos.some((r) => gr(r.mm) === mm)) return setNuevoMm('');
+                const ref = pf.pesos.map((r) => ({ mm: gr(r.mm), g: gr(r.g) })).filter((r) => r.mm > 0 && r.g > 0)
+                  .sort((a, b) => Math.abs(a.mm - mm) - Math.abs(b.mm - mm))[0];
+                const est = ref ? Math.round(ref.g * Math.pow(mm / ref.mm, 3) * 1000) / 1000 : 0.1;
+                setPf((p) => ({ ...p, pesos: [...p.pesos, { mm: String(mm), g: String(est) }].sort((a, b) => gr(a.mm) - gr(b.mm)) }));
+                setNuevoMm('');
+              }}>+ Agregar tamaño</button>
+            </div>
+          </details>
+
+          <details className="hn-cfgc">
+            <summary><h2>Tipos de balín</h2></summary>
+            <p>El % indica cuánto pesa cada tipo frente al liso (100 %). Un diamantado pesa menos porque pierde metal al tallarse.</p>
+            <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Nombre</span><span>Peso vs liso (%)</span><span /></div>
+              {pf.tipos.map((t, i) => (
+                <div className="hn-tr" key={t.id}>
+                  <input className="hn-in" value={t.nombre} onChange={(e) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={t.f} onChange={(e) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, f: e.target.value } : x)) }))} />
+                    <span className="u">%</span>
+                  </div>
+                  {t.id !== 'liso' ? (
+                    <button type="button" className="hn-mini d" aria-label="Quitar tipo" onClick={() => setPf((p) => ({ ...p, tipos: p.tipos.filter((_, j) => j !== i) }))}>✕</button>
+                  ) : <span />}
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" placeholder="Nuevo tipo (ej.: Diamantado fino)" value={nuevoTipo} onChange={(e) => setNuevoTipo(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const n = nuevoTipo.trim();
+                if (!n) return;
+                const id = slug(n) || `t${Date.now().toString(36)}`;
+                if (pf.tipos.some((t) => t.id === id)) return setNuevoTipo('');
+                setPf((p) => ({ ...p, tipos: [...p.tipos, { id, nombre: n, f: '100' }] }));
+                setNuevoTipo('');
+              }}>+ Agregar tipo</button>
+            </div>
+            <p className="hn-nota">El aspecto en 3D se reconoce por el nombre: diamantado, facetado, martillado, estriado/rayado. Otros se ven lisos.</p>
+          </details>
+
+          <details className="hn-cfgc">
+            <summary><h2>Inicial y dijes</h2></summary>
+            <p>Peso en gramos (oro 18 k) de la placa de inicial según su tamaño y de cada dije.</p>
+            <div className="hn-ro hn-ro3">
+              {(['pequena', 'mediana', 'grande'] as const).map((k) => (
+                <div key={k}>
+                  <label>{INI_TXT[k]}</label>
+                  <div className="hn-nc hn-tr" style={{ alignItems: 'center', display: 'flex' }}>
+                    <input className="hn-in" inputMode="decimal" value={pf.ini[k]} onChange={(e) => setPf((p) => ({ ...p, ini: { ...p.ini, [k]: e.target.value } }))} />
+                    <span className="u">g</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hn-sub2">Dijes</div>
+            <div className="hn-tb">
+              <div className="hn-tr hn-th2"><span>Nombre</span><span>Peso (g)</span><span /></div>
+              {pf.dijes.map((d, i) => (
+                <div className="hn-tr" key={d.id}>
+                  <input className="hn-in" value={d.nombre} onChange={(e) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) }))} />
+                  <div className="hn-nc" style={{ alignItems: 'center' }}>
+                    <input className="hn-in" inputMode="decimal" value={d.g} onChange={(e) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, g: e.target.value } : x)) }))} />
+                    <span className="u">g</span>
+                  </div>
+                  {!PRESET_DIJES.includes(d.id) ? (
+                    <button type="button" className="hn-mini d" aria-label="Quitar dije" onClick={() => setPf((p) => ({ ...p, dijes: p.dijes.filter((_, j) => j !== i) }))}>✕</button>
+                  ) : <span />}
+                </div>
+              ))}
+            </div>
+            <div className="hn-add">
+              <input className="hn-in" placeholder="Nuevo dije (ej.: Tortuga)" value={nuevoDije} onChange={(e) => setNuevoDije(e.target.value)} />
+              <button type="button" className="hn-mini" onClick={() => {
+                const n = nuevoDije.trim();
+                if (!n) return;
+                const id = `c-${slug(n) || Date.now().toString(36)}`;
+                if (pf.dijes.some((d) => d.id === id)) return setNuevoDije('');
+                setPf((p) => ({ ...p, dijes: [...p.dijes, { id, nombre: n, g: '0.5' }] }));
+                setNuevoDije('');
+              }}>+ Agregar dije</button>
+            </div>
+            <p className="hn-nota">Los dijes que agregues se muestran en 3D como una placa genérica.</p>
+          </details>
+
+          <div className="hn-sticky">
+            <span>Al guardar se recalculan pesos y precios de todas las prendas con oro.</span>
+            <button type="button" className="d-btn" onClick={guardarConfig} disabled={guardandoCfg}>
+              {guardandoCfg ? 'APLICANDO…' : 'GUARDAR Y APLICAR A TODAS'}
+            </button>
+          </div>
+        </div>
       )}
 
       {tab === 'catalogo' && (
