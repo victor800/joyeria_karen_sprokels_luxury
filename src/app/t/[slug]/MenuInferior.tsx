@@ -22,7 +22,6 @@ const I = {
   wa: svg(<><path d="M3.5 20.5 5 16A8.5 8.5 0 1 1 8 19z" /><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2.2-1-.9.9c-1-.4-2-1.4-2.4-2.4l.9-.9-1-2.2z" /></>),
   ig: svg(<><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r=".9" fill="currentColor" /></>),
   x: svg(<path d="M6 6l12 12M18 6 6 18" />, 20),
-  /* 👇 NUEVOS */
   hans: svg(<><ellipse cx="12" cy="12" rx="9" ry="5" /><ellipse cx="12" cy="12" rx="6" ry="2.5" /></>),
   taller: svg(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z" />),
 };
@@ -87,9 +86,9 @@ export default function MenuInferior({ wa, instagram, promos = false, coleccione
     promos && { href: '#promociones', label: 'Promociones', icono: I.promo },
     colecciones && { href: '#categorias', label: 'Colecciones', icono: I.capas },
     { href: '#catalogo', label: 'Catálogo', icono: I.catalogo },
-    { href: '#hans', label: 'Joyería Hans', icono: I.hans },               // 👈 NUEVO
+    { href: '#hans', label: 'Joyería Hans', icono: I.hans },
     { href: '#personalizado', label: 'Personalizados', icono: I.sparkleS },
-    { href: '#taller', label: 'Taller', icono: I.taller },                 // 👈 NUEVO
+    { href: '#taller', label: 'Taller', icono: I.taller },
     { href: '#tallas-bloque', label: 'Guía de tallas', icono: I.tallas, abrir: 'tallas-chk' },
     { href: '#oro', label: 'Precio del oro', icono: I.oro },
     { href: '#contacto', label: 'Contacto', icono: I.pin },
@@ -139,7 +138,7 @@ export default function MenuInferior({ wa, instagram, promos = false, coleccione
                   {...(it.externo ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                   onClick={() => { abrirChk(it.abrir); setMenu(false); }}>
                   <span className="ic">{it.icono}</span>
-                  <span>{it.label}</span>
+                  <span className="lb">{it.label}</span>
                 </a>
               ))}
             </div>
@@ -153,39 +152,43 @@ export default function MenuInferior({ wa, instagram, promos = false, coleccione
 const CSS = `
 .mi { display: none; }
 @media (max-width: 860px) {
+  /* Barra inferior: fondo verde un poco más claro y texto blanco para máxima legibilidad */
   .mi { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr); align-items: end;
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, #0d3324, #07211a);
-    border-top: 1px solid rgba(240,214,128,.5); border-radius: 22px 22px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.45); transition: transform .25s ease; }
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, #125238, #0b3a27);
+    border-top: 1.5px solid rgba(240,214,128,.7); border-radius: 22px 22px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.45); transition: transform .25s ease; }
   .mi[data-oculto="true"] { transform: translateY(125%); }
-  .mi-t { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; padding: 0; border: 0; background: none; cursor: pointer;
-    color: #f4efdc; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
-  .mi-t svg { color: #f6e7a8; transition: transform .2s ease; }
-  .mi-t[data-on="true"] { color: #ffe9a0; }
-  .mi-t[data-on="true"] svg { color: #ffd966; transform: translateY(-1px) scale(1.08); filter: drop-shadow(0 0 6px rgba(240,214,128,.55)); }
+  .mi-t { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 56px; padding: 0; border: 0; background: none; cursor: pointer;
+    color: #ffffff; text-decoration: none; font: 700 12px/1.1 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: .01em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.55); -webkit-tap-highlight-color: transparent; }
+  .mi-t svg { color: #ffe08a; transition: transform .2s ease; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+  .mi-t[data-on="true"] { color: #ffe08a; }
+  .mi-t[data-on="true"] svg { color: #ffd54f; transform: translateY(-1px) scale(1.1); filter: drop-shadow(0 0 7px rgba(255,213,79,.65)); }
   .mi-t:active svg { transform: scale(.92); }
 
   /* botón central dorado */
   .mi-c { margin-top: -30px; gap: 5px; }
   .mi-orb { width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center;
-    background: linear-gradient(135deg, #f6dc8a, #e0b73f 55%, #b08d3c); border: 4px solid #07211a;
-    box-shadow: 0 0 0 1.5px rgba(240,214,128,.75), 0 10px 22px rgba(0,0,0,.5); transition: transform .2s ease; }
+    background: linear-gradient(135deg, #f8e19a, #e8c14a 55%, #c29a3f); border: 4px solid #0b3a27;
+    box-shadow: 0 0 0 1.5px rgba(240,214,128,.85), 0 10px 22px rgba(0,0,0,.5); transition: transform .2s ease; }
   .mi-c .mi-orb svg { color: #1a1405; transform: none; filter: none; }
   .mi-c:active .mi-orb { transform: scale(.94); }
-  .mi-c[data-on="true"] .mi-orb { box-shadow: 0 0 0 1.5px #ffe9a0, 0 0 22px rgba(240,214,128,.55), 0 10px 22px rgba(0,0,0,.5); }
+  .mi-c[data-on="true"] .mi-orb { box-shadow: 0 0 0 1.5px #ffe9a0, 0 0 22px rgba(240,214,128,.6), 0 10px 22px rgba(0,0,0,.5); }
 
-  .ms-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.55); animation: ms-f .2s both; }
+  /* Hoja del menú */
+  .ms-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.6); animation: ms-f .2s both; }
   .ms { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 86dvh; overflow-y: auto; padding: 10px 16px calc(20px + env(safe-area-inset-bottom));
-    border-radius: 24px 24px 0 0; background: linear-gradient(180deg, #0d3324, #06180f); border-top: 1px solid rgba(240,214,128,.5);
+    border-radius: 24px 24px 0 0; background: linear-gradient(180deg, #125238, #0a2e1f); border-top: 1.5px solid rgba(240,214,128,.7);
     box-shadow: 0 -20px 50px rgba(0,0,0,.5); animation: ms-up .28s cubic-bezier(.2,.8,.2,1) both; }
-  .ms-grip { width: 42px; height: 4px; margin: 0 auto 12px; border-radius: 99px; background: rgba(255,255,255,.25); }
+  .ms-grip { width: 42px; height: 4px; margin: 0 auto 12px; border-radius: 99px; background: rgba(255,255,255,.45); }
   .ms-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .ms-h b { font-family: var(--serif, Georgia, serif); font-weight: 500; font-size: 22px; color: #f4efdc; }
-  .ms-h button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #f6e7a8; border: 1px solid rgba(224,183,63,.6); background: transparent; }
+  .ms-h b { font-family: var(--serif, Georgia, serif); font-weight: 600; font-size: 24px; color: #ffffff; }
+  .ms-h button { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #ffe08a; border: 1.5px solid rgba(240,214,128,.8); background: rgba(255,255,255,.06); }
   .ms-g { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .ms-i { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 14px 10px 10px; border-radius: 16px; text-decoration: none; color: #fbf6e6;
-    border: 1px solid rgba(224,183,63,.4); background: rgba(255,255,255,.06); font: 600 13.5px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
-  .ms-i:active { background: rgba(224,183,63,.18); border-color: #e0b73f; }
-  .ms-i .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: #f6e7a8; border: 1px solid rgba(224,183,63,.7); background: rgba(224,183,63,.14); }
+  .ms-i { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px 10px 10px; border-radius: 16px; text-decoration: none; color: #ffffff;
+    border: 1px solid rgba(240,214,128,.55); background: rgba(255,255,255,.1); -webkit-tap-highlight-color: transparent; }
+  .ms-i .lb { font: 700 14.5px/1.25 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .ms-i:active { background: rgba(240,214,128,.22); border-color: #f0d680; }
+  .ms-i .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: #ffe08a; border: 1.5px solid rgba(240,214,128,.85); background: rgba(240,214,128,.16); }
   @keyframes ms-f { from { opacity: 0; } to { opacity: 1; } }
   @keyframes ms-up { from { transform: translateY(100%); } to { transform: none; } }
 }
