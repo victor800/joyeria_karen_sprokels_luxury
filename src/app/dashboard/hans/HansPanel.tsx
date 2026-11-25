@@ -1,4 +1,4 @@
-// 📁 RUTA: src/app/dashboard/hans/HansPanel.tsx
+// 📁 RUTA: src/app/dashboard/hans/HansPanel.tsx  (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -215,7 +215,7 @@ export const METAL: Record<Metal, Pal> = {
   dorado: { hi: '#fff3b0', mid: '#e6b422', lo: '#8a5a00', edge: '#6b4300' },
   plateado: { hi: '#ffffff', mid: '#c4cbd2', lo: '#5d6670', edge: '#46505a' },
   rosado: { hi: '#ffe3d6', mid: '#e0a08a', lo: '#8c4a3a', edge: '#6b3328' },
-    negro: { hi: '#8a9099', mid: '#2a2d33', lo: '#07080a', edge: '#000000' },
+  negro: { hi: '#8a9099', mid: '#2a2d33', lo: '#07080a', edge: '#000000' },
 };
 const hex2rgb = (h: string): [number, number, number] => {
   const m = /^#?([0-9a-f]{6})$/i.exec((h || '').trim());
@@ -561,6 +561,56 @@ function FotoZoom({ fotos, alt }: { fotos: string[]; alt: string }) {
   );
 }
 
+/* ---------- Pantalla pequeña (se actualiza al girar o redimensionar) ---------- */
+function useMovil(px = 760) {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${px}px)`);
+    const f = () => setM(mq.matches);
+    f();
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, [px]);
+  return m;
+}
+
+/* ---------- Carrusel de tarjetas (móvil): contador + flechas arriba, tarjetas deslizables ---------- */
+function Desliza({ total, children }: { total: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [st, setSt] = useState({ i: 1, ini: true, fin: false });
+  const medir = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const card = el.firstElementChild as HTMLElement | null;
+    const w = (card?.offsetWidth ?? 240) + 12;
+    const fin = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+    setSt({ i: fin ? total : Math.min(total, Math.round(el.scrollLeft / w) + 1), ini: el.scrollLeft <= 4, fin });
+  }, [total]);
+  useEffect(() => {
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [medir]);
+  const mover = (dir: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const card = el.firstElementChild as HTMLElement | null;
+    el.scrollBy({ left: dir * ((card?.offsetWidth ?? 240) + 12), behavior: 'smooth' });
+  };
+  return (
+    <div>
+      <div className="hn-cbar">
+        <span className="hn-cc">{st.i} / {total}</span>
+        <div className="hn-cbtns">
+          <button type="button" aria-label="Anterior" disabled={st.ini} onClick={() => mover(-1)}>‹</button>
+          <button type="button" aria-label="Siguiente" disabled={st.fin} onClick={() => mover(1)}>›</button>
+        </div>
+      </div>
+      <div className="hn-trk" ref={ref} onScroll={medir}>{children}</div>
+    </div>
+  );
+}
+
 /* ---------- Formulario de piezas (config) ---------- */
 const pfFrom = (p: Piezas): PF => ({
   pesos: sizesOf(p).map((n) => ({ mm: String(n), g: String(p.pesos[String(n)]), v: p.valores[String(n)] ? String(p.valores[String(n)]) : '' })),
@@ -585,7 +635,8 @@ function pfTo(pf: PF): Piezas | null {
 }
 
 export default function HansPanel() {
- const [tab, setTab] = useState<'catalogo' | 'config' | 'pedidos'>('catalogo');
+  const movil = useMovil(760);
+  const [tab, setTab] = useState<'catalogo' | 'config' | 'pedidos'>('catalogo');
   const [lista, setLista] = useState<Item[]>([]);
   const [cats, setCats] = useState<string[]>(CATS_BASE);
   const [cfg, setCfg] = useState<Config>({ oro18: 0, oro24: 0, actualizado: '' });
@@ -609,8 +660,9 @@ export default function HansPanel() {
   const [borrar, setBorrar] = useState<Item | null>(null);
   const [ver3d, setVer3d] = useState<Item | null>(null);
 
-    const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargandoPed, setCargandoPed] = useState(true);
+  const [ultPed, setUltPed] = useState<Date | null>(null);
 
   const cargarPedidos = useCallback(async () => {
     try {
@@ -618,6 +670,7 @@ export default function HansPanel() {
       if (!r.ok) throw new Error();
       const d = await r.json();
       setPedidos(Array.isArray(d.items) ? d.items : []);
+      setUltPed(new Date());
     } catch {
       /* si falla, se conserva la lista actual */
     } finally {
@@ -688,7 +741,7 @@ export default function HansPanel() {
   const nRevisar = lista.length - nActivos;
   const nOro = lista.filter((x) => x.oro).length;
 
-    const nNuevos = pedidos.filter((p) => p.estado === 'nuevo').length;
+  const nNuevos = pedidos.filter((p) => p.estado === 'nuevo').length;
   const catalogo = useMemo(
     () => lista.map((x) => {
       const xe = conG(x, piezas);
@@ -911,7 +964,7 @@ export default function HansPanel() {
       setCfg(nuevo); setPiezas(pn);
 
       const afectadas = lista.filter((x) => x.oro && precioGramo(x.oro, nuevo) > 0 && gr(conG(x, pn).gramos) > 0);
-           let fallos = 0;
+      let fallos = 0;
       const resultados: (Item | null)[] = [];
       for (const x of afectadas) {
         const xe = conG(x, pn);
@@ -926,7 +979,7 @@ export default function HansPanel() {
           resultados.push(await r.json());
         } catch { fallos++; resultados.push(null); }
       }
-      
+
       const mapa = new Map<string, Item>();
       resultados.forEach((r) => { if (r?.id) mapa.set(r.id, r); });
       setLista((l) => l.map((x) => mapa.get(x.id) ?? x));
@@ -962,6 +1015,32 @@ export default function HansPanel() {
     const pm = precioDe(xe, 'menudeo', cfg, piezas);
     const pw = precioDe(xe, 'mayorista', cfg, piezas);
     const tiene3d = !!parseDis(x.diseno);
+
+    const precios = (
+      <div className="hn-pre">
+        {x.tipo !== 'mayorista' && x.tipo !== 'tejida' && <div><span>Menudeo</span><b>{copN(pm.valor)}</b></div>}
+        {x.tipo === 'tejida' && <div><span>Precio</span><b>{copN(pm.valor)}</b></div>}
+        {(x.tipo === 'mayorista' || x.tipo === 'ambos') && (
+          <div>
+            <span>Mayorista</span><b>{copN(pw.valor)}</b>
+            {x.min_mayorista && <em>desde {x.min_mayorista} u.</em>}
+          </div>
+        )}
+        {!movil && <div><span>Stock</span><b>{x.stock || 0}</b></div>}
+      </div>
+    );
+    const detalle = (
+      <>
+        <p>{x.descripcion || 'Sin descripción.'}</p>
+        {movil && (
+          <div className="hn-ex">
+            <span>Stock: <b>{x.stock || 0}</b></span>
+            {tiene3d && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
+          </div>
+        )}
+      </>
+    );
+
     return (
       <article key={x.id} className={`hn-card ${on ? '' : 'off'}`}>
         <div className="hn-fwrap">
@@ -979,24 +1058,22 @@ export default function HansPanel() {
             {x.oro && <span className="hn-pill oro">Oro {x.oro}{gr(xe.gramos) ? ` · ${gr(xe.gramos)} g` : ''}</span>}
             {x.video_url && <a className="hn-pill vid" href={x.video_url} target="_blank" rel="noreferrer">▶ Video</a>}
           </div>
-          <p>{x.descripcion || 'Sin descripción.'}</p>
-          <div className="hn-pre">
-            {x.tipo !== 'mayorista' && x.tipo !== 'tejida' && <div><span>Menudeo</span><b>{copN(pm.valor)}</b></div>}
-            {x.tipo === 'tejida' && <div><span>Precio</span><b>{copN(pm.valor)}</b></div>}
-            {(x.tipo === 'mayorista' || x.tipo === 'ambos') && (
-              <div>
-                <span>Mayorista</span><b>{copN(pw.valor)}</b>
-                {x.min_mayorista && <em>desde {x.min_mayorista} u.</em>}
-              </div>
-            )}
-            <div><span>Stock</span><b>{x.stock || 0}</b></div>
-          </div>
+
+          {!movil && detalle}
+          {precios}
+          {movil && (
+            <details className="hn-more">
+              <summary>Más detalles</summary>
+              {detalle}
+            </details>
+          )}
+
           <div className="hn-acc">
             <div className="hn-sw">
               <button type="button" role="switch" aria-checked={on} className="hn-tog" onClick={() => alternar(x)} aria-label={on ? 'Inhabilitar' : 'Publicar'} />
               <span>{on ? 'Publicado' : 'Inhabilitado'}</span>
             </div>
-            {tiene3d && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
+            {tiene3d && !movil && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
             <button type="button" className="hn-b" onClick={() => abrirEditar(x)}>Editar</button>
             <button type="button" className="hn-b x" onClick={() => setBorrar(x)} aria-label={`Eliminar ${x.nombre}`}>✕</button>
           </div>
@@ -1016,13 +1093,13 @@ export default function HansPanel() {
         .hn-marca h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
         .hn-marca p { margin: 8px 0 0; font-size: 13.5px; color: rgba(243,234,210,.78); }
         .hn-hero .d-btn { background: #f0c14b; color: #1b1608; }
-                .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .hn-tabs::-webkit-scrollbar { display: none; }
         .hn-tabs button { position: relative; flex-shrink: 0; white-space: nowrap; font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
         .hn-tabs .hn-badge { position: absolute; top: 4px; right: 4px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: #f0c14b; color: #1b1608; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
         .hn-tabs .hn-badge.cero { background: #e6e1cf; color: #8a978f; box-shadow: none; }
         .hn-tabs button[aria-selected="true"] { color: #0b2d1f; border-bottom-color: #d8b95f; }
-       
+
         .hn-aviso { background: #e6f4ea; color: #1e6b34; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
         .hn-errc { background: #fdecea; color: #a12622; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
         .hn-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 4px 0 16px; }
@@ -1090,6 +1167,24 @@ export default function HansPanel() {
         .hn-nueva span { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #b08d3c; display: grid; place-items: center; font-size: 22px; line-height: 1; }
         .hn-nueva:hover { background: #fff6dc; border-color: #b08d3c; }
         .hn-vacio { text-align: center; padding: 60px 20px; color: #7a857e; background: #faf8f2; border: 1px dashed #d8d3c4; border-radius: 20px; }
+
+        /* ===== Carrusel de tarjetas (móvil) y "Más detalles" ===== */
+        .hn-cbar { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 8px; }
+        .hn-cc { font-size: 12px; font-weight: 600; color: #7a6a30; letter-spacing: .06em; }
+        .hn-cbtns { display: flex; gap: 8px; }
+        .hn-cbtns button { width: 38px; height: 38px; padding: 0 0 3px; border-radius: 50%; display: grid; place-items: center; border: 1px solid #b08d3c; background: #fff; color: #0b2d1f; font-size: 24px; line-height: 1; cursor: pointer; }
+        .hn-cbtns button:disabled { opacity: .3; cursor: default; }
+        .hn-trk { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .hn-trk::-webkit-scrollbar { display: none; }
+        .hn-trk > * { flex: 0 0 84%; min-width: 0; scroll-snap-align: start; }
+        .hn-trk > .hn-nueva { align-self: stretch; min-height: 160px; }
+        .hn-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 12px; font-weight: 600; color: #f0c14b; -webkit-tap-highlight-color: transparent; }
+        .hn-more > summary::-webkit-details-marker { display: none; }
+        .hn-more > summary::after { content: "⌄"; font-size: 20px; line-height: 1; transition: transform .2s; }
+        .hn-more[open] > summary::after { transform: rotate(180deg); }
+        .hn-more p { display: block; -webkit-line-clamp: unset; margin-top: 6px; }
+        .hn-ex { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 12.5px; color: #b4bdb7; }
+        .hn-ex b { color: #f0c14b; font-weight: 600; }
 
         /* ===== Modales y formulario ===== */
         .hn-modal { position: fixed; inset: 0; background: rgba(10,20,15,.55); display: grid; place-items: center; z-index: 100; padding: 16px; }
@@ -1169,16 +1264,26 @@ export default function HansPanel() {
 
         @media (max-width: 760px) {
           .hn-grid { grid-template-columns: 1fr; }
-          .hn-card { grid-template-columns: 1fr; }
-          .hn-fwrap { min-height: 240px; }
+          .hn-card { grid-template-columns: 1fr; min-height: 0; border-radius: 18px; }
+          .hn-fwrap { min-height: 170px; height: 170px; }
+          .hn-zoom { touch-action: pan-y; }
+          .hn-lupa { display: none; }
+          .hn-info { padding: 12px; gap: 7px; }
+          .hn-info h3 { font-size: 19px; }
+          .hn-pre { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+          .hn-pre > div { padding: 6px 9px; }
+          .hn-pre b { font-size: 15px; }
+          .hn-acc { padding-top: 8px; gap: 6px; }
         }
-                @media (max-width: 640px) {
+        @media (max-width: 640px) {
           .hn-f { grid-template-columns: 1fr; }
           .hn-tabs button { padding: 10px 14px; font-size: 13px; }
-          .hn-hero { padding: 18px 14px; flex-direction: column; text-align: center; }
-          .hn-marca { flex-direction: column; gap: 14px; }
-          .hn-logo { width: 150px; height: 150px; border-radius: 26px; }
-          .hn-marca h1 { font-size: 30px; }
+          .hn-hero { padding: 16px 14px; flex-direction: column; align-items: stretch; gap: 14px; text-align: left; }
+          .hn-marca { flex-direction: row; align-items: center; gap: 14px; }
+          .hn-logo { width: 92px; height: 92px; border-radius: 22px; border-width: 2px; }
+          .hn-marca h1 { font-size: 26px; }
+          .hn-marca p { font-size: 12.5px; margin-top: 6px; }
+          .hn-hero .d-btn { width: 100%; }
           .hn-sec-h h2 { font-size: 22px; }
           .hn-modal { padding: 0; align-items: end; }
           .hn-hoja, .hn-v3 { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 18px 14px; }
@@ -1201,7 +1306,7 @@ export default function HansPanel() {
         {tab === 'catalogo' && <button type="button" className="d-btn" onClick={() => abrir(catActual)}>NUEVO ARTÍCULO{catActual ? ` EN ${catActual.toUpperCase()}` : ''}</button>}
       </div>
 
-           <div className="hn-tabs" role="tablist">
+      <div className="hn-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === 'catalogo'} onClick={() => setTab('catalogo')}>Catálogo</button>
         <button type="button" role="tab" aria-selected={tab === 'config'} onClick={() => setTab('config')}>⚙ Configuración</button>
         <button type="button" role="tab" aria-selected={tab === 'pedidos'} onClick={() => setTab('pedidos')} style={{ paddingRight: 30 }}>
@@ -1228,7 +1333,7 @@ export default function HansPanel() {
         />
       )}
 
-            {tab === 'pedidos' && (
+      {tab === 'pedidos' && (
         <HansPedidos
           pedidos={pedidos}
           setPedidos={setPedidos}
@@ -1236,6 +1341,7 @@ export default function HansPanel() {
           avisar={avisar}
           cargando={cargandoPed}
           recargar={cargarPedidos}
+          ultima={ultPed}
         />
       )}
 
@@ -1272,15 +1378,27 @@ export default function HansPanel() {
                   <small>{g.items.length} pieza{g.items.length === 1 ? '' : 's'}</small>
                   <i />
                 </div>
-                <div className="hn-grid">
-                  {g.items.map(tarjeta)}
-                  {g.c && (
-                    <button type="button" className="hn-nueva" onClick={() => abrir(g.c)}>
-                      <span>+</span>
-                      Nueva en {g.c}
-                    </button>
-                  )}
-                </div>
+                {movil ? (
+                  <Desliza total={g.items.length + (g.c ? 1 : 0)}>
+                    {g.items.map(tarjeta)}
+                    {g.c && (
+                      <button key="nueva" type="button" className="hn-nueva" onClick={() => abrir(g.c)}>
+                        <span>+</span>
+                        Nueva en {g.c}
+                      </button>
+                    )}
+                  </Desliza>
+                ) : (
+                  <div className="hn-grid">
+                    {g.items.map(tarjeta)}
+                    {g.c && (
+                      <button type="button" className="hn-nueva" onClick={() => abrir(g.c)}>
+                        <span>+</span>
+                        Nueva en {g.c}
+                      </button>
+                    )}
+                  </div>
+                )}
               </section>
             ))
           )}

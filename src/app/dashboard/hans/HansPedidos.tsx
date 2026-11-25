@@ -18,7 +18,8 @@ type Props = {
   catalogo: Cat[];
   avisar: (t: string, ms?: number) => void;
   cargando: boolean;
-  recargar: () => void;
+  recargar: () => void | Promise<void>;
+  ultima: Date | null;
 };
 
 const ESTADOS = [
@@ -57,6 +58,8 @@ const fmtD = (s: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-CO', { dateStyle: 'medium' }) : s;
 };
+const fmtUlt = (d: Date | null) =>
+  d ? d.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'medium' }) : 'cargando…';
 const diaLocal = (iso: string) => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -127,7 +130,14 @@ function Fila({ k, w, children }: { k: string; w?: boolean; children: React.Reac
   return <div className={w ? 'w' : undefined}><dt>{k}</dt><dd>{children}</dd></div>;
 }
 
-export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, cargando, recargar }: Props) {
+export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, cargando, recargar, ultima }: Props) {
+  const [girando, setGirando] = useState(false);
+  async function refrescar() {
+    setGirando(true);
+    const t0 = Date.now();
+    try { await recargar(); }
+    finally { setTimeout(() => setGirando(false), Math.max(0, 700 - (Date.now() - t0))); }
+  }
   const [q, setQ] = useState('');
   const [est, setEst] = useState('todos');
   const [domi, setDomi] = useState('todos');
