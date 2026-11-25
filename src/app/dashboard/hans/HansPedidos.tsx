@@ -1,4 +1,4 @@
-// 📁 RUTA: src/app/dashboard/hans/HansPedidos.tsx
+// 📁 RUTA: src/app/dashboard/hans/HansPedidos.tsx  (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -81,6 +81,11 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
   const [busy, setBusy] = useState('');
   const [nuevo, setNuevo] = useState(false);
   const [domis, setDomis] = useState<Domi[]>([]);
+  const [pagina, setPagina] = useState(1);
+  const [porPag, setPorPag] = useState(10);
+
+  // Al cambiar filtros o el tamaño de página, vuelve a la primera página
+  useEffect(() => { setPagina(1); }, [q, est, domi, desde, hasta, porPag]);
 
   // Domiciliarios registrados (si la ruta existe); si no, se escribe el nombre a mano
   useEffect(() => {
@@ -130,6 +135,17 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
       return !t || `${p.codigo} ${p.cliente} ${p.telefono} ${p.direccion} ${p.ciudad} ${p.domiciliario} ${p.items}`.toLowerCase().includes(t);
     });
   }, [pedidos, q, est, domi, desde, hasta]);
+
+  // Paginación (sobre los pedidos ya filtrados)
+  const totalPag = Math.max(1, Math.ceil(filtrados.length / porPag));
+  const pag = Math.min(pagina, totalPag);
+  const ini = (pag - 1) * porPag;
+  const visibles = filtrados.slice(ini, ini + porPag);
+  const numeros: (number | '…')[] = [];
+  for (let n = 1; n <= totalPag; n++) {
+    if (n === 1 || n === totalPag || Math.abs(n - pag) <= 1) numeros.push(n);
+    else if (numeros[numeros.length - 1] !== '…') numeros.push('…');
+  }
 
   const cuenta = (v: string) => pedidos.filter((p) => p.estado === v).length;
   const totalVendido = pedidos.filter((p) => p.estado !== 'cancelado').reduce((s, p) => s + num(p.total), 0);
@@ -263,6 +279,13 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .hp-b:disabled { opacity: .55; cursor: wait; }
         .hp-vacio { text-align: center; padding: 56px 20px; color: #7a857e; }
         .hp-foot { margin: 10px 4px 0; font-size: 12px; color: #8a978f; }
+        .hp-pag { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+        .hp-pinfo { font-size: 12.5px; color: #5a6b62; }
+        .hp-nav { display: inline-flex; gap: 4px; align-items: center; }
+        .hp-nav button { min-width: 34px; height: 34px; padding: 0 8px; border-radius: 9px; border: 1px solid rgba(176,141,60,.4); background: #fff; font: inherit; font-size: 13px; font-weight: 600; color: #44514a; cursor: pointer; }
+        .hp-nav button[aria-pressed="true"] { background: #0b2d1f; border-color: #0b2d1f; color: #f6e7b4; }
+        .hp-nav button:disabled { opacity: .4; cursor: default; }
+        .hp-dots { padding: 0 4px; color: #8a978f; }
 
         .hp-modal { position: fixed; inset: 0; background: rgba(10,20,15,.55); display: grid; place-items: center; z-index: 100; padding: 16px; }
         .hp-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; padding: 24px 26px; }
@@ -302,6 +325,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .hp-g2, .hp-f { grid-template-columns: 1fr; }
           .hp-tl { grid-template-columns: 1fr 1fr; row-gap: 14px; }
           .hp-ln { grid-template-columns: 1fr 1fr; }
+          .hp-pag { justify-content: center; }
           .hp-modal { padding: 0; align-items: end; }
           .hp-hoja { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 18px 14px; }
         }
@@ -356,7 +380,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((p) => {
+              {visibles.map((p) => {
                 const its = parseItems(p.items);
                 const uds = its.reduce((s, i) => s + i.cant, 0);
                 return (
@@ -379,7 +403,34 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           </table>
         )}
       </div>
-      <p className="hp-foot">Mostrando {filtrados.length} de {pedidos.length} pedidos. La exportación incluye todas las columnas de los pedidos filtrados (abre en Excel).</p>
+
+      {filtrados.length > 0 && (
+        <div className="hp-pag">
+          <span className="hp-pinfo">
+            Mostrando {ini + 1}–{Math.min(ini + porPag, filtrados.length)} de {filtrados.length}
+            {filtrados.length !== pedidos.length && ` (${pedidos.length} en total)`}
+          </span>
+          <span className="hp-gap" />
+          <label className="hp-lbl">
+            Filas
+            <select className="hp-sel" value={porPag} onChange={(e) => setPorPag(Number(e.target.value))}>
+              {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <div className="hp-nav" role="navigation" aria-label="Paginación">
+            <button type="button" disabled={pag <= 1} onClick={() => setPagina(pag - 1)} aria-label="Página anterior">‹</button>
+            {numeros.map((n, i) =>
+              n === '…' ? (
+                <span key={`e${i}`} className="hp-dots">…</span>
+              ) : (
+                <button key={n} type="button" aria-current={n === pag ? 'page' : undefined} aria-pressed={n === pag} onClick={() => setPagina(n)}>{n}</button>
+              ),
+            )}
+            <button type="button" disabled={pag >= totalPag} onClick={() => setPagina(pag + 1)} aria-label="Página siguiente">›</button>
+          </div>
+        </div>
+      )}
+      <p className="hp-foot">El botón Exportar descarga todos los pedidos filtrados (no solo la página visible), con todas sus columnas, y abre en Excel.</p>
 
       <datalist id="hp-domis">{nombresDomi.map((n) => <option key={n} value={n} />)}</datalist>
 
