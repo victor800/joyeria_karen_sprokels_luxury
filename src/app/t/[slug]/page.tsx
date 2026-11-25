@@ -12,9 +12,9 @@ import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
 import MenuInferior from './MenuInferior';
 import WhatsAppFlotante from './WhatsAppFlotante';
-import HansSeccion from './HansSeccion';          // 👈 NUEVO
-import TallerSeccion from './TallerSeccion';      // 👈 NUEVO
-import { leerHansPublico } from '@/lib/hans-publico'; // 👈 NUEVO
+import HansSeccion from './HansSeccion';
+import TallerSeccion from './TallerSeccion';
+import { leerHansPublico } from '@/lib/hans-publico';
 import { estadoPromo, type Promocion } from '@/types/promocion';
 import { rutaFoto } from '@/lib/foto-url';
 import { listar as leerPromociones } from '@/lib/promociones-store';
@@ -235,7 +235,7 @@ export default async function TiendaPublica({ params }: Params) {
   const crudas = (await leerPrendasPublicas().catch(() => [])) as unknown[];
   const PRENDAS = normalizarPrendas(crudas, f as unknown as Record<string, unknown>);
   const PROMOS = await promosActivas();
-  const HANS = await leerHansPublico().catch(() => []); // 👈 NUEVO
+  const HANS = await leerHansPublico().catch(() => []);
 
   const nombre = MARCA;
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
@@ -291,23 +291,24 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-nombre { display: none; }
         .mw .mc-hbtn { color: var(--o2); }
 
-        /* Hero con video */
-        .mw-hero { position: relative; display: flex; flex-direction: column; min-height: min(92vh, 820px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
+        /* Hero con video: más compacto para que el video no se estire ni se vea borroso */
+        .mw-hero { position: relative; display: flex; flex-direction: column; min-height: clamp(480px, 70vh, 620px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
           background: radial-gradient(ellipse 60% 70% at 20% 60%, rgba(15,95,59,.8), transparent 70%), linear-gradient(120deg, #030c08, #082a1b 60%, #0b4a2e); }
-        .mw .hv { position: absolute; top: 0; right: 0; height: 100%; width: 58%; object-fit: cover; object-position: 50% 55%; opacity: 0; transition: opacity 1.8s ease;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%); mask-image: linear-gradient(90deg, transparent 0%, #000 28%); }
+        .mw .hv { position: absolute; top: 0; right: 0; height: 100%; width: 50%; max-width: 760px; object-fit: cover; object-position: 50% 55%; opacity: 0; transition: opacity 1.8s ease;
+          image-rendering: auto; transform: translateZ(0); backface-visibility: hidden;
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%); mask-image: linear-gradient(90deg, transparent 0%, #000 28%); }
         .mw .hv.on { opacity: 1; }
-        .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.65) 35%, rgba(3,12,8,0) 65%), linear-gradient(0deg, rgba(3,12,8,.85) 0%, transparent 25%); }
-        .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 64px; padding-bottom: 64px; }
+        .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.6) 35%, rgba(3,12,8,0) 60%), linear-gradient(0deg, rgba(3,12,8,.8) 0%, transparent 22%); }
+        .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 48px; padding-bottom: 48px; }
         .mw .mw-hero-in { max-width: none; margin: 0; padding-left: clamp(24px, 6vw, 96px); padding-right: 24px; }
-        .mw-hero-txt { max-width: 560px; }
+        .mw-hero-txt { max-width: 540px; }
         .mw-hero-txt > * { animation: mw-up 1s cubic-bezier(.2,.7,.2,1) both; }
         .mw-hero-txt > :nth-child(2) { animation-delay: .1s; } .mw-hero-txt > :nth-child(3) { animation-delay: .2s; } .mw-hero-txt > :nth-child(4) { animation-delay: .3s; } .mw-hero-txt > :nth-child(5) { animation-delay: .4s; }
         @keyframes mw-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
         .mw-tag { display: inline-flex; align-items: center; gap: 14px; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--o2); }
         .mw-tag::before { content: ""; width: 36px; height: 1px; background: var(--o2); }
-        .mw-hero h2 { font-size: clamp(34px, 4.6vw, 64px); line-height: 1.06; letter-spacing: .05em; text-transform: uppercase; margin: 22px 0 24px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.45); }
-        .mw-hero p { color: #d3ddd6; font-size: 14.5px; line-height: 1.65; max-width: 400px; margin: 0 0 28px; padding-left: 14px; border-left: 2px solid var(--o2); }
+        .mw-hero h2 { font-size: clamp(32px, 4.2vw, 56px); line-height: 1.06; letter-spacing: .05em; text-transform: uppercase; margin: 20px 0 22px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.45); }
+        .mw-hero p { color: #d3ddd6; font-size: 14.5px; line-height: 1.65; max-width: 400px; margin: 0 0 26px; padding-left: 14px; border-left: 2px solid var(--o2); }
         .mw-cta { display: flex; gap: 14px; flex-wrap: wrap; }
         .mw-btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(224,183,63,.7); color: #f4efdc !important; padding: 15px 30px; font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; transition: .25s; }
         .mw-btn:hover { background: rgba(224,183,63,.14); border-color: var(--o2); }
@@ -329,8 +330,8 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-b b { display: block; font-size: 13px; } .mw-b small { color: #6b7a72; font-size: 12px; }
 
         /* Logo en el hero */
-        .mw-hero-logo { margin: 0 0 24px 7px; }
-        .mw-hero-logo img { display: block; width: clamp(96px, 9vw, 132px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: var(--vd); border: 2px solid var(--o2);
+        .mw-hero-logo { margin: 0 0 22px 7px; }
+        .mw-hero-logo img { display: block; width: clamp(90px, 8vw, 120px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: var(--vd); border: 2px solid var(--o2);
           box-shadow: 0 0 0 6px rgba(224,183,63,.14), 0 0 0 7px rgba(224,183,63,.38), 0 14px 34px rgba(0,0,0,.5); animation: mw-flota 7s ease-in-out infinite; }
         @keyframes mw-flota { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
@@ -342,17 +343,23 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-tit.c { text-align: center; }
         .mw-tit.c i { margin: 14px auto 0; background: linear-gradient(90deg, transparent, var(--o2), transparent); }
 
-        /* Catálogo oscuro */
-        .mw .mw-dark { padding: 64px 0 56px; color: #f4efdc; margin-top: 0;
-          background: radial-gradient(ellipse 50% 40% at 0% 0%, rgba(15,95,59,.55), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 55%, rgba(224,183,63,.12), transparent 70%), linear-gradient(180deg, #030c08, #06241a 50%, #030c08); }
-        .mw-dark .mw-tit h3 { color: #f4efdc; }
-        .mw-dark .mc-chip { background: transparent; border-color: rgba(224,183,63,.4); color: #e8e1c8; }
-        .mw-dark .mc-chip.on { background: var(--o2); border-color: var(--o2); color: #1a1405; }
-        .mw-dark .mc-grupo-tit h4 { color: #f4efdc; }
-        .mw-dark .mc-grupo-tit i { background: linear-gradient(90deg, rgba(224,183,63,.5), transparent); }
-        .mw-dark .mc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 215px), 1fr)); gap: 14px; }
-        .mw-dark .mc-card { border-radius: 8px; border: 1px solid rgba(224,183,63,.3); background: linear-gradient(175deg, #0c3322, #07140e 55%, #030806); box-shadow: 0 14px 34px rgba(0,0,0,.45); transition: transform .25s, border-color .25s; }
-        .mw-dark .mc-card:hover { transform: translateY(-4px); border-color: var(--o2); }
+        /* Catálogo: fondo claro champaña para que las tarjetas oscuras resalten */
+        .mw .mw-dark { padding: 64px 0 56px; color: var(--tx); margin-top: 0;
+          background: radial-gradient(ellipse 55% 45% at 0% 0%, rgba(224,183,63,.16), transparent 70%), radial-gradient(ellipse 45% 40% at 100% 60%, rgba(15,95,59,.08), transparent 70%), linear-gradient(180deg, #f6f1e4, #efe6d1); 
+          border-top: 1px solid #ddd1b0; border-bottom: 1px solid #ddd1b0; }
+        .mw-dark .mw-tit h3 { color: var(--v); }
+        .mw-dark .mw-tit small { color: var(--o); }
+        .mw-dark .mc-chip { background: rgba(255,255,255,.6); border-color: rgba(176,141,60,.55); color: var(--v); }
+        .mw-dark .mc-chip.on { background: var(--v); border-color: var(--v); color: var(--o3); }
+        .mw-dark .mc-grupo-tit h4 { color: var(--v); }
+        .mw-dark .mc-grupo-tit small, .mw-dark .mc-grupo-tit span { color: var(--o); }
+        .mw-dark .mc-grupo-tit i { background: linear-gradient(90deg, rgba(176,141,60,.6), transparent); }
+        .mw-dark .mc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 215px), 1fr)); gap: 16px; }
+        .mw-dark .mc-card { border-radius: 10px; border: 1px solid rgba(176,141,60,.45); background: linear-gradient(175deg, #0f4a31, #0a2a1c 55%, #06150e); color: #f4efdc;
+          box-shadow: 0 2px 4px rgba(3,12,8,.08), 0 14px 30px rgba(3,12,8,.22); transition: transform .25s, border-color .25s, box-shadow .25s; }
+        .mw-dark .mc-card:hover { transform: translateY(-4px); border-color: var(--o2); box-shadow: 0 4px 8px rgba(3,12,8,.1), 0 20px 40px rgba(3,12,8,.3); }
+        .mw-dark .mc-card .mc-nom { color: #f6f0dc; }
+        .mw-dark .mc-card .mc-precio b { color: var(--o3); }
         .mw-dark .mc-pie-foto span { display: none; } .mw-dark .mc-pie-foto { justify-content: flex-end; }
         .mw-dark .mc-card .mc-cuerpo { padding: 10px 12px 12px; gap: 6px; }
         .mw-dark .mc-card .mc-nom { font-size: 16px !important; line-height: 1.2; min-height: 2.4em; }
@@ -361,7 +368,7 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-dark .mc-card .mc-precio b { font-size: 18px; }
         .mw-dark .mc-bolsa { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; border: 1px solid rgba(224,183,63,.55); background: rgba(4,23,15,.7); color: var(--o2); transition: .2s; }
         .mw-dark .mc-bolsa:hover:not(:disabled) { background: var(--o2); color: #1a1405; } .mw-dark .mc-bolsa:disabled { opacity: .35; cursor: not-allowed; }
-        .mw-aviso { text-align: center; font-size: 13px; color: #8fa397; }
+        .mw-aviso { text-align: center; font-size: 13px; color: #6b7a72; }
 
         /* Botón Pedir del carrito */
         .mw .mc-pedir, .mw .mc-sig { background: linear-gradient(135deg, var(--o3), var(--o2) 55%, var(--o)); color: #1a1405 !important; letter-spacing: .16em; text-transform: uppercase; font-size: 12.5px; border-radius: 6px; }
@@ -387,6 +394,7 @@ export default async function TiendaPublica({ params }: Params) {
             font-family: ${serif.style.fontFamily}, Georgia, serif; font-weight: 500; font-size: 18px; letter-spacing: .12em; text-transform: uppercase;
             color: #f0d680 !important; text-shadow: 0 0 18px rgba(224,183,63,.35), 0 1px 2px rgba(0,0,0,.6); }
           .mw-head .mw-iconos { grid-column: 3; }
+          .mw .hv { width: 56%; }
         }
         @media (max-width: 960px) {
           .mw-ben .mw-wrap { grid-template-columns: repeat(2, 1fr); gap: 18px 0; }
@@ -404,14 +412,15 @@ export default async function TiendaPublica({ params }: Params) {
           .mw-head .mw-logo { width: 36px; height: 36px; }
 
           /* Hero más compacto: el logo ya está arriba */
-          .mw-hero { min-height: 74svh; }
-          .mw .mw-hero-in { padding-top: 36px; padding-bottom: 36px; }
+          .mw-hero { min-height: 62svh; }
+          .mw .mw-hero-in { padding-top: 32px; padding-bottom: 32px; }
           .mw-hero-logo { display: none; }
-          .mw-hero p { font-size: 13.5px; margin-bottom: 22px; }
-         .mw .hv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; opacity: 0; transition: opacity 1.8s ease;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
-  mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
-  -webkit-mask-composite: source-in; mask-composite: intersect; }
+          .mw-hero p { font-size: 13.5px; margin-bottom: 20px; }
+          .mw .hv { position: absolute; inset: 0; width: 100%; max-width: none; height: 100%; object-fit: cover; object-position: 70% 50%; opacity: 0; transition: opacity 1.8s ease;
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
+            mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 55%), linear-gradient(0deg, transparent 0%, #000 18%);
+            -webkit-mask-composite: source-in; mask-composite: intersect; }
+          .mw .hv.on { opacity: 1; }
           .mw-btn { flex: 1; padding: 15px 16px; }
           .mw-oro-in { padding: 12px 16px; } .mw-oro-in > span { width: 100%; } .mw-oro-in div { gap: 18px; width: 100%; justify-content: space-between; } .mw-oro-in b { font-size: 15px; }
 
@@ -449,15 +458,19 @@ export default async function TiendaPublica({ params }: Params) {
         }
         @media (prefers-reduced-motion: reduce) { .gt-b, .gt-chev, .gt-in { transition: none; } }
 
-        /* Banner con foto */
-        .mw-ban { position: relative; isolation: isolate; overflow: hidden; background: #030c08; color: #f4efdc; }
-        .mw-ban > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; z-index: -2; }
+        /* Banner con foto: caja contenida, más baja, y la foto solo a la derecha para que no se estire */
+        .mw-ban-wrap { background: var(--vd); padding: 56px 28px; }
+        .mw-ban { position: relative; isolation: isolate; overflow: hidden; max-width: 1180px; margin: 0 auto; border-radius: 18px;
+          border: 1px solid rgba(224,183,63,.3); box-shadow: 0 18px 40px rgba(0,0,0,.45);
+          background: radial-gradient(ellipse 60% 80% at 15% 50%, rgba(15,95,59,.55), transparent 70%), linear-gradient(120deg, #030c08, #082a1b); color: #f4efdc; }
+        .mw-ban > img { position: absolute; top: 0; right: 0; width: 55%; height: 100%; object-fit: cover; object-position: 50% 40%; z-index: -2;
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%); mask-image: linear-gradient(90deg, transparent 0%, #000 30%); }
         .mw-ban::before { content: ""; position: absolute; inset: 0; z-index: -1;
-          background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.58) 45%, rgba(3,12,8,.08) 100%), linear-gradient(0deg, rgba(3,12,8,.7), transparent 40%); }
-        .mw-ban-in { max-width: 1180px; margin: 0 auto; padding: 110px 28px; min-height: 520px; display: flex; align-items: center; }
-        .mw-ban-txt { max-width: 480px; }
-        .mw-ban h3 { font-size: clamp(28px, 4vw, 48px); line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; margin: 16px 0 14px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.5); }
-        .mw-ban p { margin: 0 0 26px; font-size: 14.5px; line-height: 1.65; color: #d3ddd6; }
+          background: linear-gradient(90deg, rgba(3,12,8,.55) 0%, rgba(3,12,8,.15) 50%, rgba(3,12,8,0) 100%); }
+        .mw-ban-in { padding: 56px clamp(24px, 5vw, 64px); min-height: 360px; display: flex; align-items: center; }
+        .mw-ban-txt { max-width: 440px; }
+        .mw-ban h3 { font-size: clamp(24px, 3vw, 38px); line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; margin: 14px 0 12px; color: #fbf6e6; text-shadow: 0 4px 30px rgba(0,0,0,.5); }
+        .mw-ban p { margin: 0 0 22px; font-size: 14px; line-height: 1.65; color: #d3ddd6; }
         .mw-ban-cta { display: flex; gap: 12px; flex-wrap: wrap; }
         .mw-btn-ig { gap: 9px; }
 
@@ -467,9 +480,12 @@ export default async function TiendaPublica({ params }: Params) {
           border: 1px solid rgba(224,183,63,.55); background: rgba(224,183,63,.06); transition: .2s; -webkit-tap-highlight-color: transparent; }
         .mw-ig:hover { background: var(--o2); color: #1a1405 !important; }
         @media (max-width: 600px) {
-          .mw-ban-in { min-height: min(78svh, 560px); align-items: flex-end; padding: 0 16px 34px; }
-          .mw-ban::before { background: linear-gradient(0deg, rgba(3,12,8,.95) 0%, rgba(3,12,8,.72) 38%, rgba(3,12,8,.05) 78%); }
-          .mw-ban p { font-size: 13.5px; margin-bottom: 20px; }
+          .mw-ban-wrap { padding: 32px 16px; }
+          .mw-ban { border-radius: 14px; }
+          .mw-ban > img { width: 100%; height: 62%; -webkit-mask-image: linear-gradient(0deg, transparent 0%, #000 45%); mask-image: linear-gradient(0deg, transparent 0%, #000 45%); }
+          .mw-ban::before { background: linear-gradient(0deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.4) 45%, rgba(3,12,8,0) 70%); }
+          .mw-ban-in { min-height: 420px; align-items: flex-end; padding: 0 18px 24px; }
+          .mw-ban p { font-size: 13.5px; margin-bottom: 18px; }
           .mw-ban-cta .mw-btn { flex: 1 1 100%; }
           .pl-fijo { border-top: 1px solid rgba(255,255,255,.1); padding: 18px 0 20px; }
           .pl-fijo h5 { margin-bottom: 12px; }
@@ -499,10 +515,7 @@ export default async function TiendaPublica({ params }: Params) {
         @media (prefers-reduced-motion: reduce) { .pl-b, .pl-chev, .pl-in { transition: none; } }
         @media (prefers-reduced-motion: reduce) { .mw-hero-txt > *, .mw-hero-logo img { animation: none; } }
 
-        /* ═══════════════════════════════════════════════
-           👇 NUEVO: secciones oscuras Hans / Taller
-           (texto claro, iconos visibles, móvil primero)
-           ═══════════════════════════════════════════════ */
+        /* Secciones oscuras Hans / Taller (texto claro, iconos visibles) */
         #hans, #taller { color: #f4efdc; scroll-margin-top: 68px; }
         #hans .mw-tit h3, #taller .mw-tit h3 { color: #f4efdc; }
         #hans .mw-tit small, #taller .mw-tit small { color: var(--o2); }
@@ -605,7 +618,7 @@ export default async function TiendaPublica({ params }: Params) {
         </div>
       </section>
 
-      {/* 👇 NUEVO: Joyería Hans (mayor y menudeo) */}
+      {/* Joyería Hans (mayor y menudeo) */}
       <HansSeccion items={HANS} wa={wa} />
 
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
@@ -614,25 +627,27 @@ export default async function TiendaPublica({ params }: Params) {
 
       <PersonalizacionTrabajos wa={wa} nombre={nombre} />
 
-      {/* 👇 NUEVO: Taller de joyería */}
+      {/* Taller de joyería */}
       <TallerSeccion wa={wa} marca={nombre} direccion={f.direccion} horario={f.horario} />
 
-      {/* Banner con foto: cierre visual antes del pie */}
-      <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={FOTO_BANNER} alt={`Joya de ${nombre}`} loading="lazy" />
-        <div className="mw-ban-in">
-          <div className="mw-ban-txt">
-            <span className="mw-tag">Cada joya, una historia</span>
-            <h3>Joyas que cuentan tu historia</h3>
-            <p>Oro certificado, elaborado con dedicación. Escríbenos y te asesoramos sin compromiso.</p>
-            <div className="mw-ban-cta">
-              {wa !== '#' && <a className="mw-btn solid" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>}
-              <a className="mw-btn mw-btn-ig" href={INSTAGRAM} target="_blank" rel="noopener noreferrer"><Ic n="ig" s={16} /> Instagram</a>
+      {/* Banner con foto: tarjeta contenida antes del pie */}
+      <div className="mw-ban-wrap">
+        <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={FOTO_BANNER} alt={`Joya de ${nombre}`} loading="lazy" decoding="async" />
+          <div className="mw-ban-in">
+            <div className="mw-ban-txt">
+              <span className="mw-tag">Cada joya, una historia</span>
+              <h3>Joyas que cuentan tu historia</h3>
+              <p>Oro certificado, elaborado con dedicación. Escríbenos y te asesoramos sin compromiso.</p>
+              <div className="mw-ban-cta">
+                {wa !== '#' && <a className="mw-btn solid" href={wa} target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>}
+                <a className="mw-btn mw-btn-ig" href={INSTAGRAM} target="_blank" rel="noopener noreferrer"><Ic n="ig" s={16} /> Instagram</a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <footer className="mw-pie" id="contacto">
         <div className="mw-wrap">
