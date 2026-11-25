@@ -1015,11 +1015,13 @@ export default function HansPanel() {
         .hn-marca h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
         .hn-marca p { margin: 8px 0 0; font-size: 13.5px; color: rgba(243,234,210,.78); }
         .hn-hero .d-btn { background: #f0c14b; color: #1b1608; }
-        .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; }
-               .hn-tabs button { position: relative; font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
-        .hn-tabs .hn-badge { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: #f0c14b; color: #1b1608; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+                .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .hn-tabs::-webkit-scrollbar { display: none; }
+        .hn-tabs button { position: relative; flex-shrink: 0; white-space: nowrap; font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+        .hn-tabs .hn-badge { position: absolute; top: 4px; right: 4px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: #f0c14b; color: #1b1608; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
         .hn-tabs .hn-badge.cero { background: #e6e1cf; color: #8a978f; box-shadow: none; }
         .hn-tabs button[aria-selected="true"] { color: #0b2d1f; border-bottom-color: #d8b95f; }
+       
         .hn-aviso { background: #e6f4ea; color: #1e6b34; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
         .hn-errc { background: #fdecea; color: #a12622; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
         .hn-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 4px 0 16px; }
@@ -1169,9 +1171,9 @@ export default function HansPanel() {
           .hn-card { grid-template-columns: 1fr; }
           .hn-fwrap { min-height: 240px; }
         }
-        @media (max-width: 640px) {
+                @media (max-width: 640px) {
           .hn-f { grid-template-columns: 1fr; }
-          .hn-az { grid-template-columns: repeat(7, 1fr); }
+          .hn-tabs button { padding: 10px 14px; font-size: 13px; }
           .hn-hero { padding: 18px 14px; flex-direction: column; text-align: center; }
           .hn-marca { flex-direction: column; gap: 14px; }
           .hn-logo { width: 150px; height: 150px; border-radius: 26px; }
