@@ -12,6 +12,9 @@ import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
 import MenuInferior from './MenuInferior';
 import WhatsAppFlotante from './WhatsAppFlotante';
+import HansSeccion from './HansSeccion';          // 👈 NUEVO
+import TallerSeccion from './TallerSeccion';      // 👈 NUEVO
+import { leerHansPublico } from '@/lib/hans-publico'; // 👈 NUEVO
 import { estadoPromo, type Promocion } from '@/types/promocion';
 import { rutaFoto } from '@/lib/foto-url';
 import { listar as leerPromociones } from '@/lib/promociones-store';
@@ -180,7 +183,7 @@ const P: Record<string, React.ReactNode> = {
 };
 function Ic({ n, s = 20 }: { n: keyof typeof P; s?: number }) {
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden>{P[n]}</svg>
   );
 }
@@ -232,6 +235,7 @@ export default async function TiendaPublica({ params }: Params) {
   const crudas = (await leerPrendasPublicas().catch(() => [])) as unknown[];
   const PRENDAS = normalizarPrendas(crudas, f as unknown as Record<string, unknown>);
   const PROMOS = await promosActivas();
+  const HANS = await leerHansPublico().catch(() => []); // 👈 NUEVO
 
   const nombre = MARCA;
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
@@ -280,7 +284,7 @@ export default async function TiendaPublica({ params }: Params) {
         .mw-head .mw-wrap { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 68px; }
         .mw-marca { display: flex; align-items: center; gap: 12px; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: #f4efdc; min-width: 0; }
         .mw-marca span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .mw-nav { display: flex; gap: 26px; font-size: 12px; letter-spacing: .1em; color: #c5d0c8; }
+        .mw-nav { display: flex; gap: 22px; font-size: 12px; letter-spacing: .1em; color: #c5d0c8; }
         .mw-nav a { padding: 6px 0; border-bottom: 1px solid transparent; transition: .2s; white-space: nowrap; }
         .mw-nav a:hover { color: var(--o2); border-color: var(--o2); }
         .mw-iconos { display: flex; justify-content: flex-end; align-items: center; }
@@ -494,6 +498,29 @@ export default async function TiendaPublica({ params }: Params) {
         }
         @media (prefers-reduced-motion: reduce) { .pl-b, .pl-chev, .pl-in { transition: none; } }
         @media (prefers-reduced-motion: reduce) { .mw-hero-txt > *, .mw-hero-logo img { animation: none; } }
+
+        /* ═══════════════════════════════════════════════
+           👇 NUEVO: secciones oscuras Hans / Taller
+           (texto claro, iconos visibles, móvil primero)
+           ═══════════════════════════════════════════════ */
+        #hans, #taller { color: #f4efdc; scroll-margin-top: 68px; }
+        #hans .mw-tit h3, #taller .mw-tit h3 { color: #f4efdc; }
+        #hans .mw-tit small, #taller .mw-tit small { color: var(--o2); }
+        #hans p, #taller p { color: #d3ddd6; }
+        #hans h2, #taller h2 { color: #fbf6e6; }
+        #hans .mw-btn, #taller .mw-btn { color: #f4efdc !important; }
+        #hans .mw-btn.solid, #taller .mw-btn.solid { color: #1a1405 !important; }
+        #hans svg, #taller svg { stroke-width: 2; }
+
+        /* Iconos más visibles en todo el sitio */
+        .mw svg { stroke-width: 2; }
+        .mw-b > span { color: var(--v); border-color: var(--o); background: rgba(255,255,255,.75); }
+        .mw-head .mc-hbtn, .mw-head svg { color: var(--o3); }
+
+        @media (max-width: 600px) {
+          #hans, #taller { scroll-margin-top: 58px; }
+          #hans .mw-btn, #taller .mw-btn { min-height: 48px; }
+        }
       `}</style>
 
       <header className="mw-head">
@@ -505,7 +532,9 @@ export default async function TiendaPublica({ params }: Params) {
             {PROMOS.length > 0 && <a href="#promociones">Promociones</a>}
             {cats.length > 0 && <a href="#categorias">Colecciones</a>}
             <a href="#catalogo">Catálogo</a>
+            <a href="#hans">Hans</a>
             <a href="#personalizado">Personalizados</a>
+            <a href="#taller">Taller</a>
             <a href="#tallas-bloque">Tallas</a>
             <a href="#oro">Precio del oro</a>
             <a href="#contacto">Contacto</a>
@@ -576,11 +605,17 @@ export default async function TiendaPublica({ params }: Params) {
         </div>
       </section>
 
+      {/* 👇 NUEVO: Joyería Hans (mayor y menudeo) */}
+      <HansSeccion items={HANS} wa={wa} />
+
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
         <GuiaTallas wa={wa} nombre={nombre} />
       </Colapsa>
 
       <PersonalizacionTrabajos wa={wa} nombre={nombre} />
+
+      {/* 👇 NUEVO: Taller de joyería */}
+      <TallerSeccion wa={wa} marca={nombre} direccion={f.direccion} horario={f.horario} />
 
       {/* Banner con foto: cierre visual antes del pie */}
       <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
@@ -635,7 +670,7 @@ export default async function TiendaPublica({ params }: Params) {
 
       <WhatsAppFlotante wa={wa} tienda={nombre} />
 
-                  <MenuInferior
+      <MenuInferior
         wa={wa}
         instagram={INSTAGRAM}
         promos={PROMOS.length > 0}

@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 const svg = (d: ReactNode, s = 24) => (
-  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>
 );
 
@@ -22,6 +22,9 @@ const I = {
   wa: svg(<><path d="M3.5 20.5 5 16A8.5 8.5 0 1 1 8 19z" /><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2.2-1-.9.9c-1-.4-2-1.4-2.4-2.4l.9-.9-1-2.2z" /></>),
   ig: svg(<><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r=".9" fill="currentColor" /></>),
   x: svg(<path d="M6 6l12 12M18 6 6 18" />, 20),
+  /* 👇 NUEVOS */
+  hans: svg(<><ellipse cx="12" cy="12" rx="9" ry="5" /><ellipse cx="12" cy="12" rx="6" ry="2.5" /></>),
+  taller: svg(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z" />),
 };
 
 type Item = { href: string; label: string; icono: ReactNode; abrir?: string; externo?: boolean };
@@ -36,7 +39,7 @@ export default function MenuInferior({ wa, instagram, promos = false, coleccione
 
   // Resalta la sección que se está viendo
   useEffect(() => {
-    const ids = ['inicio', 'catalogo', 'personalizado', 'tallas-bloque'];
+    const ids = ['inicio', 'catalogo', 'hans', 'personalizado', 'taller', 'tallas-bloque'];
     const els = ids.map((i) => document.getElementById(i)).filter((x): x is HTMLElement => !!x);
     if (!els.length) return;
     const io = new IntersectionObserver(
@@ -84,7 +87,9 @@ export default function MenuInferior({ wa, instagram, promos = false, coleccione
     promos && { href: '#promociones', label: 'Promociones', icono: I.promo },
     colecciones && { href: '#categorias', label: 'Colecciones', icono: I.capas },
     { href: '#catalogo', label: 'Catálogo', icono: I.catalogo },
+    { href: '#hans', label: 'Joyería Hans', icono: I.hans },               // 👈 NUEVO
     { href: '#personalizado', label: 'Personalizados', icono: I.sparkleS },
+    { href: '#taller', label: 'Taller', icono: I.taller },                 // 👈 NUEVO
     { href: '#tallas-bloque', label: 'Guía de tallas', icono: I.tallas, abrir: 'tallas-chk' },
     { href: '#oro', label: 'Precio del oro', icono: I.oro },
     { href: '#contacto', label: 'Contacto', icono: I.pin },
@@ -153,8 +158,8 @@ const CSS = `
     border-top: 1px solid rgba(240,214,128,.5); border-radius: 22px 22px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.45); transition: transform .25s ease; }
   .mi[data-oculto="true"] { transform: translateY(125%); }
   .mi-t { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; padding: 0; border: 0; background: none; cursor: pointer;
-    color: #e4ece7; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
-  .mi-t svg { color: #f3e6b3; transition: transform .2s ease; }
+    color: #f4efdc; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+  .mi-t svg { color: #f6e7a8; transition: transform .2s ease; }
   .mi-t[data-on="true"] { color: #ffe9a0; }
   .mi-t[data-on="true"] svg { color: #ffd966; transform: translateY(-1px) scale(1.08); filter: drop-shadow(0 0 6px rgba(240,214,128,.55)); }
   .mi-t:active svg { transform: scale(.92); }
@@ -168,7 +173,6 @@ const CSS = `
   .mi-c:active .mi-orb { transform: scale(.94); }
   .mi-c[data-on="true"] .mi-orb { box-shadow: 0 0 0 1.5px #ffe9a0, 0 0 22px rgba(240,214,128,.55), 0 10px 22px rgba(0,0,0,.5); }
 
- 
   .ms-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.55); animation: ms-f .2s both; }
   .ms { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 86dvh; overflow-y: auto; padding: 10px 16px calc(20px + env(safe-area-inset-bottom));
     border-radius: 24px 24px 0 0; background: linear-gradient(180deg, #0d3324, #06180f); border-top: 1px solid rgba(240,214,128,.5);
@@ -176,12 +180,12 @@ const CSS = `
   .ms-grip { width: 42px; height: 4px; margin: 0 auto 12px; border-radius: 99px; background: rgba(255,255,255,.25); }
   .ms-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .ms-h b { font-family: var(--serif, Georgia, serif); font-weight: 500; font-size: 22px; color: #f4efdc; }
-  .ms-h button { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #f0d680; border: 1px solid rgba(224,183,63,.5); background: transparent; }
+  .ms-h button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #f6e7a8; border: 1px solid rgba(224,183,63,.6); background: transparent; }
   .ms-g { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .ms-i { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 14px 10px 10px; border-radius: 16px; text-decoration: none; color: #f4efdc;
-    border: 1px solid rgba(224,183,63,.3); background: rgba(255,255,255,.04); font: 600 13.5px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
-  .ms-i:active { background: rgba(224,183,63,.14); border-color: #e0b73f; }
-  .ms-i .ic { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: #f0d680; border: 1px solid rgba(224,183,63,.55); background: rgba(224,183,63,.08); }
+  .ms-i { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 14px 10px 10px; border-radius: 16px; text-decoration: none; color: #fbf6e6;
+    border: 1px solid rgba(224,183,63,.4); background: rgba(255,255,255,.06); font: 600 13.5px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+  .ms-i:active { background: rgba(224,183,63,.18); border-color: #e0b73f; }
+  .ms-i .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: #f6e7a8; border: 1px solid rgba(224,183,63,.7); background: rgba(224,183,63,.14); }
   @keyframes ms-f { from { opacity: 0; } to { opacity: 1; } }
   @keyframes ms-up { from { transform: translateY(100%); } to { transform: none; } }
 }
