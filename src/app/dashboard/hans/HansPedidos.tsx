@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export type Pedido = {
   id: string; codigo: string; creado: string; cliente: string; telefono: string; email: string;
@@ -92,6 +93,27 @@ function celda(v: string) {
   let s = String(v ?? '').replace(/\r?\n/g, ' ');
   if (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-]?[\d\s().-]+$/.test(s))) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
+}
+
+/* ---------- Modal en portal: siempre encima del layout (menús, barras inferiores) ---------- */
+function Modal({ label, onClose, className = 'hp-hoja', children }: {
+  label: string; onClose: () => void; className?: string; children: React.ReactNode;
+}) {
+  const [listo, setListo] = useState(false);
+  useEffect(() => {
+    setListo(true);
+    const b = document.body;
+    const prev = b.style.overflow;
+    b.style.overflow = 'hidden';
+    return () => { b.style.overflow = prev; };
+  }, []);
+  if (!listo) return null;
+  return createPortal(
+    <div className="hp-modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={className} role="dialog" aria-modal="true" aria-label={label}>{children}</div>
+    </div>,
+    document.body,
+  );
 }
 
 /* ---------- Piezas reutilizables ---------- */
@@ -396,6 +418,9 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .hp-btn.p { background: #0b2d1f; color: #f6e7b4; border-color: #0b2d1f; }
         .hp-btn.g { background: #f0c14b; color: #1b1608; border-color: #f0c14b; }
         .hp-btn:disabled { opacity: .55; cursor: wait; }
+        .hp-new { box-shadow: 0 4px 14px rgba(240,193,75,.35); }
+        .hp-spin { display: inline-block; animation: hpgir .8s linear infinite; }
+        @keyframes hpgir { to { transform: rotate(360deg); } }
         .hp-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
         .hp-chips button { font: inherit; font-size: 12px; padding: 6px 13px; border-radius: 99px; border: 1px solid rgba(176,141,60,.4); background: #fff; cursor: pointer; }
         .hp-chips button[aria-pressed="true"] { background: #0b2d1f; border-color: #0b2d1f; color: #f3ead2; }
@@ -499,9 +524,12 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .hp-tl.v .hp-st:last-child { padding-bottom: 0; }
         .hp-tl.v .hp-st:last-child::before { display: none; }
 
-        /* ===== Modales ===== */
-        .hp-modal { position: fixed; inset: 0; background: rgba(10,20,15,.55); display: grid; place-items: center; z-index: 100; padding: 16px; }
-        .hp-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; padding: 24px 26px; overscroll-behavior: contain; }
+        /* ===== Modales (en portal, por encima de todo el dashboard) ===== */
+        .hp-modal, .hp-modal * { box-sizing: border-box; }
+        .hp-modal { position: fixed; inset: 0; background: rgba(6,14,10,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 1000; padding: 16px; animation: hpfade .18s ease-out; }
+        @keyframes hpfade { from { opacity: 0; } }
+        @keyframes hpsube { from { transform: translateY(24px); opacity: .4; } }
+        .hp-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; padding: 24px 26px; overscroll-behavior: contain; animation: hpsube .22s ease-out; }
         .hp-hh { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
         .hp-hh h2 { margin: 0; font-size: 24px; font-weight: 500; color: #0b2d1f; }
         .hp-hh small { margin-left: auto; color: #8a978f; font-size: 12px; }
@@ -521,15 +549,73 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .hp-f .full { grid-column: 1 / -1; }
         .hp-btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
         .hp-btns .hp-btn.x { color: #b04a3f; border-color: rgba(176,74,63,.5); background: #fff; margin-right: auto; }
-        .hp-ln { display: grid; grid-template-columns: 1.4fr 1.6fr .5fr .8fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .hp-ln input, .hp-ln select { width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 13px; background: #fff; }
-        .hp-x { width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(176,74,63,.5); background: #fff; color: #b04a3f; cursor: pointer; }
         .hp-err { color: #a12622; font-size: 13px; margin: 8px 0 0; }
-        .hp-sum { text-align: right; font-size: 15px; font-weight: 700; color: #0b2d1f; margin: 6px 0 0; }
+
+        /* ===== Popup: pedido manual ===== */
+        .np { background: #fbf9f3; border-radius: 24px; width: 100%; max-width: 740px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.45); animation: hpsube .24s ease-out; }
+        .np-head { position: relative; display: flex; gap: 14px; align-items: flex-start; padding: 20px 22px 18px; background: linear-gradient(115deg, #000 0%, #030a07 42%, #0b2d1f 100%); border-bottom: 2px solid #d8b95f; flex-shrink: 0; }
+        .np-head::after { content: ""; position: absolute; right: -40px; top: -60px; width: 180px; height: 180px; border-radius: 50%; background: radial-gradient(circle, rgba(240,193,75,.28), transparent 70%); pointer-events: none; }
+        .np-head small { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: rgba(246,231,180,.65); font-weight: 700; }
+        .np-head h2 { margin: 4px 0; font-size: 26px; font-weight: 500; color: #f0c14b; }
+        .np-head p { margin: 0; font-size: 12.5px; color: rgba(243,234,210,.78); line-height: 1.45; }
+        .np-close { position: relative; z-index: 1; margin-left: auto; width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; border: 1px solid rgba(240,193,75,.5); background: rgba(255,255,255,.04); color: #f0c14b; font-size: 15px; cursor: pointer; }
+        .np-close:hover { background: rgba(240,193,75,.15); }
+        .np-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 10px; display: grid; gap: 12px; align-content: start; }
+        .np-sec { background: #fff; border: 1px solid #ece7d6; border-radius: 18px; padding: 14px 16px 16px; box-shadow: 0 2px 10px rgba(11,45,31,.04); }
+        .np-sec h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #0b2d1f; }
+        .np-sec h3 i { font-style: normal; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #0b2d1f, #14573f); color: #f0c14b; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .np-sec h3 em { margin-left: auto; font-style: normal; font-size: 12px; color: #8a978f; font-weight: 500; }
+        .np-g { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .np-g .full { grid-column: 1 / -1; }
+        .np-l { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: #7a857e; margin-bottom: 5px; }
+        .np-l b { color: #b04a3f; }
+        .np-in { width: 100%; height: 44px; padding: 0 13px; border-radius: 12px; border: 1px solid #ddd6c0; background: #fffdf8; font: inherit; font-size: 15px; color: #1d2a23; outline: 0; transition: border-color .15s, box-shadow .15s, background .15s; }
+        textarea.np-in { height: auto; min-height: 70px; padding: 10px 13px; resize: vertical; }
+        .np-in:focus { border-color: #d8b95f; box-shadow: 0 0 0 3px rgba(240,193,75,.22); background: #fff; }
+        .np-seg { display: flex; width: 100%; padding: 4px; border-radius: 14px; background: #f3efe2; gap: 4px; }
+        .np-seg button { flex: 1; height: 38px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: #7a6a30; cursor: pointer; }
+        .np-seg button[aria-pressed="true"] { background: #0b2d1f; color: #f6e7b4; box-shadow: 0 2px 8px rgba(11,45,31,.25); }
+        .np-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .np-chips button { height: 38px; padding: 0 14px; border-radius: 99px; border: 1px solid #ddd6c0; background: #fffdf8; font: inherit; font-size: 13px; font-weight: 600; color: #44514a; cursor: pointer; }
+        .np-chips button[aria-pressed="true"] { background: #f0c14b; border-color: #f0c14b; color: #1b1608; }
+        .np-bus { position: relative; margin-top: 12px; }
+        .np-bus .np-in { padding-left: 38px; }
+        .np-bus > span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #b08d3c; pointer-events: none; }
+        .np-sug { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin-top: 10px; max-height: 232px; overflow-y: auto; padding: 2px; }
+        .np-sug button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid #ece7d6; background: #faf8f2; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, background .15s; }
+        .np-sug button:hover { border-color: #d8b95f; background: #fff8e6; }
+        .np-sug small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; color: #8a978f; }
+        .np-sug b { font-size: 13px; color: #0b2d1f; font-weight: 600; line-height: 1.3; }
+        .np-sug em { font-style: normal; font-size: 12.5px; color: #8a6d1f; font-weight: 700; }
+        .np-vac { font-size: 12.5px; color: #8a978f; margin: 10px 2px 0; }
+        .np-lns { display: grid; gap: 8px; margin-top: 12px; }
+        .np-ln { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 1px solid #ece7d6; border-left: 4px solid #d8b95f; background: #fff; }
+        .np-info { min-width: 0; }
+        .np-info b { display: block; font-size: 14px; color: #0b2d1f; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .np-info small { font-size: 11.5px; color: #8a978f; }
+        .np-info .np-in { height: 36px; font-size: 14px; margin-bottom: 3px; }
+        .np-step { display: inline-flex; align-items: center; border: 1px solid #ddd6c0; border-radius: 10px; overflow: hidden; background: #fffdf8; }
+        .np-step button { width: 34px; height: 36px; border: 0; background: transparent; font-size: 18px; color: #0b2d1f; cursor: pointer; }
+        .np-step button:disabled { opacity: .3; cursor: default; }
+        .np-step input { width: 40px; height: 36px; border: 0; text-align: center; font: inherit; font-size: 15px; font-weight: 600; background: transparent; outline: 0; color: #0b2d1f; }
+        .np-pr { display: flex; align-items: center; width: 124px; height: 36px; border: 1px solid #ddd6c0; border-radius: 10px; background: #fffdf8; overflow: hidden; }
+        .np-pr span { padding-left: 10px; color: #8a6d1f; font-weight: 700; font-size: 13px; }
+        .np-pr input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; padding: 0 8px 0 4px; text-align: right; }
+        .np-x { width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(176,74,63,.4); background: #fff; color: #b04a3f; cursor: pointer; }
+        .np-add { margin-top: 10px; width: 100%; height: 42px; border-radius: 12px; border: 1.5px dashed #d8b95f; background: #fffdf8; color: #7a6a30; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .np-add:hover { background: #fff6dc; }
+        .np-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0; padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: #0b2d1f; border-top: 2px solid #d8b95f; }
+        .np-tot { flex: 1; min-width: 120px; }
+        .np-tot span { display: block; font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: rgba(246,231,180,.65); font-weight: 700; }
+        .np-tot b { font-size: 25px; font-weight: 500; color: #f0c14b; }
+        .np-cancel { height: 48px; padding: 0 18px; border-radius: 99px; border: 1px solid rgba(240,193,75,.45); background: transparent; color: #f6e7b4; font: inherit; font-size: 13px; cursor: pointer; }
+        .np-ok { height: 48px; padding: 0 26px; border-radius: 99px; border: 0; background: #f0c14b; color: #1b1608; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: .1em; cursor: pointer; box-shadow: 0 6px 18px rgba(240,193,75,.3); }
+        .np-ok:disabled { opacity: .6; cursor: wait; }
+        .np-err { width: 100%; order: -1; margin: 0; font-size: 12.5px; color: #ffe1dd; background: rgba(161,38,34,.4); border: 1px solid rgba(255,150,140,.45); padding: 8px 12px; border-radius: 10px; }
 
         /* ===== Tablet y móvil (< 1024 px): tarjetas ===== */
         @media (max-width: 1023px) {
-          .hp { padding-bottom: 88px; }
+          .hp { padding-bottom: 24px; }
           .hp-wrap { display: none; }
           .hp-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 
@@ -546,8 +632,8 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .hp-fgrp .hp-btn { grid-column: 1 / -1; }
           .hp-acts { margin-left: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
           .hp-acts .hp-btn { height: 44px; font-size: 13px; }
-
-          .hp-new { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 40; height: 54px !important; padding: 0 22px; border-radius: 99px; font-size: 14px !important; box-shadow: 0 8px 22px rgba(0,0,0,.32); }
+          /* Botón de pedido manual: grande, arriba y dentro del flujo (no queda tapado por la barra inferior) */
+          .hp-acts .hp-new { grid-column: 1 / -1; order: -1; height: 52px; font-size: 14.5px; border-radius: 14px; }
 
           .hp-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
           .hp-chips::-webkit-scrollbar { display: none; }
@@ -557,7 +643,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .hp-nav button { min-width: 40px; height: 40px; }
           .hp-pag .hp-sel { height: 40px; }
 
-          .hp-f input, .hp-f select, .hp-f textarea, .hp-ln input, .hp-ln select { font-size: 16px; }
+          .hp-f input, .hp-f select, .hp-f textarea, .np-in, .np-pr input, .np-step input { font-size: 16px; }
         }
 
         /* ===== Móvil (< 700 px) ===== */
@@ -571,7 +657,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .hp-gap { display: none; }
 
           .hp-modal { padding: 0; align-items: end; }
-          .hp-hoja { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 22px 14px 18px; position: relative; }
+          .hp-hoja { max-width: 100%; max-height: 94dvh; border-radius: 22px 22px 0 0; padding: 22px 14px 18px; position: relative; }
           .hp-hoja::before { content: ""; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; margin-left: -21px; border-radius: 99px; background: #d9d4c2; }
           .hp-hh h2 { font-size: 21px; }
           .hp-hh small { margin-left: 0; width: 100%; }
@@ -584,9 +670,24 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .hp-btns { position: sticky; bottom: 0; margin: 14px -14px -18px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid #ece7d6; z-index: 3; }
           .hp-btns .hp-btn { flex: 1 1 44%; height: 46px; }
           .hp-btns .hp-btn.x { flex: 1 1 100%; margin-right: 0; order: 9; }
-          .hp-ln { grid-template-columns: 1fr 1fr auto; padding: 10px; border: 1px solid #ece7d6; border-radius: 12px; background: #fff; }
-          .hp-ln > :nth-child(1), .hp-ln > :nth-child(2) { grid-column: 1 / -1; }
           .hp-it { font-size: 12.5px; }
+
+          /* pedido manual como hoja inferior */
+          .np { max-width: 100%; height: 96dvh; max-height: 96dvh; border-radius: 24px 24px 0 0; }
+          .np-head { padding: 24px 16px 14px; }
+          .np-head::before { content: ""; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; margin-left: -21px; border-radius: 99px; background: rgba(240,193,75,.45); }
+          .np-head h2 { font-size: 22px; }
+          .np-head p { font-size: 12px; }
+          .np-body { padding: 12px 10px 10px; gap: 10px; }
+          .np-sec { padding: 12px; border-radius: 16px; }
+          .np-g { grid-template-columns: 1fr; gap: 10px; }
+          .np-sug { grid-template-columns: 1fr 1fr; max-height: 200px; }
+          .np-ln { grid-template-columns: auto minmax(0, 1fr) auto; }
+          .np-ln .np-info { grid-column: 1 / -1; }
+          .np-pr { width: auto; }
+          .np-cancel { display: none; }
+          .np-ok { flex: 1 1 52%; }
+          .np-tot b { font-size: 22px; }
         }
       `}</style>
 
@@ -616,9 +717,11 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           {hayFiltro && <button type="button" className="hp-btn" onClick={limpiar}>Limpiar filtros</button>}
         </div>
         <div className="hp-acts">
-          <button type="button" className="hp-btn" onClick={recargar}>↻ Actualizar</button>
+          <button type="button" className="hp-btn" onClick={refrescar} disabled={girando}>
+            <span className={girando ? 'hp-spin' : undefined}>↻</span> Actualizar
+          </button>
           <button type="button" className="hp-btn p" onClick={exportar}>⬇ Exportar CSV ({filtrados.length})</button>
-          <button type="button" className="hp-btn g hp-new" onClick={() => setNuevo(true)}>+ Pedido manual</button>
+          <button type="button" className="hp-btn g hp-new" onClick={() => setNuevo(true)}>+ Nuevo pedido manual</button>
         </div>
       </div>
 
@@ -634,7 +737,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
       ) : filtrados.length === 0 ? (
         <div className="hp-vacio">
           {pedidos.length === 0
-            ? 'Aún no hay pedidos. Los de la web llegarán aquí; mientras tanto puedes crear uno con “+ Pedido manual”.'
+            ? 'Aún no hay pedidos. Los de la web llegarán aquí; mientras tanto puedes crear uno con “+ Nuevo pedido manual”.'
             : 'No hay pedidos con esos filtros.'}
         </div>
       ) : (
@@ -704,114 +807,124 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           </div>
         </div>
       )}
-      <p className="hp-foot">El botón Exportar descarga todos los pedidos filtrados (no solo la página visible), con todas sus columnas, y abre en Excel.</p>
+      <p className="hp-foot">
+        Última actualización: {fmtUlt(ultima)} · se refresca sola cada 30 s. Exportar descarga todos los pedidos filtrados (no solo la página visible).
+      </p>
 
       <datalist id="hp-domis">{nombresDomi.map((n) => <option key={n} value={n} />)}</datalist>
 
       {sel && (
-        <div className="hp-modal" onMouseDown={(e) => e.target === e.currentTarget && setSelId(null)}>
-          <div className="hp-hoja" role="dialog" aria-modal="true" aria-label={`Pedido ${sel.codigo}`}>
-            <div className="hp-hh">
-              <h2>{sel.codigo}</h2>
-              <span className={`hp-pill ${sel.estado}`}>{nEst(sel.estado)}</span>
-              <small>{fmtF(sel.creado)} · {sel.origen === 'web' ? 'Desde la web' : 'Manual'}</small>
+        <Modal label={`Pedido ${sel.codigo}`} onClose={() => setSelId(null)}>
+          <div className="hp-hh">
+            <h2>{sel.codigo}</h2>
+            <span className={`hp-pill ${sel.estado}`}>{nEst(sel.estado)}</span>
+            <small>{fmtF(sel.creado)} · {sel.origen === 'web' ? 'Desde la web' : 'Manual'}</small>
+          </div>
+
+          <Contacto p={sel} />
+
+          <div className="hp-g2">
+            <div className="hp-bx">
+              <h4>Cliente</h4>
+              <b>{sel.cliente}</b><br />
+              {sel.telefono || 'Sin teléfono'}<br />
+              {sel.email || 'Sin correo'}<br />
+              Venta: {sel.tipo === 'mayorista' ? 'Mayorista' : 'Menudeo'}
             </div>
-
-            <Contacto p={sel} />
-
-            <div className="hp-g2">
-              <div className="hp-bx">
-                <h4>Cliente</h4>
-                <b>{sel.cliente}</b><br />
-                {sel.telefono || 'Sin teléfono'}<br />
-                {sel.email || 'Sin correo'}<br />
-                Venta: {sel.tipo === 'mayorista' ? 'Mayorista' : 'Menudeo'}
-              </div>
-              <div className="hp-bx">
-                <h4>Entrega y pago</h4>
-                {sel.direccion || 'Sin dirección'}{sel.ciudad ? `, ${sel.ciudad}` : ''}<br />
-                Fecha de entrega: <b>{fmtD(sel.fecha_entrega)}</b><br />
-                Pago: {sel.metodo_pago || '—'} ·{' '}
-                <b style={{ color: sel.pago_estado === 'pagado' ? '#1e6b34' : '#b7791f' }}>{sel.pago_estado === 'pagado' ? 'Pagado' : 'Pendiente'}</b>
-              </div>
-            </div>
-
-            <table className="hp-it">
-              <thead><tr><th>Artículo</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
-              <tbody>
-                {parseItems(sel.items).map((i, k) => (
-                  <tr key={k}><td>{i.nombre}{i.codigo && <small style={{ color: '#8a978f' }}> · {i.codigo}</small>}</td><td>{i.cant}</td><td>{copN(i.precio)}</td><td>{copN(i.precio * i.cant)}</td></tr>
-                ))}
-              </tbody>
-              <tfoot><tr><td colSpan={3}>Total</td><td>{copN(num(sel.total))}</td></tr></tfoot>
-            </table>
-
-            <Pasos p={sel} />
-
-            <div className="hp-f">
-              <div>
-                <label htmlFor="hp-dm">Domiciliario</label>
-                <input id="hp-dm" list="hp-domis" value={ed.domiciliario} onChange={(e) => elegirDomi(e.target.value)} placeholder="Elige o escribe el nombre" disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
-              </div>
-              <div>
-                <label htmlFor="hp-dt">Teléfono del domiciliario</label>
-                <input id="hp-dt" inputMode="tel" value={ed.domiciliario_tel} onChange={(e) => setEd((x) => ({ ...x, domiciliario_tel: e.target.value }))} disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
-              </div>
-              <div>
-                <label htmlFor="hp-fe">Fecha de entrega</label>
-                <input id="hp-fe" type="date" value={ed.fecha_entrega} onChange={(e) => setEd((x) => ({ ...x, fecha_entrega: e.target.value }))} disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
-              </div>
-              <div>
-                <label>Pago</label>
-                <button type="button" className="hp-btn" style={{ width: '100%' }} disabled={busy === sel.id} onClick={() => guardar(sel.id, { pago_estado: sel.pago_estado === 'pagado' ? 'pendiente' : 'pagado' }, 'Pago actualizado.')}>
-                  {sel.pago_estado === 'pagado' ? 'Marcar pago pendiente' : 'Marcar como pagado'}
-                </button>
-              </div>
-              <div className="full">
-                <label htmlFor="hp-nt">Notas</label>
-                <textarea id="hp-nt" rows={2} value={ed.notas} onChange={(e) => setEd((x) => ({ ...x, notas: e.target.value }))} placeholder="Indicaciones de entrega, observaciones…" />
-              </div>
-            </div>
-
-            <div className="hp-btns">
-              {['nuevo', 'recibido', 'en_camino'].includes(sel.estado) && (
-                <button type="button" className="hp-btn x" disabled={busy === sel.id} onClick={() => { if (window.confirm('¿Cancelar este pedido?')) guardar(sel.id, { estado: 'cancelado' }, 'Pedido cancelado.'); }}>Cancelar pedido</button>
-              )}
-              <button type="button" className="hp-btn" onClick={() => setSelId(null)}>Cerrar</button>
-              <button type="button" className="hp-btn" disabled={busy === sel.id} onClick={() => guardar(sel.id, ed, 'Cambios guardados.')}>Guardar cambios</button>
-              {sel.estado === 'nuevo' && <button type="button" className="hp-btn g" disabled={busy === sel.id} onClick={() => guardar(sel.id, { ...ed, estado: 'recibido' }, `Pedido ${sel.codigo} recibido.`)}>Recibir pedido</button>}
-              {sel.estado === 'recibido' && <button type="button" className="hp-btn g" disabled={busy === sel.id} onClick={() => despachar(sel)}>Asignar y despachar</button>}
-              {sel.estado === 'en_camino' && <button type="button" className="hp-btn p" disabled={busy === sel.id} onClick={() => guardar(sel.id, { estado: 'entregado' }, `Pedido ${sel.codigo} entregado.`)}>Marcar entregado</button>}
+            <div className="hp-bx">
+              <h4>Entrega y pago</h4>
+              {sel.direccion || 'Sin dirección'}{sel.ciudad ? `, ${sel.ciudad}` : ''}<br />
+              Fecha de entrega: <b>{fmtD(sel.fecha_entrega)}</b><br />
+              Pago: {sel.metodo_pago || '—'} ·{' '}
+              <b style={{ color: sel.pago_estado === 'pagado' ? '#1e6b34' : '#b7791f' }}>{sel.pago_estado === 'pagado' ? 'Pagado' : 'Pendiente'}</b>
             </div>
           </div>
-        </div>
+
+          <table className="hp-it">
+            <thead><tr><th>Artículo</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
+            <tbody>
+              {parseItems(sel.items).map((i, k) => (
+                <tr key={k}><td>{i.nombre}{i.codigo && <small style={{ color: '#8a978f' }}> · {i.codigo}</small>}</td><td>{i.cant}</td><td>{copN(i.precio)}</td><td>{copN(i.precio * i.cant)}</td></tr>
+              ))}
+            </tbody>
+            <tfoot><tr><td colSpan={3}>Total</td><td>{copN(num(sel.total))}</td></tr></tfoot>
+          </table>
+
+          <Pasos p={sel} />
+
+          <div className="hp-f">
+            <div>
+              <label htmlFor="hp-dm">Domiciliario</label>
+              <input id="hp-dm" list="hp-domis" value={ed.domiciliario} onChange={(e) => elegirDomi(e.target.value)} placeholder="Elige o escribe el nombre" disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
+            </div>
+            <div>
+              <label htmlFor="hp-dt">Teléfono del domiciliario</label>
+              <input id="hp-dt" inputMode="tel" value={ed.domiciliario_tel} onChange={(e) => setEd((x) => ({ ...x, domiciliario_tel: e.target.value }))} disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
+            </div>
+            <div>
+              <label htmlFor="hp-fe">Fecha de entrega</label>
+              <input id="hp-fe" type="date" value={ed.fecha_entrega} onChange={(e) => setEd((x) => ({ ...x, fecha_entrega: e.target.value }))} disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
+            </div>
+            <div>
+              <label>Pago</label>
+              <button type="button" className="hp-btn" style={{ width: '100%' }} disabled={busy === sel.id} onClick={() => guardar(sel.id, { pago_estado: sel.pago_estado === 'pagado' ? 'pendiente' : 'pagado' }, 'Pago actualizado.')}>
+                {sel.pago_estado === 'pagado' ? 'Marcar pago pendiente' : 'Marcar como pagado'}
+              </button>
+            </div>
+            <div className="full">
+              <label htmlFor="hp-nt">Notas</label>
+              <textarea id="hp-nt" rows={2} value={ed.notas} onChange={(e) => setEd((x) => ({ ...x, notas: e.target.value }))} placeholder="Indicaciones de entrega, observaciones…" />
+            </div>
+          </div>
+
+          <div className="hp-btns">
+            {['nuevo', 'recibido', 'en_camino'].includes(sel.estado) && (
+              <button type="button" className="hp-btn x" disabled={busy === sel.id} onClick={() => { if (window.confirm('¿Cancelar este pedido?')) guardar(sel.id, { estado: 'cancelado' }, 'Pedido cancelado.'); }}>Cancelar pedido</button>
+            )}
+            <button type="button" className="hp-btn" onClick={() => setSelId(null)}>Cerrar</button>
+            <button type="button" className="hp-btn" disabled={busy === sel.id} onClick={() => guardar(sel.id, ed, 'Cambios guardados.')}>Guardar cambios</button>
+            {sel.estado === 'nuevo' && <button type="button" className="hp-btn g" disabled={busy === sel.id} onClick={() => guardar(sel.id, { ...ed, estado: 'recibido' }, `Pedido ${sel.codigo} recibido.`)}>Recibir pedido</button>}
+            {sel.estado === 'recibido' && <button type="button" className="hp-btn g" disabled={busy === sel.id} onClick={() => despachar(sel)}>Asignar y despachar</button>}
+            {sel.estado === 'en_camino' && <button type="button" className="hp-btn p" disabled={busy === sel.id} onClick={() => guardar(sel.id, { estado: 'entregado' }, `Pedido ${sel.codigo} entregado.`)}>Marcar entregado</button>}
+          </div>
+        </Modal>
       )}
 
       {nuevo && (
         <NuevoPedido
           catalogo={catalogo}
           onClose={() => setNuevo(false)}
-          onCreated={(p) => { setPedidos((l) => [p, ...l]); setNuevo(false); avisar(`Pedido ${p.codigo} creado.`); }}
+          onCreated={(p) => { setPedidos((l) => [p, ...l]); setNuevo(false); setEst('todos'); avisar(`Pedido ${p.codigo} creado y guardado en la hoja Pedidos.`, 5000); }}
         />
       )}
     </div>
   );
 }
 
-/* ---------- Formulario de pedido manual ---------- */
+/* ---------- Popup: pedido manual ---------- */
 function NuevoPedido({ catalogo, onClose, onCreated }: { catalogo: Cat[]; onClose: () => void; onCreated: (p: Pedido) => void }) {
   const [f, setF] = useState({
     cliente: '', telefono: '', email: '', direccion: '', ciudad: '', tipo: 'menudeo',
     metodo_pago: 'Efectivo', pago_estado: 'pendiente', fecha_entrega: '', notas: '',
   });
-  const [ls, setLs] = useState<Linea[]>([{ nombre: '', cant: 1, precio: 0 }]);
+  const [ls, setLs] = useState<Linea[]>([]);
+  const [bus, setBus] = useState('');
   const [err, setErr] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const hoy = diaLocal(new Date().toISOString());
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((x) => ({ ...x, [k]: e.target.value }));
 
-  const precioCat = (c: Cat, tipo: string) => (tipo === 'mayorista' ? c.mayorista : c.menudeo);
-  const total = ls.reduce((s, l) => s + (l.nombre.trim() ? l.cant * l.precio : 0), 0);
+  const precioCat = (c: Cat, tipo: string) => (tipo === 'mayorista' ? c.mayorista || c.menudeo : c.menudeo || c.mayorista);
+  const validas = ls.filter((l) => l.nombre.trim() && l.cant > 0);
+  const total = validas.reduce((s, l) => s + l.cant * l.precio, 0);
+  const uds = validas.reduce((s, l) => s + l.cant, 0);
+
+  const sugeridos = useMemo(() => {
+    const t = bus.trim().toLowerCase();
+    const base = t ? catalogo.filter((c) => `${c.codigo} ${c.nombre}`.toLowerCase().includes(t)) : catalogo;
+    return base.slice(0, t ? 12 : 6);
+  }, [bus, catalogo]);
 
   function cambiarTipo(tipo: string) {
     setF((x) => ({ ...x, tipo }));
@@ -820,24 +933,30 @@ function NuevoPedido({ catalogo, onClose, onCreated }: { catalogo: Cat[]; onClos
       return c ? { ...l, precio: precioCat(c, tipo) } : l;
     }));
   }
-  function elegir(i: number, codigo: string) {
-    const c = catalogo.find((k) => k.codigo === codigo);
-    setLs((a) => a.map((l, j) => (j !== i ? l : c ? { codigo: c.codigo, nombre: c.nombre, cant: l.cant, precio: precioCat(c, f.tipo) } : { ...l, codigo: undefined })));
+  function agregar(c: Cat) {
+    setLs((a) => {
+      const i = a.findIndex((l) => l.codigo === c.codigo);
+      if (i >= 0) return a.map((l, j) => (j === i ? { ...l, cant: l.cant + 1 } : l));
+      return [...a, { codigo: c.codigo, nombre: c.nombre, cant: 1, precio: precioCat(c, f.tipo) }];
+    });
+    setBus('');
+    setErr('');
   }
-  const upd = (i: number, k: 'nombre' | 'cant' | 'precio', v: string) =>
-    setLs((a) => a.map((l, j) => (j === i ? { ...l, [k]: k === 'nombre' ? v : Math.max(k === 'cant' ? 1 : 0, num(v)) } : l)));
+  const upd = (i: number, patch: Partial<Linea>) => setLs((a) => a.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const quitar = (i: number) => setLs((a) => a.filter((_, j) => j !== i));
 
   async function crear() {
     setErr('');
-    const items = ls.filter((l) => l.nombre.trim() && l.cant > 0);
-    if (!f.cliente.trim()) return setErr('Escribe el nombre del cliente');
-    if (!f.direccion.trim()) return setErr('Escribe la dirección de entrega');
-    if (!items.length) return setErr('Agrega al menos un artículo');
+    if (!f.cliente.trim()) return setErr('Escribe el nombre del cliente.');
+    if (f.telefono.replace(/\D/g, '').length < 7) return setErr('Escribe un teléfono válido del cliente.');
+    if (!f.direccion.trim()) return setErr('Escribe la dirección de entrega.');
+    if (!validas.length) return setErr('Agrega al menos un artículo.');
+    if (validas.some((l) => l.precio <= 0)) return setErr('Hay artículos sin precio.');
     setGuardando(true);
     try {
       const res = await fetch('/api/hans/pedidos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...f, items, total, origen: 'manual' }),
+        body: JSON.stringify({ ...f, items: validas, total, origen: 'manual' }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'No se pudo crear el pedido');
@@ -850,66 +969,133 @@ function NuevoPedido({ catalogo, onClose, onCreated }: { catalogo: Cat[]; onClos
   }
 
   return (
-    <div className="hp-modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="hp-hoja" role="dialog" aria-modal="true" aria-label="Pedido manual">
-        <div className="hp-hh"><h2>Pedido manual</h2></div>
-        <p style={{ margin: '0 0 14px', fontSize: 13, color: '#7a857e' }}>Para pedidos que llegan por WhatsApp o llamada. Entra como «Nuevo» y lo recibes igual que los de la web.</p>
-
-        <div className="hp-f">
-          <div><label htmlFor="np-c">Cliente</label><input id="np-c" value={f.cliente} onChange={set('cliente')} /></div>
-          <div><label htmlFor="np-t">Teléfono</label><input id="np-t" inputMode="tel" value={f.telefono} onChange={set('telefono')} /></div>
-          <div><label htmlFor="np-d">Dirección de entrega</label><input id="np-d" value={f.direccion} onChange={set('direccion')} /></div>
-          <div><label htmlFor="np-ci">Ciudad / barrio</label><input id="np-ci" value={f.ciudad} onChange={set('ciudad')} /></div>
-          <div><label htmlFor="np-e">Correo (opcional)</label><input id="np-e" type="email" value={f.email} onChange={set('email')} /></div>
-          <div>
-            <label htmlFor="np-ti">Tipo de venta</label>
-            <select id="np-ti" value={f.tipo} onChange={(e) => cambiarTipo(e.target.value)}>
-              <option value="menudeo">Menudeo</option>
-              <option value="mayorista">Mayorista</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="np-mp">Método de pago</label>
-            <select id="np-mp" value={f.metodo_pago} onChange={set('metodo_pago')}>{PAGOS.map((p) => <option key={p}>{p}</option>)}</select>
-          </div>
-          <div>
-            <label htmlFor="np-pe">Estado del pago</label>
-            <select id="np-pe" value={f.pago_estado} onChange={set('pago_estado')}>
-              <option value="pendiente">Pendiente</option>
-              <option value="pagado">Pagado</option>
-            </select>
-          </div>
-          <div><label htmlFor="np-fe">Fecha de entrega</label><input id="np-fe" type="date" value={f.fecha_entrega} onChange={set('fecha_entrega')} /></div>
+    <Modal label="Nuevo pedido manual" onClose={onClose} className="np">
+      <header className="np-head">
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <small>Joyería Hans · pedido manual</small>
+          <h2>Nuevo pedido</h2>
+          <p>Para pedidos por WhatsApp o llamada. Entra como «Nuevo» y se guarda en la hoja Pedidos.</p>
         </div>
+        <button type="button" className="np-close" aria-label="Cerrar" onClick={onClose}>✕</button>
+      </header>
 
-        <div className="hp-bx" style={{ marginBottom: 12 }}>
-          <h4>Artículos</h4>
-          {ls.map((l, i) => (
-            <div className="hp-ln" key={i}>
-              <select aria-label="Artículo del catálogo" value={l.codigo || ''} onChange={(e) => elegir(i, e.target.value)}>
-                <option value="">— Escribir a mano —</option>
-                {catalogo.map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} · {c.nombre}</option>)}
-              </select>
-              <input aria-label="Nombre del artículo" placeholder="Nombre" value={l.nombre} onChange={(e) => upd(i, 'nombre', e.target.value)} />
-              <input aria-label="Cantidad" inputMode="numeric" value={l.cant} onChange={(e) => upd(i, 'cant', e.target.value)} />
-              <input aria-label="Precio unitario" inputMode="numeric" placeholder="Precio" value={l.precio || ''} onChange={(e) => upd(i, 'precio', e.target.value)} />
-              <button type="button" className="hp-x" aria-label="Quitar artículo" onClick={() => setLs((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>✕</button>
+      <div className="np-body">
+        <section className="np-sec">
+          <h3><i>1</i>Cliente</h3>
+          <div className="np-g">
+            <div className="full">
+              <label className="np-l" htmlFor="np-c">Nombre <b>*</b></label>
+              <input id="np-c" className="np-in" autoComplete="off" value={f.cliente} onChange={set('cliente')} placeholder="Ej.: Laura Gómez" />
             </div>
-          ))}
-          <button type="button" className="hp-btn" onClick={() => setLs((a) => [...a, { nombre: '', cant: 1, precio: 0 }])}>+ Agregar artículo</button>
-          <p className="hp-sum">Total: {copN(total)}</p>
-        </div>
+            <div>
+              <label className="np-l" htmlFor="np-t">Teléfono / WhatsApp <b>*</b></label>
+              <input id="np-t" className="np-in" inputMode="tel" value={f.telefono} onChange={set('telefono')} placeholder="300 000 0000" />
+            </div>
+            <div>
+              <label className="np-l" htmlFor="np-e">Correo (opcional)</label>
+              <input id="np-e" className="np-in" type="email" inputMode="email" value={f.email} onChange={set('email')} placeholder="correo@ejemplo.com" />
+            </div>
+          </div>
+        </section>
 
-        <div className="hp-f">
-          <div className="full"><label htmlFor="np-n">Notas</label><textarea id="np-n" rows={2} value={f.notas} onChange={set('notas')} /></div>
-        </div>
+        <section className="np-sec">
+          <h3><i>2</i>Entrega</h3>
+          <div className="np-g">
+            <div className="full">
+              <label className="np-l" htmlFor="np-d">Dirección <b>*</b></label>
+              <input id="np-d" className="np-in" value={f.direccion} onChange={set('direccion')} placeholder="Calle, número, apto / indicaciones" />
+            </div>
+            <div>
+              <label className="np-l" htmlFor="np-ci">Ciudad / barrio</label>
+              <input id="np-ci" className="np-in" value={f.ciudad} onChange={set('ciudad')} placeholder="Ej.: Medellín, Laureles" />
+            </div>
+            <div>
+              <label className="np-l" htmlFor="np-fe">Fecha de entrega</label>
+              <input id="np-fe" className="np-in" type="date" min={hoy} value={f.fecha_entrega} onChange={set('fecha_entrega')} />
+            </div>
+          </div>
+        </section>
 
-        {err && <p className="hp-err" role="alert">{err}</p>}
-        <div className="hp-btns">
-          <button type="button" className="hp-btn" onClick={onClose}>Cancelar</button>
-          <button type="button" className="hp-btn p" onClick={crear} disabled={guardando}>{guardando ? 'GUARDANDO…' : 'CREAR PEDIDO'}</button>
-        </div>
+        <section className="np-sec">
+          <h3><i>3</i>Artículos<em>{uds} u. · {copN(total)}</em></h3>
+          <div className="np-seg" role="group" aria-label="Tipo de venta">
+            <button type="button" aria-pressed={f.tipo === 'menudeo'} onClick={() => cambiarTipo('menudeo')}>Menudeo</button>
+            <button type="button" aria-pressed={f.tipo === 'mayorista'} onClick={() => cambiarTipo('mayorista')}>Mayorista</button>
+          </div>
+
+          <div className="np-bus">
+            <span aria-hidden="true">🔍</span>
+            <input className="np-in" placeholder="Buscar en el catálogo por nombre o SKU…" value={bus} onChange={(e) => setBus(e.target.value)} aria-label="Buscar artículo del catálogo" />
+          </div>
+          {catalogo.length === 0 ? (
+            <p className="np-vac">El catálogo está vacío: agrega artículos libres abajo.</p>
+          ) : sugeridos.length === 0 ? (
+            <p className="np-vac">Sin resultados para «{bus}».</p>
+          ) : (
+            <div className="np-sug">
+              {sugeridos.map((c) => (
+                <button key={c.codigo} type="button" onClick={() => agregar(c)}>
+                  <small>{c.codigo}</small>
+                  <b>{c.nombre}</b>
+                  <em>{copN(precioCat(c, f.tipo))} · + agregar</em>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {ls.length > 0 && (
+            <div className="np-lns">
+              {ls.map((l, i) => (
+                <div className="np-ln" key={i}>
+                  <div className="np-info">
+                    {l.codigo ? (
+                      <b>{l.nombre}</b>
+                    ) : (
+                      <input className="np-in" aria-label="Nombre del artículo" placeholder="Nombre del artículo" value={l.nombre} onChange={(e) => upd(i, { nombre: e.target.value })} />
+                    )}
+                    <small>{l.codigo ? `${l.codigo} · ` : 'Artículo libre · '}Subtotal {copN(l.cant * l.precio)}</small>
+                  </div>
+                  <div className="np-step">
+                    <button type="button" aria-label="Quitar una unidad" disabled={l.cant <= 1} onClick={() => upd(i, { cant: Math.max(1, l.cant - 1) })}>−</button>
+                    <input aria-label="Cantidad" inputMode="numeric" value={l.cant} onChange={(e) => upd(i, { cant: Math.max(1, Math.min(999, num(e.target.value))) })} />
+                    <button type="button" aria-label="Agregar una unidad" onClick={() => upd(i, { cant: Math.min(999, l.cant + 1) })}>+</button>
+                  </div>
+                  <label className="np-pr">
+                    <span>$</span>
+                    <input aria-label="Precio unitario" inputMode="numeric" placeholder="Precio" value={l.precio ? l.precio.toLocaleString('es-CO') : ''} onChange={(e) => upd(i, { precio: num(e.target.value) })} />
+                  </label>
+                  <button type="button" className="np-x" aria-label="Quitar artículo" onClick={() => quitar(i)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" className="np-add" onClick={() => setLs((a) => [...a, { nombre: '', cant: 1, precio: 0 }])}>+ Artículo libre (fuera del catálogo)</button>
+        </section>
+
+        <section className="np-sec">
+          <h3><i>4</i>Pago y notas</h3>
+          <span className="np-l">Método de pago</span>
+          <div className="np-chips" role="group" aria-label="Método de pago">
+            {PAGOS.map((p) => (
+              <button key={p} type="button" aria-pressed={f.metodo_pago === p} onClick={() => setF((x) => ({ ...x, metodo_pago: p }))}>{p}</button>
+            ))}
+          </div>
+          <span className="np-l" style={{ marginTop: 12 }}>Estado del pago</span>
+          <div className="np-seg" role="group" aria-label="Estado del pago">
+            <button type="button" aria-pressed={f.pago_estado === 'pendiente'} onClick={() => setF((x) => ({ ...x, pago_estado: 'pendiente' }))}>Pendiente</button>
+            <button type="button" aria-pressed={f.pago_estado === 'pagado'} onClick={() => setF((x) => ({ ...x, pago_estado: 'pagado' }))}>✔ Pagado</button>
+          </div>
+          <label className="np-l" htmlFor="np-n" style={{ marginTop: 12 }}>Notas</label>
+          <textarea id="np-n" className="np-in" rows={2} value={f.notas} onChange={set('notas')} placeholder="Talla, color del hilo, indicaciones de entrega…" />
+        </section>
       </div>
-    </div>
+
+      <footer className="np-foot">
+        {err && <p className="np-err" role="alert">{err}</p>}
+        <div className="np-tot"><span>Total · {uds} u.</span><b>{total > 0 ? copN(total) : '$0'}</b></div>
+        <button type="button" className="np-cancel" onClick={onClose}>Cancelar</button>
+        <button type="button" className="np-ok" onClick={crear} disabled={guardando}>{guardando ? 'GUARDANDO…' : 'CREAR PEDIDO'}</button>
+      </footer>
+    </Modal>
   );
 }
