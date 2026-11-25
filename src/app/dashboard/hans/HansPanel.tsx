@@ -510,10 +510,21 @@ function Pulsera3D({ dis, h = 320 }: { dis: Dis; h?: number }) {
 function FotoZoom({ fotos, alt }: { fotos: string[]; alt: string }) {
   const [i, setI] = useState(0);
   const [z, setZ] = useState<{ x: number; y: number } | null>(null);
-  const src = fotos[Math.min(i, Math.max(fotos.length - 1, 0))];
+  const n = fotos.length;
+  const idx = Math.min(i, Math.max(n - 1, 0));
+  const src = fotos[idx];
+  const ir = (d: number) => setI((idx + d + n) % n);
+  const tx = useRef<number | null>(null);
   return (
     <div
       className="hn-zoom"
+      onTouchStart={(e) => { tx.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (tx.current == null || n < 2) return;
+        const dx = e.changedTouches[0].clientX - tx.current;
+        tx.current = null;
+        if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1);
+      }}
       onMouseMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         setZ({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
@@ -531,12 +542,17 @@ function FotoZoom({ fotos, alt }: { fotos: string[]; alt: string }) {
       ) : (
         <span className="hn-nofoto">Sin foto</span>
       )}
-      {fotos.length > 1 && (
-        <div className="hn-thumbs" onMouseMove={(e) => e.stopPropagation()}>
-          {fotos.map((u, k) => (
-            <button key={u + k} type="button" aria-label={`Ver foto ${k + 1}`} aria-pressed={k === i} onClick={() => setI(k)} />
-          ))}
-        </div>
+      {n > 1 && (
+        <>
+          <button type="button" className="hn-arr prev" aria-label="Foto anterior" onClick={() => ir(-1)}>‹</button>
+          <button type="button" className="hn-arr next" aria-label="Foto siguiente" onClick={() => ir(1)}>›</button>
+          <div className="hn-thumbs">
+            {fotos.map((u, k) => (
+              <button key={u + k} type="button" aria-label={`Ver foto ${k + 1}`} aria-pressed={k === idx} onClick={() => setI(k)} />
+            ))}
+          </div>
+          <span className="hn-pos">{idx + 1} / {n}</span>
+        </>
       )}
       {src && <span className="hn-lupa" aria-hidden="true">🔍 pasa el cursor</span>}
     </div>
@@ -991,9 +1007,14 @@ export default function HansPanel() {
         .hn-zoom { position: absolute; inset: 0; overflow: hidden; cursor: zoom-in; background: #07241a; display: grid; place-items: center; }
         .hn-zoom img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .18s ease-out; will-change: transform; user-select: none; }
         .hn-nofoto { color: #b08d3c; font-size: 13px; }
-        .hn-lupa { position: absolute; left: 8px; bottom: 8px; font-size: 10.5px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.62); color: #f3ead2; opacity: 0; transition: opacity .2s; pointer-events: none; }
+        .hn-lupa { position: absolute; right: 8px; top: 8px; font-size: 10.5px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.62); color: #f3ead2; opacity: 0; transition: opacity .2s; pointer-events: none; }
         .hn-zoom:hover .hn-lupa { opacity: 1; }
-        .hn-thumbs { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 5px; z-index: 2; }
+        .hn-thumbs { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; display: flex; gap: 6px; z-index: 2; padding: 4px 8px; border-radius: 99px; background: rgba(6,16,11,.45); }
+        .hn-arr { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3; width: 32px; height: 32px; padding: 0 0 3px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(6,16,11,.6); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; display: grid; place-items: center; opacity: .85; transition: background .15s, opacity .15s; }
+        .hn-arr:hover { background: #f0c14b; color: #1b1608; opacity: 1; border-color: #f0c14b; }
+        .hn-arr.prev { left: 8px; }
+        .hn-arr.next { right: 8px; }
+        .hn-pos { position: absolute; right: 8px; bottom: 10px; z-index: 2; font-size: 10.5px; padding: 3px 8px; border-radius: 99px; background: rgba(6,16,11,.6); color: #f3ead2; pointer-events: none; }
         .hn-thumbs button { width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.8); background: rgba(0,0,0,.35); cursor: pointer; }
         .hn-thumbs button[aria-pressed="true"] { background: #f0c14b; border-color: #f0c14b; }
         .hn-cnt { position: absolute; top: 8px; left: 8px; z-index: 2; font-size: 11px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.65); color: #f3ead2; pointer-events: none; }
