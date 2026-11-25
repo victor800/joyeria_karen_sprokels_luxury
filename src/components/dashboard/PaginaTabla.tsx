@@ -5,10 +5,11 @@ import type { Cel } from '@/lib/datos-dashboard';
 export type Campo = {
   name: string;
   label: string;
-  tipo: 'text' | 'number' | 'date' | 'select';
-  opciones?: string[];
+  tipo: 'text' | 'number' | 'date' | 'select' | 'textarea';
+  opciones?: (string | { value: string; label: string })[];
   requerido?: boolean;
   placeholder?: string;
+  completo?: boolean; // ocupa las 2 columnas del formulario
 };
 
 type Props = {
@@ -36,20 +37,29 @@ export default function PaginaTabla({ titulo, sub, accion, cols, filas, campos, 
   const [error, setError] = useState<string | null>(null);
   const [guardando, iniciar] = useTransition();
 
+  // Columnas con rol especial (título, estado y subtítulo en móvil)
+  const iT = movil?.titulo ?? 0;
+  const iE = movil?.estado ?? cols.length - 1;
+  const iS = movil?.subtitulo;
+
+  // El filtro solo mira la columna de estado (no la de pago)
   const estados = useMemo(() => {
     const s = new Set<string>();
-    filas.forEach((f) => f.forEach((c) => typeof c !== 'string' && s.add(c.chip)));
+    filas.forEach((f) => {
+      const c = f[iE];
+      if (c && typeof c !== 'string') s.add(c.chip);
+    });
     return [...s];
-  }, [filas]);
+  }, [filas, iE]);
 
   const filtradas = useMemo(() => {
     const t = norm(q.trim());
     return filas.filter(
       (f) =>
-        (estado === 'todos' || f.some((c) => typeof c !== 'string' && c.chip === estado)) &&
+        (estado === 'todos' || (f[iE] != null && texto(f[iE]) === estado)) &&
         (!t || f.some((c) => norm(texto(c)).includes(t))),
     );
-  }, [filas, q, estado]);
+  }, [filas, q, estado, iE]);
 
   useEffect(() => {
     if (!modal) return;
@@ -86,9 +96,6 @@ export default function PaginaTabla({ titulo, sub, accion, cols, filas, campos, 
     });
   }
 
-  const iT = movil?.titulo ?? 0;
-  const iE = movil?.estado ?? cols.length - 1;
-  const iS = movil?.subtitulo;
   const rol = (j: number) => (j === iT ? 'titulo' : j === iE ? 'estado' : j === iS ? 'subtitulo' : 'detalle');
   const hayFiltro = q.trim() !== '' || estado !== 'todos';
 
@@ -203,12 +210,22 @@ export default function PaginaTabla({ titulo, sub, accion, cols, filas, campos, 
 
             <div className="d-form">
               {campos.map((c) => (
-                <div key={c.name} className={c.name === 'cliente' || c.name === 'prenda' ? 'completo' : undefined}>
+                <div key={c.name} className={c.completo ? 'completo' : undefined}>
                   <label htmlFor={`f-${c.name}`}>{c.label}</label>
                   {c.tipo === 'select' ? (
-                    <select id={`f-${c.name}`} name={c.name} defaultValue={c.opciones?.[0]}>
-                      {c.opciones?.map((o) => <option key={o} value={o}>{o}</option>)}
+                    <select
+                      id={`f-${c.name}`}
+                      name={c.name}
+                      defaultValue={typeof c.opciones?.[0] === 'string' ? c.opciones?.[0] : c.opciones?.[0]?.value}
+                    >
+                      {c.opciones?.map((o) => {
+                        const v = typeof o === 'string' ? o : o.value;
+                        const l = typeof o === 'string' ? o : o.label;
+                        return <option key={v} value={v}>{l}</option>;
+                      })}
                     </select>
+                  ) : c.tipo === 'textarea' ? (
+                    <textarea id={`f-${c.name}`} name={c.name} rows={3} maxLength={300} placeholder={c.placeholder} />
                   ) : (
                     <input
                       id={`f-${c.name}`}
@@ -232,7 +249,7 @@ export default function PaginaTabla({ titulo, sub, accion, cols, filas, campos, 
                 CANCELAR
               </button>
               <button type="submit" className="d-btn" disabled={guardando}>
-                {guardando ? 'GUARDANDO…' : 'GUARDAR PEDIDO'}
+                {guardando ? 'GUARDANDO…' : 'GUARDAR'}
               </button>
             </div>
           </form>
