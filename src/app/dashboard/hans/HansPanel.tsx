@@ -1,8 +1,9 @@
 // 📁 RUTA: src/app/dashboard/hans/HansPanel.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HansConfig, { type PF } from './HansConfig';
+import HansPedidos, { type Pedido } from './HansPedidos';
 
 const LOGO_HANS = '/hans.jpeg';
 
@@ -583,7 +584,7 @@ function pfTo(pf: PF): Piezas | null {
 }
 
 export default function HansPanel() {
-  const [tab, setTab] = useState<'catalogo' | 'config'>('catalogo');
+ const [tab, setTab] = useState<'catalogo' | 'config' | 'pedidos'>('catalogo');
   const [lista, setLista] = useState<Item[]>([]);
   const [cats, setCats] = useState<string[]>(CATS_BASE);
   const [cfg, setCfg] = useState<Config>({ oro18: 0, oro24: 0, actualizado: '' });
@@ -606,6 +607,29 @@ export default function HansPanel() {
   const [aviso, setAviso] = useState('');
   const [borrar, setBorrar] = useState<Item | null>(null);
   const [ver3d, setVer3d] = useState<Item | null>(null);
+
+    const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [cargandoPed, setCargandoPed] = useState(true);
+
+  const cargarPedidos = useCallback(async () => {
+    try {
+      const r = await fetch('/api/hans/pedidos', { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setPedidos(Array.isArray(d.items) ? d.items : []);
+    } catch {
+      /* si falla, se conserva la lista actual */
+    } finally {
+      setCargandoPed(false);
+    }
+  }, []);
+
+  // Carga al abrir y refresca cada 30 s para que el contador vea los pedidos nuevos de la web
+  useEffect(() => {
+    cargarPedidos();
+    const t = setInterval(() => { if (!document.hidden) cargarPedidos(); }, 30000);
+    return () => clearInterval(t);
+  }, [cargarPedidos]);
 
   const avisar = (t: string, ms = 3500) => { setAviso(t); setTimeout(() => setAviso(''), ms); };
 
@@ -662,6 +686,20 @@ export default function HansPanel() {
   const nActivos = lista.filter((x) => x.activo === 'true').length;
   const nRevisar = lista.length - nActivos;
   const nOro = lista.filter((x) => x.oro).length;
+
+    const nNuevos = pedidos.filter((p) => p.estado === 'nuevo').length;
+  const catalogo = useMemo(
+    () => lista.map((x) => {
+      const xe = conG(x, piezas);
+      return {
+        codigo: x.codigo,
+        nombre: x.nombre,
+        menudeo: precioDe(xe, 'menudeo', cfg, piezas).valor,
+        mayorista: precioDe(xe, 'mayorista', cfg, piezas).valor,
+      };
+    }),
+    [lista, piezas, cfg],
+  );
 
   /** Grupos por categoría (con su tarjeta "Nueva en ..."). */
   const grupos = useMemo(() => {
@@ -978,7 +1016,9 @@ export default function HansPanel() {
         .hn-marca p { margin: 8px 0 0; font-size: 13.5px; color: rgba(243,234,210,.78); }
         .hn-hero .d-btn { background: #f0c14b; color: #1b1608; }
         .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; }
-        .hn-tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+               .hn-tabs button { position: relative; font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+        .hn-tabs .hn-badge { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: #f0c14b; color: #1b1608; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+        .hn-tabs .hn-badge.cero { background: #e6e1cf; color: #8a978f; box-shadow: none; }
         .hn-tabs button[aria-selected="true"] { color: #0b2d1f; border-bottom-color: #d8b95f; }
         .hn-aviso { background: #e6f4ea; color: #1e6b34; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
         .hn-errc { background: #fdecea; color: #a12622; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; margin-bottom: 12px; }
@@ -1158,9 +1198,13 @@ export default function HansPanel() {
         {tab === 'catalogo' && <button type="button" className="d-btn" onClick={() => abrir(catActual)}>NUEVO ARTÍCULO{catActual ? ` EN ${catActual.toUpperCase()}` : ''}</button>}
       </div>
 
-      <div className="hn-tabs" role="tablist">
+           <div className="hn-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === 'catalogo'} onClick={() => setTab('catalogo')}>Catálogo</button>
         <button type="button" role="tab" aria-selected={tab === 'config'} onClick={() => setTab('config')}>⚙ Configuración</button>
+        <button type="button" role="tab" aria-selected={tab === 'pedidos'} onClick={() => setTab('pedidos')} style={{ paddingRight: 30 }}>
+          Pedidos
+          <span className={`hn-badge ${nNuevos ? '' : 'cero'}`} aria-label={`${nNuevos} pedidos nuevos`}>{nNuevos}</span>
+        </button>
       </div>
 
       {aviso && <div className="hn-aviso" role="status">{aviso}</div>}
@@ -1178,6 +1222,17 @@ export default function HansPanel() {
           guardarConfig={guardarConfig}
           guardando={guardandoCfg}
           draw={{ metales: METAL, dije: drawDije, inicial: drawInicial }}
+        />
+      )}
+
+            {tab === 'pedidos' && (
+        <HansPedidos
+          pedidos={pedidos}
+          setPedidos={setPedidos}
+          catalogo={catalogo}
+          avisar={avisar}
+          cargando={cargandoPed}
+          recargar={cargarPedidos}
         />
       )}
 

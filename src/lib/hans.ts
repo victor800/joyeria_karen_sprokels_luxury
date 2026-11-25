@@ -209,3 +209,133 @@ export async function guardarConfigHans(c: HansConfig) {
     },
   });
 }
+
+/* ---------- Pedidos de Joyería Hans (hoja Hans_Pedidos) ---------- */
+const PED = 'Hans_Pedidos';
+const PCOLS = [
+  'id', 'codigo', 'creado', 'cliente', 'telefono', 'email', 'direccion', 'ciudad', 'items', 'tipo', 'total',
+  'metodo_pago', 'pago_estado', 'estado', 'domiciliario', 'domiciliario_tel', 'fecha_entrega',
+  'recibido_en', 'despachado_en', 'entregado_en', 'notas', 'origen', 'actualizado',
+] as const;
+export type HansPedido = Record<(typeof PCOLS)[number], string>;
+const PEDITABLES = [
+  'cliente', 'telefono', 'email', 'direccion', 'ciudad', 'items', 'tipo', 'total', 'metodo_pago', 'pago_estado',
+  'estado', 'domiciliario', 'domiciliario_tel', 'fecha_entrega', 'notas', 'origen',
+] as const;
+const P_ESTADOS = ['nuevo', 'recibido', 'en_camino', 'entregado', 'cancelado'];
+const PULT = letra(PCOLS.length);
+
+const filaAPedido = (f: string[]): HansPedido =>
+  Object.fromEntries(PCOLS.map((c, i) => [c, String(f[i] ?? '')])) as HansPedido;
+const pedidoAFila = (p: HansPedido) => PCOLS.map((c) => p[c] ?? '');
+
+async function leerPedidos() {
+  await asegurarPestana(PED, [...PCOLS]);
+  const r = await hojas().spreadsheets.values.get({ spreadsheetId: ID_HOJA(), range: `${PED}!A2:${PULT}` });
+  return (r.data.values ?? []).map((f) => filaAPedido(f as string[])).filter((x) => x.id);
+}
+
+export async function listarPedidosHans() {
+  const p = await leerPedidos();
+  return p.sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+}
+
+function limpiarPedido(cuerpo: Record<string, unknown>) {
+  const out: Partial<HansPedido> = {};
+  for (const c of PEDITABLES) {
+    const v = cuerpo[c];
+    if (v === undefined) continue;
+    if (c === 'items') {
+      out.items = typeof v === 'string' ? v : JSON.stringify(v ?? []);
+    } else {
+      out[c] = String(v ?? '').trim().slice(0, c === 'notas' ? 1000 : 300);
+    }
+  }
+  if (out.items !== undefined) {
+    let arr: unknown;
+    try { arr = JSON.parse(out.items || '[]'); } catch { throw new Error('Artículos inválidos'); }
+    if (!Array.isArray(arr)) throw new Error('Artículos inválidos');
+    if (out.items.length > 45000) throw new Error('El pedido es demasiado grande');
+  }
+  if (out.estado !== undefined && !P_ESTADOS.includes(out.estado)) throw new Error('Estado inválido');
+  if (out.pago_estado !== undefined && !['pendiente', 'pagado'].includes(out.pago_estado)) out.pago_estado = 'pendiente';
+  if (out.tipo !== undefined && !['menudeo', 'mayorista'].includes(out.tipo)) out.tipo = 'menudeo';
+  if (out.origen !== undefined && !['web', 'manual'].includes(out.origen)) out.origen = 'manual';
+  if (out.total !== undefined) out.total = out.total.replace(/\D/g, '');
+  for (const k of ['telefono', 'domiciliario_tel'] as const) {
+    if (out[k] !== undefined) out[k] = out[k]!.replace(/[^\d+\s()-]/g, '');
+  }
+  if (out.fecha_entrega !== undefined && out.fecha_entrega !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(out.fecha_entrega)) {
+    out.fecha_entrega = '';
+  }
+  return out;
+}
+
+/** `web: true` = pedido que llega desde la tienda: siempre entra como "nuevo". */
+export async function crearPedidoHans(cuerpo: Record<string, unknown>, web = false) {
+  const d = limpiarPedido(cuerpo);
+  if (!d.cliente) throw new Error('Escribe el nombre del cliente');
+  const arr = JSON.parse(d.items || '[]') as unknown[];
+  if (!arr.length) throw new Error('El pedido no tiene artículos');
+  const todos = await leerPedidos();
+  const mayor = todos.reduce((m, x) => Math.max(m, Number(x.codigo.replace(/\D/g, '')) || 0), 0);
+  const ahora = new Date().toISOString();
+  const p = Object.fromEntries(PCOLS.map((c) => [c, ''])) as HansPedido;
+  Object.assign(p, d, {
+    id: crypto.randomUUID().slice(0, 8),
+    codigo: `PED-${String(mayor + 1).padStart(4, '0')}`,
+    tipo: d.tipo || 'menudeo',
+    pago_estado: d.pago_estado || 'pendiente',
+    estado: 'nuevo',
+    origen: web ? 'web' : d.origen || 'manual',
+    creado: ahora,
+    actualizado: ahora,
+  });
+  if (web) { p.domiciliario = ''; p.domiciliario_tel = ''; }
+  await hojas().spreadsheets.values.append({
+    spreadsheetId: ID_HOJA(),
+    range: `${PED}!A:${PULT}`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [pedidoAFila(p)] },
+  });
+  return p;
+}
+
+async function buscarFilaPedido(id: string) {
+  const r = await hojas().spreadsheets.values.get({ spreadsheetId: ID_HOJA(), range: `${PED}!A:A` });
+  const idx = (r.data.values ?? []).findIndex((f) => f[0] === id);
+  if (idx < 1) throw new Error('Pedido no encontrado');
+  return idx + 1;
+}
+
+export async function actualizarPedidoHans(id: string, cuerpo: Record<string, unknown>) {
+  await asegurarPestana(PED, [...PCOLS]);
+  const fila = await buscarFilaPedido(id);
+  const r = await hojas().spreadsheets.values.get({ spreadsheetId: ID_HOJA(), range: `${PED}!A${fila}:${PULT}${fila}` });
+  const actual = filaAPedido((r.data.values?.[0] ?? []) as string[]);
+  const d = limpiarPedido(cuerpo);
+  const ahora = new Date().toISOString();
+  const nuevo: HansPedido = { ...actual, ...d, actualizado: ahora };
+  // Fechas de cada paso: se marcan solas al cambiar de estado
+  if (d.estado && d.estado !== actual.estado) {
+    if (d.estado === 'recibido' && !nuevo.recibido_en) nuevo.recibido_en = ahora;
+    if (d.estado === 'en_camino') {
+      if (!nuevo.recibido_en) nuevo.recibido_en = ahora;
+      if (!nuevo.despachado_en) nuevo.despachado_en = ahora;
+    }
+    if (d.estado === 'entregado') {
+      if (!nuevo.recibido_en) nuevo.recibido_en = ahora;
+      if (!nuevo.despachado_en) nuevo.despachado_en = ahora;
+      if (!nuevo.entregado_en) nuevo.entregado_en = ahora;
+    }
+  }
+  if (nuevo.estado === 'en_camino' && !nuevo.domiciliario) throw new Error('Asigna un domiciliario antes de despachar');
+  await hojas().spreadsheets.values.update({
+    spreadsheetId: ID_HOJA(),
+    range: `${PED}!A${fila}:${PULT}${fila}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [pedidoAFila(nuevo)] },
+  });
+  return nuevo;
+}
