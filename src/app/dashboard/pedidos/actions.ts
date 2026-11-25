@@ -1,7 +1,8 @@
+// 📁 RUTA: src/app/dashboard/pedidos/actions.ts
 'use server';
 import { revalidatePath } from 'next/cache';
 import { joyeriaActual } from '@/lib/joyeria';
-import { crearPedido, ESTADOS, PAGOS } from '@/lib/pedidos';
+import { crearPedido, cambiarEstadoPedido, ESTADOS, PAGOS } from '@/lib/pedidos';
 import { domiciliariosAsignables } from '@/lib/domiciliarios-lista';
 
 const aNumero = (v: unknown) => Number(String(v ?? '').replace(/[^\d]/g, '')) || 0;
@@ -10,6 +11,8 @@ export async function crearPedidoAction(d: Record<string, string>): Promise<{ ok
   try {
     const joyeriaId = await joyeriaActual();
     const cliente = (d.cliente ?? '').trim().slice(0, 120);
+    const telefono = (d.telefono ?? '').replace(/[^\d+\s()-]/g, '').trim().slice(0, 25);
+    const destino = (d.destino ?? '').trim().slice(0, 200);
     const prenda = (d.prenda ?? '').trim().slice(0, 200);
     const total = aNumero(d.total);
     const valorDomicilio = aNumero(d.valorDomicilio);
@@ -32,12 +35,30 @@ export async function crearPedidoAction(d: Record<string, string>): Promise<{ ok
     }
 
     await crearPedido(joyeriaId, {
-      cliente, prenda, total, entrega, estado, pago, nota, domiciliarioId, domiciliarioNombre, valorDomicilio,
+      cliente, telefono, destino, prenda, total, entrega, estado, pago, nota,
+      domiciliarioId, domiciliarioNombre, valorDomicilio,
     });
     revalidatePath('/dashboard/pedidos');
     return { ok: true };
   } catch (e) {
     console.error('crearPedidoAction', e);
     return { ok: false, error: 'No se pudo guardar en la hoja. Intenta de nuevo.' };
+  }
+}
+
+export async function cambiarEstadoAction(numero: string, estado: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    if (!(ESTADOS as readonly string[]).includes(estado)) return { ok: false, error: 'Estado no válido.' };
+    const n = String(numero ?? '').trim();
+    if (!/^[\w-]{1,20}$/.test(n)) return { ok: false, error: 'Pedido no válido.' };
+
+    const joyeriaId = await joyeriaActual();
+    const ok = await cambiarEstadoPedido(joyeriaId, n, estado);
+    if (!ok) return { ok: false, error: 'No se encontró ese pedido. Actualiza la lista.' };
+    revalidatePath('/dashboard/pedidos');
+    return { ok: true };
+  } catch (e) {
+    console.error('cambiarEstadoAction', e);
+    return { ok: false, error: 'No se pudo cambiar el estado. Intenta de nuevo.' };
   }
 }
