@@ -89,7 +89,7 @@ export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<st
     });
   }
 
-  // Consecutivo por joyería: P-0001, P-0002…
+ 
   const { data } = await api.spreadsheets.values.get({ spreadsheetId, range: `${HOJA_PEDIDOS}!A2:B` });
   const max = (data.values ?? [])
     .filter((r) => r[0] === joyeriaId)
