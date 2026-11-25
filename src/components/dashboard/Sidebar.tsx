@@ -9,6 +9,7 @@ import { MARCA } from '@/lib/marca';
 import './sidebar.css';
 import CargandoNavegacion from '@/components/CargandoNavegacion';
 import { Insignia, useContadores } from '@/components/InsigniaContador';
+import SonidoNuevo from '@/components/dashboard/SonidoNuevo';
 
 const ICONOS: Record<string, string> = {
   inicio: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -16,6 +17,7 @@ const ICONOS: Record<string, string> = {
   hans: 'M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 13v3M9 21h6M10 16l-1 5M14 16l1 5',
   pedidos: 'M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0',
   domi: 'M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  webdomi: 'M3 4h18v12H3zM8 20h8M12 16v4',
   clientes: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
   boveda: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   web: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18',
@@ -43,6 +45,7 @@ const GRUPOS: Grupo[] = [
       { href: '/dashboard', t: 'Inicio', i: 'inicio' },
       { href: '/dashboard/pedidos', t: 'Pedidos', i: 'pedidos', contador: 'pedidos' },
       { href: '/dashboard/domiciliarios', t: 'Domiciliarios', i: 'domi', contador: 'domiciliarios' },
+      { href: '/dashboard/web-domiciliarios', t: 'Web domiciliarios', i: 'webdomi' },
       { href: '/dashboard/pagos', t: 'Pagos', i: 'pagos' },
     ],
   },
@@ -183,6 +186,9 @@ export default function Sidebar() {
         .dash-mini .sb-nav a .sb-ins { position: absolute !important; top: 3px; right: 4px; margin: 0 !important;
           min-width: 16px !important; height: 16px !important; padding: 0 4px !important; font-size: 9px !important; }
       `}</style>
+
+      {/* Suena cuando llega un pedido nuevo (el contador de pedidos sube) */}
+      <SonidoNuevo valor={contadores.pedidos} />
 
       <button
         type="button"

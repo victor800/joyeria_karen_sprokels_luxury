@@ -18,6 +18,24 @@ const C = { num: 0, cliente: 1, prenda: 2, total: 3, entrega: 4, estado: 5, pago
 const texto = (c?: Cel) => (c == null ? '' : typeof c === 'string' ? c : c.chip);
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
+/** "$ 120.000" o "120000" → 120000 */
+const monto = (s: string) => {
+  const d = s.replace(/[^\d]/g, '');
+  return d ? Number(d) : 0;
+};
+const cop = (n: number) => `$ ${n.toLocaleString('es-CO')}`;
+
+/** Pago en efectivo: el domiciliario cobra todo en mano. Ajusta la regex si tus PAGOS se llaman distinto. */
+const esEfectivo = (pago: string) => /efectivo|contra ?entrega/.test(norm(pago));
+
+/** Total real a cobrar: si es efectivo y hay domicilio, suma ambos */
+function cobro(f: Cel[]) {
+  const total = monto(texto(f[C.total]));
+  const dom = monto(texto(f[C.valorDomi]));
+  const suma = esEfectivo(texto(f[C.pago])) && dom > 0;
+  return { total, dom, suma, aCobrar: suma ? total + dom : total };
+}
+
 /** Acepta dd/mm/aaaa o aaaa-mm-dd y devuelve un número comparable aaaammdd */
 function fechaNum(s: string): number | null {
   const a = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -57,7 +75,6 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
   const [ahora, setAhora] = useState<Date | null>(null);
   const [refrescando, setRefrescando] = useState(false);
 
-  // Marca de "última actualización" (en cliente para evitar desajustes de hidratación)
   useEffect(() => {
     setAhora(new Date());
     setRefrescando(false);
@@ -114,6 +131,17 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
   const visibles = filtradas.slice(ini, ini + porPagina);
   const hayFiltro = q.trim() !== '' || estado !== 'todos' || domi !== 'todos' || desde !== '' || hasta !== '';
 
+  // Suma de efectivo que deben cobrar en mano los pedidos filtrados aún no entregados/cancelados
+  const efectivoPendiente = useMemo(
+    () =>
+      filtradas.reduce((acc, f) => {
+        if (!esEfectivo(texto(f[C.pago]))) return acc;
+        if (/entregad|complet|cancel|anulad/.test(norm(texto(f[C.estado])))) return acc;
+        return acc + cobro(f).aCobrar;
+      }, 0),
+    [filtradas],
+  );
+
   const cambiar = (fn: () => void) => {
     fn();
     setPagina(1);
@@ -127,9 +155,9 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
   }
 
   function exportar() {
-    const cols = ['N°', 'Cliente', 'Prenda', 'Total', 'Entrega', 'Estado', 'Pago', 'Domiciliario', 'Domicilio', 'Nota'];
+    const cols = ['N°', 'Cliente', 'Prenda', 'Total', 'Entrega', 'Estado', 'Pago', 'Domiciliario', 'Domicilio', 'Nota', 'Total a cobrar'];
     const esc = (s: string) => `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
-    const lineas = [cols, ...filtradas.map((f) => f.map(texto))].map((r) => r.map(esc).join(';'));
+    const lineas = [cols, ...filtradas.map((f) => [...f.map(texto), String(cobro(f).aCobrar)])].map((r) => r.map(esc).join(';'));
     const blob = new Blob(['\uFEFF' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -249,6 +277,12 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
         )}
       </div>
 
+      {efectivoPendiente > 0 && (
+        <p className="pt-efectivo">
+          Efectivo por cobrar en mano (pedidos activos): <b>{cop(efectivoPendiente)}</b>
+        </p>
+      )}
+
       {/* Tabla */}
       <div className="pt-card">
         <table className="pt-tabla">
@@ -286,6 +320,7 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
                 const pago = texto(f[C.pago]);
                 const pagado = /^pag/.test(norm(pago)) || /pagado|cancelado/.test(norm(pago));
                 const abierto = abierta === key;
+                const cb = cobro(f);
                 return (
                   <Fragment key={key}>
                     <tr data-abierta={abierto}>
@@ -299,8 +334,15 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
                         <div>{texto(f[C.prenda])}</div>
                       </td>
                       <td data-label="Total">
-                        <div className="pt-fuerte">{texto(f[C.total])}</div>
-                        <div className={`pt-pago ${pagado ? 'ok' : 'pend'}`}>{pagado ? pago : `Pago ${pago.toLowerCase()}`}</div>
+                        <div className="pt-fuerte">{cb.suma ? cop(cb.aCobrar) : texto(f[C.total])}</div>
+                        {cb.suma && (
+                          <div className="pt-suma">
+                            {cop(cb.total)} + domicilio {cop(cb.dom)}
+                          </div>
+                        )}
+                        <div className={`pt-pago ${pagado ? 'ok' : 'pend'}`}>
+                          {cb.suma ? 'Efectivo: cobrar en mano' : pagado ? pago : `Pago ${pago.toLowerCase()}`}
+                        </div>
                       </td>
                       <td data-label="Estado">
                         <span className="pt-estado" data-t={tono(texto(f[C.estado]))}>{texto(f[C.estado])}</span>
@@ -323,7 +365,9 @@ export default function PedidosTabla({ filas, campos, onCrear, aviso }: Props) {
                         <td colSpan={8}>
                           <dl>
                             <div><dt>Prenda</dt><dd>{texto(f[C.prenda]) || '—'}</dd></div>
+                            <div><dt>Valor pedido</dt><dd>{texto(f[C.total]) || '—'}</dd></div>
                             <div><dt>Valor domicilio</dt><dd>{texto(f[C.valorDomi]) || '—'}</dd></div>
+                            <div><dt>Total a cobrar</dt><dd>{cop(cb.aCobrar)}</dd></div>
                             <div><dt>Pago</dt><dd>{pago || '—'}</dd></div>
                             <div className="ancho"><dt>Nota</dt><dd>{texto(f[C.nota]) || '—'}</dd></div>
                           </dl>

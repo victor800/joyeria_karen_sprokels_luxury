@@ -1,39 +1,37 @@
-// 📁 RUTA: src/lib/contadores.ts  (REEMPLAZA TODO EL ARCHIVO)
 import 'server-only';
 import { listarPrendas } from './prendas';
 import { listarInventario } from './inventario';
 import { listar as listarDomiciliarios } from './domiciliarios-store';
 import { listar as listarClientes } from './clientes-store';
 import { listarHans } from './hans';
+import { joyeriaActual } from './joyeria';
+import { leerPedidos } from './pedidos';
 
 /**
  * Números que aparecen en los círculos del menú lateral.
- * Para sumar uno nuevo (pedidos, bóveda…) agrega una línea aquí:
- *   clave → función que devuelve la cantidad.
+ * Para sumar uno nuevo agrega una línea aquí: clave → función que devuelve la cantidad.
  * Esa misma clave se pone en el ítem del menú: contador: 'clave'.
  */
 const FUENTES: Record<string, () => Promise<number>> = {
-  // Total de prendas en el catálogo. Para contar solo las publicadas:
-  // (await listarPrendas()).filter((p) => p.activo === 'true').length
   prendas: async () => (await listarPrendas()).length,
-
-  // Total de artículos de Joyería Hans. Para contar solo los publicados:
-  // (await listarHans()).filter((x) => x.activo === 'true').length
   hans: async () => (await listarHans()).length,
-
-  // Referencias (piezas distintas) registradas en el inventario.
-  // Para avisar solo de lo urgente (stock bajo o agotado), usa en su lugar:
-  // (await listarInventario()).filter((it) => it.existencias <= it.minimo).length
   inventario: async () => (await listarInventario()).length,
-
-  // Total de domiciliarios registrados.
   domiciliarios: async () => (await listarDomiciliarios()).length,
-
-  // Total de socios (Clientes VIP). Para contar solo los activos:
-  // (await listarClientes()).filter((c) => c.estado === 'activo').length
   clientes: async () => (await listarClientes()).length,
 
-  // pedidos: async () => (await listarPedidos()).filter((x) => x.estado === 'pendiente').length,
+  // Pedidos activos: todos menos entregados/cancelados (columna Estado = índice 5).
+  // Para contar TODOS: return filas.length;
+  pedidos: async () => {
+    const filas = await leerPedidos(await joyeriaActual());
+    return filas.filter((f) => {
+      const c = f[5];
+      const e = (typeof c === 'string' ? c : c?.chip ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      return !/entregad|complet|cancel|anulad/.test(e);
+    }).length;
+  },
 };
 
 let cache: { t: number; datos: Record<string, number> } | null = null;
