@@ -1,9 +1,10 @@
-// 📁 RUTA: src/lib/contadores.ts
+// 📁 RUTA: src/lib/contadores.ts  (REEMPLAZA TODO EL ARCHIVO)
 import 'server-only';
 import { listarPrendas } from './prendas';
 import { listarInventario } from './inventario';
 import { listar as listarDomiciliarios } from './domiciliarios-store';
 import { listar as listarClientes } from './clientes-store';
+import { listarHans } from './hans';
 
 /**
  * Números que aparecen en los círculos del menú lateral.
@@ -15,6 +16,10 @@ const FUENTES: Record<string, () => Promise<number>> = {
   // Total de prendas en el catálogo. Para contar solo las publicadas:
   // (await listarPrendas()).filter((p) => p.activo === 'true').length
   prendas: async () => (await listarPrendas()).length,
+
+  // Total de artículos de Joyería Hans. Para contar solo los publicados:
+  // (await listarHans()).filter((x) => x.activo === 'true').length
+  hans: async () => (await listarHans()).length,
 
   // Referencias (piezas distintas) registradas en el inventario.
   // Para avisar solo de lo urgente (stock bajo o agotado), usa en su lugar:

@@ -50,7 +50,7 @@ const GRUPOS: Grupo[] = [
     titulo: 'Catálogo',
     items: [
       { href: '/dashboard/prendas', t: 'Prendas', i: 'prendas', contador: 'prendas' },
-      { href: '/dashboard/hans', t: 'Joyería Hans', i: 'hans' },
+      { href: '/dashboard/hans', t: 'Joyería Hans', i: 'hans', contador: 'hans' },
       { href: '/dashboard/inventario', t: 'Inventario', i: 'inventario', contador: 'inventario' },
       { href: '/dashboard/boveda', t: 'Bóveda de oro', i: 'boveda' },
     ],
