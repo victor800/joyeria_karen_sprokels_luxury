@@ -21,7 +21,7 @@ type Config = { oro18: number; oro24: number; actualizado: string };
 /* ---------- Diseño de pulsera ---------- */
 type Dis = {
   v: 1; longitud: number; ancho: number; hilo1: string; hilo2: string; metal: Metal;
-  balines: { tipo: string; mm: number; cant: number }[];
+  balines: { tipo: string; mm: number; cant: number; metal?: Metal }[];
   inicial: { txt: string; estilo: 'placa' | 'cuadrada' | 'letra'; tam: 'pequena' | 'mediana' | 'grande' } | null;
   dije: { id: string } | null;
 };
@@ -30,6 +30,7 @@ type DijeCfg = { id: string; nombre: string; gramos: number };
 type Piezas = {
   tipos: TipoB[];
   pesos: Record<string, number>; // mm -> gramos (oro 18k, balín liso)
+  valores: Record<string, number>; // mm -> valor fijo $ por unidad (opcional)
   inicial: { pequena: number; mediana: number; grande: number };
   dijes: DijeCfg[];
 };
@@ -37,6 +38,7 @@ type Piezas = {
 const DENS_24 = 1.24; // el oro 24k pesa ~24 % más que el 18k para la misma pieza
 const INI_MM = { pequena: 7, mediana: 9, grande: 12 };
 const INI_TXT = { pequena: 'Pequeña (7 mm)', mediana: 'Mediana (9 mm)', grande: 'Grande (12 mm)' };
+const METALES: Metal[] = ['dorado', 'plateado', 'rosado'];
 
 const DEF_PIEZAS: Piezas = {
   tipos: [
@@ -47,6 +49,7 @@ const DEF_PIEZAS: Piezas = {
     { id: 'estriado', nombre: 'Estriado (rayado)', factor: 0.94 },
   ],
   pesos: { '2': 0.03, '2.5': 0.05, '3': 0.07, '4': 0.15, '5': 0.28, '6': 0.48, '8': 1.1, '10': 2.1 },
+  valores: {},
   inicial: { pequena: 0.3, mediana: 0.6, grande: 1.0 },
   dijes: [
     { id: 'corazon', nombre: 'Corazón', gramos: 0.5 },
@@ -74,6 +77,8 @@ const defDis = (): Dis => ({
   balines: [{ tipo: 'liso', mm: 4, cant: 5 }], inicial: null, dije: null,
 });
 
+const esMetal = (m: unknown): m is Metal => m === 'dorado' || m === 'plateado' || m === 'rosado';
+
 function parseDis(s?: string): Dis | null {
   if (!s) return null;
   try {
@@ -82,7 +87,10 @@ function parseDis(s?: string): Dis | null {
     const base = defDis();
     return {
       ...base, ...d,
-      balines: d.balines.map((b: { tipo?: string; mm?: number; cant?: number }) => ({ tipo: String(b.tipo || 'liso'), mm: Number(b.mm) || 4, cant: Math.max(0, Math.min(60, Number(b.cant) || 0)) })),
+      balines: d.balines.map((b: { tipo?: string; mm?: number; cant?: number; metal?: string }) => ({
+        tipo: String(b.tipo || 'liso'), mm: Number(b.mm) || 4, cant: Math.max(0, Math.min(60, Number(b.cant) || 0)),
+        metal: esMetal(b.metal) ? b.metal : undefined,
+      })),
       inicial: d.inicial && d.inicial.txt ? { txt: String(d.inicial.txt).slice(0, 2), estilo: d.inicial.estilo || 'placa', tam: d.inicial.tam || 'mediana' } : null,
       dije: d.dije && d.dije.id ? { id: String(d.dije.id) } : null,
     };
@@ -92,9 +100,14 @@ function parseDis(s?: string): Dis | null {
 function normPiezas(raw: unknown): Piezas {
   const r = raw as Partial<Piezas> | null;
   if (!r || typeof r !== 'object' || !r.pesos || !Array.isArray(r.tipos) || !Array.isArray(r.dijes)) return DEF_PIEZAS;
+  const valores: Record<string, number> = {};
+  if (r.valores && typeof r.valores === 'object') {
+    Object.entries(r.valores).forEach(([k, v]) => { const n = Number(v); if (n > 0) valores[k] = n; });
+  }
   return {
     tipos: r.tipos.length ? r.tipos : DEF_PIEZAS.tipos,
     pesos: Object.keys(r.pesos).length ? r.pesos : DEF_PIEZAS.pesos,
+    valores,
     inicial: { ...DEF_PIEZAS.inicial, ...(r.inicial || {}) },
     dijes: r.dijes.length ? r.dijes : DEF_PIEZAS.dijes,
   };
@@ -122,6 +135,19 @@ function totalGramos(d: Dis, p: Piezas, oro?: string) {
   const ini = d.inicial ? (p.inicial[d.inicial.tam] || 0) * dens : 0;
   const dij = d.dije ? (p.dijes.find((x) => x.id === d.dije!.id)?.gramos || 0) * dens : 0;
   return { balines: r2(bal), inicial: r2(ini), dije: r2(dij), total: r2(bal + ini + dij) };
+}
+
+/** Valor en $ de los balines/inicial/dije: balín con valor fijo por tamaño o peso × precio del gramo. */
+function valorOro(d: Dis, p: Piezas, oro: string, c: Config) {
+  const pg = precioGramo(oro, c);
+  const bal = d.balines.reduce((s, b) => {
+    const fijo = p.valores[String(b.mm)];
+    const f = p.tipos.find((t) => t.id === b.tipo)?.factor ?? 1;
+    const unit = fijo && fijo > 0 ? fijo * f : pesoBalin(b, p, oro) * pg;
+    return s + unit * b.cant;
+  }, 0);
+  const t = totalGramos(d, p, oro);
+  return bal + (t.inicial + t.dije) * pg;
 }
 
 function largoBalines(d: Dis) {
@@ -155,7 +181,7 @@ const gr = (s?: string) => Number(String(s || '').replace(',', '.').replace(/[^\
 const copN = (n: number) => (n > 0 ? `$${Math.round(n).toLocaleString('es-CO')}` : '—');
 const tipoTxt = (t: string) => TIPOS.find((x) => x.v === t)?.t ?? t;
 
-const precioGramo = (oro: string | undefined, c: Config) => (oro === '18k' ? c.oro18 : oro === '24k' ? c.oro24 : 0);
+function precioGramo(oro: string | undefined, c: Config) { return oro === '18k' ? c.oro18 : oro === '24k' ? c.oro24 : 0; }
 
 type PrecioX = { oro?: string; gramos?: string; mano_obra?: string; mano_obra_mayor?: string; precio_menudeo: string; precio_mayorista: string };
 function precioItem(x: PrecioX, cual: 'menudeo' | 'mayorista', c: Config): { valor: number; auto: boolean } {
@@ -166,6 +192,15 @@ function precioItem(x: PrecioX, cual: 'menudeo' | 'mayorista', c: Config): { val
     return { valor: Math.round((g * pg + mo) / 100) * 100, auto: true };
   }
   return { valor: num(cual === 'menudeo' ? x.precio_menudeo : x.precio_mayorista), auto: false };
+}
+/** Precio final: si la prenda tiene diseño usa el valor por balín (fijo o por peso) + mano de obra. */
+function precioDe(x: PrecioX & { diseno?: string }, cual: 'menudeo' | 'mayorista', c: Config, p: Piezas) {
+  const d = parseDis(x.diseno);
+  if (d && x.oro && precioGramo(x.oro, c) > 0 && gr(x.gramos) > 0) {
+    const mo = num(cual === 'menudeo' ? x.mano_obra : x.mano_obra_mayor);
+    return { valor: Math.round((valorOro(d, p, x.oro, c) + mo) / 100) * 100, auto: true };
+  }
+  return precioItem(x, cual, c);
 }
 /** Si la prenda tiene diseño, los gramos salen del diseño con los pesos vigentes. */
 const conG = <T extends { diseno?: string; oro?: string; gramos?: string }>(x: T, p: Piezas): T => {
@@ -199,7 +234,7 @@ const kindOf = (id: string) =>
 type V3 = [number, number, number];
 type Scene = {
   R: number; metal: Metal; hasDije: boolean;
-  spheres: { p: V3; r: number; col: string | null; kind: string; seed: number }[];
+  spheres: { p: V3; r: number; col: string | null; kind: string; seed: number; mt?: Metal }[];
   planes: { c: V3; u: V3; t: 'ini' | 'dije'; ini: Dis['inicial']; dijeId: string }[];
 };
 const EMPTY: Scene = { R: 2.7, metal: 'dorado', hasDije: false, spheres: [], planes: [] };
@@ -231,7 +266,7 @@ function buildScene(d: Dis): Scene {
     else if (side === 1) { s = Rr + dm / 2; Rr = s + dm / 2 + gap; side = -1; }
     else { s = L - dm / 2; L = s - dm / 2 - gap; side = 1; }
     if (Math.abs(s) > Math.PI * R * 0.88) return;
-    spheres.push({ p: at(s).p, r: dm / 2, col: null, kind: kindOf(b.tipo), seed: i });
+    spheres.push({ p: at(s).p, r: dm / 2, col: null, kind: kindOf(b.tipo), seed: i, mt: b.metal });
   });
   // hilo trenzado
   const N = Math.max(40, Math.round((2 * Math.PI * R) / (thr * 1.1)));
@@ -395,7 +430,7 @@ function render(c: CanvasRenderingContext2D, w: number, h: number, sc: Scene, ya
   const items: { z: number; f: () => void }[] = [];
   sc.spheres.forEach((s) => {
     const p = proj(...s.p);
-    items.push({ z: p.z, f: () => drawBead(c, p.x, p.y, s.r * S * p.k, s.col ? palHilo(s.col) : pal, s.kind, s.seed) });
+    items.push({ z: p.z, f: () => drawBead(c, p.x, p.y, s.r * S * p.k, s.col ? palHilo(s.col) : METAL[s.mt ?? sc.metal], s.kind, s.seed) });
   });
   sc.planes.forEach((pl) => {
     const P0 = proj(...pl.c);
@@ -471,20 +506,61 @@ function Pulsera3D({ dis, h = 320 }: { dis: Dis; h?: number }) {
   );
 }
 
+/* ---------- Foto con efecto lupa (zoom que sigue al cursor) ---------- */
+function FotoZoom({ fotos, alt }: { fotos: string[]; alt: string }) {
+  const [i, setI] = useState(0);
+  const [z, setZ] = useState<{ x: number; y: number } | null>(null);
+  const src = fotos[Math.min(i, Math.max(fotos.length - 1, 0))];
+  return (
+    <div
+      className="hn-zoom"
+      onMouseMove={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setZ({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
+      }}
+      onMouseLeave={() => setZ(null)}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          style={{ transformOrigin: z ? `${z.x}% ${z.y}%` : '50% 50%', transform: z ? 'scale(2.4)' : 'scale(1)' }}
+        />
+      ) : (
+        <span className="hn-nofoto">Sin foto</span>
+      )}
+      {fotos.length > 1 && (
+        <div className="hn-thumbs" onMouseMove={(e) => e.stopPropagation()}>
+          {fotos.map((u, k) => (
+            <button key={u + k} type="button" aria-label={`Ver foto ${k + 1}`} aria-pressed={k === i} onClick={() => setI(k)} />
+          ))}
+        </div>
+      )}
+      {src && <span className="hn-lupa" aria-hidden="true">🔍 pasa el cursor</span>}
+    </div>
+  );
+}
+
 /* ---------- Formulario de piezas (config) ---------- */
 const pfFrom = (p: Piezas): PF => ({
-  pesos: sizesOf(p).map((n) => ({ mm: String(n), g: String(p.pesos[String(n)]) })),
+  pesos: sizesOf(p).map((n) => ({ mm: String(n), g: String(p.pesos[String(n)]), v: p.valores[String(n)] ? String(p.valores[String(n)]) : '' })),
   tipos: p.tipos.map((t) => ({ id: t.id, nombre: t.nombre, f: String(Math.round(t.factor * 1000) / 10) })),
   ini: { pequena: String(p.inicial.pequena), mediana: String(p.inicial.mediana), grande: String(p.inicial.grande) },
   dijes: p.dijes.map((d) => ({ id: d.id, nombre: d.nombre, g: String(d.gramos) })),
 });
 function pfTo(pf: PF): Piezas | null {
   const pesos: Record<string, number> = {};
-  pf.pesos.forEach((r) => { const mm = gr(r.mm), g = gr(r.g); if (mm > 0 && g > 0) pesos[String(mm)] = g; });
+  const valores: Record<string, number> = {};
+  pf.pesos.forEach((r) => {
+    const mm = gr(r.mm), g = gr(r.g), v = num(r.v);
+    if (mm > 0 && g > 0) { pesos[String(mm)] = g; if (v > 0) valores[String(mm)] = v; }
+  });
   const tipos = pf.tipos.filter((t) => t.id).map((t) => ({ id: t.id, nombre: t.nombre.trim() || t.id, factor: (gr(t.f) || 100) / 100 }));
   if (!Object.keys(pesos).length || !tipos.length) return null;
   return {
-    pesos, tipos,
+    pesos, valores, tipos,
     inicial: { pequena: gr(pf.ini.pequena), mediana: gr(pf.ini.mediana), grande: gr(pf.ini.grande) },
     dijes: pf.dijes.filter((d) => d.id).map((d) => ({ id: d.id, nombre: d.nombre.trim() || d.id, gramos: gr(d.g) })),
   };
@@ -570,6 +646,16 @@ export default function HansPanel() {
   const nActivos = lista.filter((x) => x.activo === 'true').length;
   const nRevisar = lista.length - nActivos;
   const nOro = lista.filter((x) => x.oro).length;
+
+  /** Grupos por categoría (con su tarjeta "Nueva en ..."). */
+  const grupos = useMemo(() => {
+    const g = presentes
+      .map((c) => ({ c, items: visibles.filter((x) => x.categoria === c) }))
+      .filter((x) => x.items.length > 0 || cat === x.c || (cat === 'todas' && !q));
+    const sin = visibles.filter((x) => !x.categoria);
+    if (sin.length) g.push({ c: '', items: sin });
+    return g;
+  }, [presentes, visibles, cat, q]);
 
   function abrir(categoria?: string) {
     setEditId(null);
@@ -681,8 +767,8 @@ export default function HansPanel() {
       const editando = editId !== null;
       const payload: Record<string, string> = { ...formEf };
       if (form.oro) {
-        const m = precioItem(formEf, 'menudeo', cfg);
-        const w = precioItem(formEf, 'mayorista', cfg);
+        const m = precioDe(formEf, 'menudeo', cfg, piezas);
+        const w = precioDe(formEf, 'mayorista', cfg, piezas);
         if (m.auto) payload.precio_menudeo = String(m.valor);
         if (w.auto) payload.precio_mayorista = String(w.valor);
       }
@@ -709,7 +795,7 @@ export default function HansPanel() {
           } catch { d = { ...d, activo: 'false' }; }
         }
         setLista((l) => [d, ...l]);
-        avisar('Artículo creado en revisión (inhabilitado). Revísalo y enciende el interruptor para publicarlo.', 5000);
+        avisar(`Artículo creado en «${d.categoria || form.categoria}» (en revisión). Revísalo y enciende el interruptor para publicarlo.`, 5500);
       }
       setAbierto(false);
     } catch (err) {
@@ -774,8 +860,8 @@ export default function HansPanel() {
       const resultados = await Promise.all(
         afectadas.map(async (x) => {
           const xe = conG(x, pn);
-          const m = precioItem(xe, 'menudeo', nuevo).valor;
-          const w = precioItem(xe, 'mayorista', nuevo).valor;
+          const m = precioDe(xe, 'menudeo', nuevo, pn).valor;
+          const w = precioDe(xe, 'mayorista', nuevo, pn).valor;
           try {
             const r = await fetch(`/api/hans/${x.id}`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -805,23 +891,75 @@ export default function HansPanel() {
   const fotosForm = parseFotos(form.foto_url);
   const verMayor = form.tipo === 'mayorista' || form.tipo === 'ambos';
   const verMenudeo = form.tipo !== 'mayorista';
-  const prevM = precioItem(formEf, 'menudeo', cfg);
-  const prevW = precioItem(formEf, 'mayorista', cfg);
+  const prevM = precioDe(formEf, 'menudeo', cfg, piezas);
+  const prevW = precioDe(formEf, 'mayorista', cfg, piezas);
   const sinPrecioOro = !!form.oro && precioGramo(form.oro, cfg) === 0;
   const exceso = dis ? largoBalines(dis) > dis.longitud * 0.85 : false;
   const nombreTipo = (id: string) => piezas.tipos.find((t) => t.id === id)?.nombre ?? id;
   const nombreDije = (id: string) => piezas.dijes.find((t) => t.id === id)?.nombre ?? id;
+  const catActual = cat !== 'todas' && cat !== '__revisar' ? cat : undefined;
+
+  /* ---------- Tarjeta del catálogo ---------- */
+  const tarjeta = (x: Item) => {
+    const fotos = parseFotos(x.foto_url);
+    const on = x.activo === 'true';
+    const xe = conG(x, piezas);
+    const pm = precioDe(xe, 'menudeo', cfg, piezas);
+    const pw = precioDe(xe, 'mayorista', cfg, piezas);
+    const tiene3d = !!parseDis(x.diseno);
+    return (
+      <article key={x.id} className={`hn-card ${on ? '' : 'off'}`}>
+        <div className="hn-fwrap">
+          <FotoZoom fotos={fotos} alt={x.nombre} />
+          {fotos.length > 1 && <span className="hn-cnt">{fotos.length} fotos</span>}
+        </div>
+        <div className="hn-info">
+          <div className="hn-top">
+            <small className="hn-sku">SKU: {x.codigo}</small>
+            <span className="hn-pill">{tipoTxt(x.tipo)}</span>
+          </div>
+          <h3>{x.nombre}</h3>
+          <div className="hn-pills">
+            {!on && <span className="hn-pill rev">EN REVISIÓN</span>}
+            {x.oro && <span className="hn-pill oro">Oro {x.oro}{gr(xe.gramos) ? ` · ${gr(xe.gramos)} g` : ''}</span>}
+            {x.video_url && <a className="hn-pill vid" href={x.video_url} target="_blank" rel="noreferrer">▶ Video</a>}
+          </div>
+          <p>{x.descripcion || 'Sin descripción.'}</p>
+          <div className="hn-pre">
+            {x.tipo !== 'mayorista' && x.tipo !== 'tejida' && <div><span>Menudeo</span><b>{copN(pm.valor)}</b></div>}
+            {x.tipo === 'tejida' && <div><span>Precio</span><b>{copN(pm.valor)}</b></div>}
+            {(x.tipo === 'mayorista' || x.tipo === 'ambos') && (
+              <div>
+                <span>Mayorista</span><b>{copN(pw.valor)}</b>
+                {x.min_mayorista && <em>desde {x.min_mayorista} u.</em>}
+              </div>
+            )}
+            <div><span>Stock</span><b>{x.stock || 0}</b></div>
+          </div>
+          <div className="hn-acc">
+            <div className="hn-sw">
+              <button type="button" role="switch" aria-checked={on} className="hn-tog" onClick={() => alternar(x)} aria-label={on ? 'Inhabilitar' : 'Publicar'} />
+              <span>{on ? 'Publicado' : 'Inhabilitado'}</span>
+            </div>
+            {tiene3d && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
+            <button type="button" className="hn-b" onClick={() => abrirEditar(x)}>Editar</button>
+            <button type="button" className="hn-b x" onClick={() => setBorrar(x)} aria-label={`Eliminar ${x.nombre}`}>✕</button>
+          </div>
+        </div>
+      </article>
+    );
+  };
 
   return (
     <main className="d-cont simple">
       <style>{`
-        /* ===== HERO: logo sobre fondo negro, grande ===== */
-        .hn-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; padding: 26px 32px; border-radius: 26px; background: linear-gradient(115deg, #000 0%, #030a07 42%, #0b2d1f 100%); border: 1px solid rgba(216,185,95,.6); box-shadow: 0 10px 30px rgba(7,33,26,.25); }
-        .hn-marca { display: flex; align-items: center; gap: 32px; min-width: 0; }
-        .hn-logo { width: 230px; height: 230px; flex-shrink: 0; border-radius: 34px; overflow: hidden; background: #000; border: 3px solid #d8b95f; box-shadow: 0 0 0 7px rgba(216,185,95,.14), 0 0 50px rgba(240,193,75,.28), 0 14px 34px rgba(0,0,0,.6); display: grid; place-items: center; padding: 0; box-sizing: border-box; }
-        .hn-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 30px; }
-        .hn-marca h1 { margin: 0; font-size: 46px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
-        .hn-marca p { margin: 8px 0 0; font-size: 14px; color: rgba(243,234,210,.78); }
+        /* ===== HERO: logo sobre fondo negro ===== */
+        .hn-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; padding: 18px 28px; border-radius: 24px; background: linear-gradient(115deg, #000 0%, #030a07 42%, #0b2d1f 100%); border: 1px solid rgba(216,185,95,.6); box-shadow: 0 10px 30px rgba(7,33,26,.25); }
+        .hn-marca { display: flex; align-items: center; gap: 24px; min-width: 0; }
+        .hn-logo { width: 132px; height: 132px; flex-shrink: 0; border-radius: 26px; overflow: hidden; background: #000; border: 3px solid #d8b95f; box-shadow: 0 0 0 6px rgba(216,185,95,.14), 0 0 40px rgba(240,193,75,.26), 0 12px 28px rgba(0,0,0,.6); display: grid; place-items: center; padding: 0; box-sizing: border-box; }
+        .hn-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 22px; }
+        .hn-marca h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 500; color: #f6e7b4; letter-spacing: .01em; }
+        .hn-marca p { margin: 8px 0 0; font-size: 13.5px; color: rgba(243,234,210,.78); }
         .hn-hero .d-btn { background: #f0c14b; color: #1b1608; }
         .hn-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid #ece7d6; }
         .hn-tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; border: 0; background: transparent; cursor: pointer; color: #7a857e; border-bottom: 3px solid transparent; margin-bottom: -1px; }
@@ -835,29 +973,45 @@ export default function HansPanel() {
         .hn-stats .rev b { color: #b7791f; }
         .hn-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
         .hn-bus { flex: 1 1 260px; max-width: 420px; padding: 8px 14px; border-radius: 99px; border: 1px solid rgba(128,128,128,.35); background: #fff; font: inherit; font-size: 13px; }
-        .hn-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+        .hn-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
         .hn-chips button { font: inherit; font-size: 12px; padding: 6px 13px; border-radius: 99px; border: 1px solid rgba(176,141,60,.4); background: #fff; cursor: pointer; }
         .hn-chips button[aria-pressed="true"] { background: #0b2d1f; border-color: #0b2d1f; color: #f3ead2; }
         .hn-chips button.rev { border-color: #e0a526; color: #8a5a00; background: #fff8e6; }
         .hn-chips button.rev[aria-pressed="true"] { background: #e0a526; color: #1b1608; border-color: #e0a526; }
-        .hn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        .hn-card { border-radius: 16px; overflow: hidden; background: #0e1a15; color: #f1ede0; border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; }
-        .hn-card.off { opacity: .8; border-color: rgba(240,193,75,.45); }
-        .hn-foto { position: relative; aspect-ratio: 4 / 3; background: #07241a; display: grid; place-items: center; color: #b08d3c; }
-        .hn-foto img { width: 100%; height: 100%; object-fit: cover; }
-        .hn-cnt { position: absolute; top: 8px; left: 8px; font-size: 11px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.65); color: #f3ead2; }
-        .hn-tipo { position: absolute; top: 8px; right: 8px; font-size: 10.5px; padding: 3px 9px; border-radius: 99px; background: #f0c14b; color: #1b1608; font-weight: 600; }
-        .hn-rev { position: absolute; bottom: 8px; left: 8px; font-size: 10.5px; padding: 3px 10px; border-radius: 99px; background: #e0a526; color: #1b1608; font-weight: 700; letter-spacing: .04em; }
-        .hn-oro { position: absolute; bottom: 8px; right: 8px; font-size: 10.5px; padding: 3px 10px; border-radius: 99px; background: rgba(6,16,11,.75); color: #f0c14b; border: 1px solid rgba(240,193,75,.5); font-weight: 600; }
-        .hn-info { padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-        .hn-info small { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #93a09a; }
-        .hn-info h3 { margin: 0; font-size: 18px; font-weight: 500; color: #fff; }
-        .hn-info p { margin: 0; font-size: 12px; line-height: 1.5; color: #b4bdb7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .hn-pre { display: flex; gap: 14px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+
+        /* ===== Catálogo por categorías ===== */
+        .hn-sec-h { display: flex; align-items: baseline; gap: 12px; margin: 26px 0 14px; }
+        .hn-sec-h h2 { margin: 0; font-size: 26px; font-weight: 500; color: #0b2d1f; }
+        .hn-sec-h small { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #8a6d1f; font-weight: 600; white-space: nowrap; }
+        .hn-sec-h i { flex: 1; height: 1px; background: #d8d3c4; }
+        .hn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; align-items: stretch; }
+        .hn-card { display: grid; grid-template-columns: minmax(150px, 38%) minmax(0, 1fr); border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #0a1511, #0e1f18); color: #f1ede0; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 10px 26px rgba(7,33,26,.2); min-height: 250px; }
+        .hn-card.off { border-color: rgba(240,193,75,.5); }
+        .hn-fwrap { position: relative; min-height: 220px; background: #07241a; }
+        .hn-zoom { position: absolute; inset: 0; overflow: hidden; cursor: zoom-in; background: #07241a; display: grid; place-items: center; }
+        .hn-zoom img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .18s ease-out; will-change: transform; user-select: none; }
+        .hn-nofoto { color: #b08d3c; font-size: 13px; }
+        .hn-lupa { position: absolute; left: 8px; bottom: 8px; font-size: 10.5px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.62); color: #f3ead2; opacity: 0; transition: opacity .2s; pointer-events: none; }
+        .hn-zoom:hover .hn-lupa { opacity: 1; }
+        .hn-thumbs { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 5px; z-index: 2; }
+        .hn-thumbs button { width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.8); background: rgba(0,0,0,.35); cursor: pointer; }
+        .hn-thumbs button[aria-pressed="true"] { background: #f0c14b; border-color: #f0c14b; }
+        .hn-cnt { position: absolute; top: 8px; left: 8px; z-index: 2; font-size: 11px; padding: 3px 9px; border-radius: 99px; background: rgba(6,16,11,.65); color: #f3ead2; pointer-events: none; }
+        .hn-info { padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .hn-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .hn-sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; letter-spacing: .08em; color: #93a09a; }
+        .hn-pill { font-size: 10.5px; padding: 3px 10px; border-radius: 99px; background: rgba(240,193,75,.14); color: #f0c14b; border: 1px solid rgba(240,193,75,.45); font-weight: 600; white-space: nowrap; text-decoration: none; }
+        .hn-pill.rev { background: #e0a526; color: #1b1608; border-color: #e0a526; font-weight: 700; letter-spacing: .04em; }
+        .hn-pill.oro { background: rgba(6,16,11,.6); }
+        .hn-pill.vid { cursor: pointer; }
+        .hn-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+        .hn-info h3 { margin: 0; font-size: 22px; font-weight: 500; color: #fff; line-height: 1.2; }
+        .hn-info p { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b4bdb7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .hn-pre { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; margin-top: 2px; }
+        .hn-pre > div { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); border-radius: 12px; padding: 8px 11px; }
         .hn-pre span { display: block; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: #93a09a; font-weight: 600; }
-        .hn-pre b { font-size: 16px; font-weight: 500; color: #f0c14b; }
+        .hn-pre b { font-size: 17px; font-weight: 500; color: #f0c14b; }
         .hn-pre em { font-style: normal; font-size: 10.5px; color: #93a09a; display: block; }
-        .hn-video { width: 100%; border-radius: 10px; background: #000; max-height: 180px; }
         .hn-acc { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
         .hn-sw { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; font-size: 11.5px; color: #b4bdb7; }
         .hn-tog { position: relative; width: 34px; height: 20px; padding: 0; border-radius: 99px; cursor: pointer; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); }
@@ -868,11 +1022,17 @@ export default function HansPanel() {
         .hn-b.v { background: transparent; color: #f0c14b; border: 1px solid rgba(240,193,75,.6); }
         .hn-b.x { width: 34px; padding: 0; background: rgba(255,255,255,.06); color: #c9d1cc; border: 1px solid rgba(255,255,255,.12); }
         .hn-b.x:hover { background: #b04a3f; color: #fff; }
+        .hn-nueva { min-height: 250px; border-radius: 20px; border: 2px dashed #d8b95f; background: #fffdf8; color: #7a6a30; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font: inherit; font-size: 13px; transition: background .2s, border-color .2s; }
+        .hn-nueva span { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #b08d3c; display: grid; place-items: center; font-size: 22px; line-height: 1; }
+        .hn-nueva:hover { background: #fff6dc; border-color: #b08d3c; }
         .hn-vacio { text-align: center; padding: 60px 20px; color: #7a857e; background: #faf8f2; border: 1px dashed #d8d3c4; border-radius: 20px; }
+
+        /* ===== Modales y formulario ===== */
         .hn-modal { position: fixed; inset: 0; background: rgba(10,20,15,.55); display: grid; place-items: center; z-index: 100; padding: 16px; }
         .hn-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; padding: 26px; }
         .hn-hoja h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
         .hn-sub { font-size: 13px; color: #7a857e; margin: 0 0 18px; }
+        .hn-catpill { display: inline-block; margin-left: 6px; padding: 2px 10px; border-radius: 99px; background: #0b2d1f; color: #f6e7b4; font-size: 12px; font-weight: 600; }
         .hn-f { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; margin-bottom: 14px; }
         .hn-f label, .hn-lb { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #44514a; }
         .hn-f input, .hn-f select, .hn-f textarea, .hn-in { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; box-sizing: border-box; }
@@ -897,7 +1057,7 @@ export default function HansPanel() {
         .hn-seg { display: inline-flex; border: 1px solid rgba(128,128,128,.4); border-radius: 10px; overflow: hidden; }
         .hn-seg button { font: inherit; font-size: 12.5px; padding: 8px 14px; border: 0; background: #fff; cursor: pointer; }
         .hn-seg button[aria-pressed="true"] { background: ${VERDE}; color: #f6e7b4; }
-        .hn-rowb { display: grid; grid-template-columns: 1.3fr .8fr .7fr 1.1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .hn-rowb { display: grid; grid-template-columns: 1.2fr .75fr 1fr .6fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
         .hn-rowb .res { font-size: 12px; color: #44514a; }
         .hn-mini { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid #b08d3c; background: #fffdf8; color: #7a6a30; cursor: pointer; font: inherit; font-size: 12.5px; }
         .hn-mini.d { width: 36px; padding: 0; border-color: rgba(176,74,63,.5); color: #b04a3f; }
@@ -943,16 +1103,22 @@ export default function HansPanel() {
         .hn-ds[open] > summary { border-bottom: 1px solid #e3eee7; margin-bottom: 12px; }
         .hn-p3 { position: sticky; top: -1px; z-index: 4; padding: 6px 0; background: #f3faf5; }
 
+        @media (max-width: 760px) {
+          .hn-grid { grid-template-columns: 1fr; }
+          .hn-card { grid-template-columns: 1fr; }
+          .hn-fwrap { min-height: 240px; }
+        }
         @media (max-width: 640px) {
           .hn-f { grid-template-columns: 1fr; }
           .hn-az { grid-template-columns: repeat(7, 1fr); }
-          .hn-hero { padding: 22px 16px; flex-direction: column; text-align: center; }
-          .hn-marca { flex-direction: column; gap: 16px; }
-          .hn-logo { width: 200px; height: 200px; border-radius: 30px; }
-          .hn-marca h1 { font-size: 32px; }
+          .hn-hero { padding: 18px 14px; flex-direction: column; text-align: center; }
+          .hn-marca { flex-direction: column; gap: 14px; }
+          .hn-logo { width: 150px; height: 150px; border-radius: 26px; }
+          .hn-marca h1 { font-size: 30px; }
+          .hn-sec-h h2 { font-size: 22px; }
           .hn-modal { padding: 0; align-items: end; }
           .hn-hoja, .hn-v3 { max-width: 100%; max-height: 94vh; border-radius: 22px 22px 0 0; padding: 18px 14px; }
-          .hn-rowb { grid-template-columns: 1fr 1fr 74px 36px; }
+          .hn-rowb { grid-template-columns: 1fr 1fr 1fr 64px 36px; }
           .hn-rowb .res { order: 5; grid-column: 1 / -1; text-align: center; background: #f3faf5; padding: 5px; border-radius: 8px; }
         }
       `}</style>
@@ -968,7 +1134,7 @@ export default function HansPanel() {
             <p>Venta al por mayor y menudeo · pulseras tejidas.<br />{nActivos} publicado{nActivos === 1 ? '' : 's'} de {lista.length}.</p>
           </div>
         </div>
-        {tab === 'catalogo' && <button type="button" className="d-btn" onClick={() => abrir()}>NUEVO ARTÍCULO</button>}
+        {tab === 'catalogo' && <button type="button" className="d-btn" onClick={() => abrir(catActual)}>NUEVO ARTÍCULO{catActual ? ` EN ${catActual.toUpperCase()}` : ''}</button>}
       </div>
 
       <div className="hn-tabs" role="tablist">
@@ -990,7 +1156,7 @@ export default function HansPanel() {
           calc18desde24={calc18desde24}
           guardarConfig={guardarConfig}
           guardando={guardandoCfg}
-          draw={{ pal: METAL.dorado, dije: drawDije, inicial: drawInicial }}
+          draw={{ metales: METAL, dije: drawDije, inicial: drawInicial }}
         />
       )}
 
@@ -1017,63 +1183,27 @@ export default function HansPanel() {
 
           {cargando ? (
             <div className="hn-vacio">Cargando…</div>
-          ) : visibles.length === 0 ? (
+          ) : grupos.length === 0 ? (
             <div className="hn-vacio">{lista.length === 0 ? 'Aún no hay artículos. Pulsa NUEVO ARTÍCULO para empezar.' : 'No hay artículos con ese filtro.'}</div>
           ) : (
-            <div className="hn-grid">
-              {visibles.map((x) => {
-                const fotos = parseFotos(x.foto_url);
-                const on = x.activo === 'true';
-                const xe = conG(x, piezas);
-                const pm = precioItem(xe, 'menudeo', cfg);
-                const pw = precioItem(xe, 'mayorista', cfg);
-                const tiene3d = !!parseDis(x.diseno);
-                return (
-                  <article key={x.id} className={`hn-card ${on ? '' : 'off'}`}>
-                    <div className="hn-foto">
-                      {fotos[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={fotos[0]} alt={x.nombre} />
-                      ) : (
-                        <span>Sin foto</span>
-                      )}
-                      {fotos.length > 1 && <span className="hn-cnt">{fotos.length} fotos</span>}
-                      <span className="hn-tipo">{tipoTxt(x.tipo)}</span>
-                      {!on && <span className="hn-rev">EN REVISIÓN</span>}
-                      {x.oro && <span className="hn-oro">Oro {x.oro}{gr(xe.gramos) ? ` · ${gr(xe.gramos)} g` : ''}</span>}
-                    </div>
-                    <div className="hn-info">
-                      <small>{x.categoria} · {x.codigo}</small>
-                      <h3>{x.nombre}</h3>
-                      <p>{x.descripcion || 'Sin descripción.'}</p>
-                      {x.video_url && <video className="hn-video" src={x.video_url} controls preload="metadata" playsInline />}
-                      <div className="hn-pre">
-                        {x.tipo !== 'mayorista' && x.tipo !== 'tejida' && (
-                          <div><span>Menudeo</span><b>{copN(pm.valor)}</b></div>
-                        )}
-                        {x.tipo === 'tejida' && <div><span>Precio</span><b>{copN(pm.valor)}</b></div>}
-                        {(x.tipo === 'mayorista' || x.tipo === 'ambos') && (
-                          <div>
-                            <span>Mayorista</span><b>{copN(pw.valor)}</b>
-                            {x.min_mayorista && <em>desde {x.min_mayorista} u.</em>}
-                          </div>
-                        )}
-                        <div><span>Stock</span><b>{x.stock || 0}</b></div>
-                      </div>
-                      <div className="hn-acc">
-                        <div className="hn-sw">
-                          <button type="button" role="switch" aria-checked={on} className="hn-tog" onClick={() => alternar(x)} aria-label={on ? 'Inhabilitar' : 'Publicar'} />
-                          <span>{on ? 'Publicado' : 'Inhabilitado'}</span>
-                        </div>
-                        {tiene3d && <button type="button" className="hn-b v" onClick={() => setVer3d(x)}>Ver 3D</button>}
-                        <button type="button" className="hn-b" onClick={() => abrirEditar(x)}>Editar</button>
-                        <button type="button" className="hn-b x" onClick={() => setBorrar(x)} aria-label={`Eliminar ${x.nombre}`}>✕</button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+            grupos.map((g) => (
+              <section key={g.c || '__sin'} className="hn-grp">
+                <div className="hn-sec-h">
+                  <h2>{g.c || 'Sin categoría'}</h2>
+                  <small>{g.items.length} pieza{g.items.length === 1 ? '' : 's'}</small>
+                  <i />
+                </div>
+                <div className="hn-grid">
+                  {g.items.map(tarjeta)}
+                  {g.c && (
+                    <button type="button" className="hn-nueva" onClick={() => abrir(g.c)}>
+                      <span>+</span>
+                      Nueva en {g.c}
+                    </button>
+                  )}
+                </div>
+              </section>
+            ))
           )}
         </>
       )}
@@ -1089,7 +1219,7 @@ export default function HansPanel() {
               <Pulsera3D dis={d} h={400} />
               <ul>
                 <li>Largo {d.longitud} cm · ancho {d.ancho} mm · acabado {d.metal}</li>
-                {d.balines.filter((b) => b.cant > 0).map((b, i) => <li key={i}>{b.cant} balín{b.cant === 1 ? '' : 'es'} {nombreTipo(b.tipo).toLowerCase()} de {b.mm} mm</li>)}
+                {d.balines.filter((b) => b.cant > 0).map((b, i) => <li key={i}>{b.cant} balín{b.cant === 1 ? '' : 'es'} {nombreTipo(b.tipo).toLowerCase()} de {b.mm} mm{b.metal ? ` · ${b.metal}` : ''}</li>)}
                 {d.inicial && <li>Inicial «{d.inicial.txt}» · {d.inicial.estilo} · {INI_TXT[d.inicial.tam]}</li>}
                 {d.dije && <li>Dije: {nombreDije(d.dije.id)}</li>}
                 <li><b>Peso total en oro: {t.total} g</b></li>
@@ -1117,7 +1247,12 @@ export default function HansPanel() {
         <div className="hn-modal" onMouseDown={(e) => e.target === e.currentTarget && setAbierto(false)}>
           <div className="hn-hoja" role="dialog" aria-modal="true" aria-label={editId ? 'Editar artículo' : 'Nuevo artículo'}>
             <h2>{editId ? 'Editar artículo' : 'Nuevo artículo'}</h2>
-            <p className="hn-sub">{editId ? 'Modifica los datos y guarda.' : 'Se crea inhabilitado (en revisión). Cuando lo revises y se vea bien, lo publicas con el interruptor de la tarjeta.'}</p>
+            <p className="hn-sub">
+              {editId
+                ? 'Modifica los datos y guarda.'
+                : 'Se crea inhabilitado (en revisión). Cuando lo revises y se vea bien, lo publicas con el interruptor de la tarjeta.'}
+              {form.categoria && <> Categoría:<span className="hn-catpill">{form.categoria}</span></>}
+            </p>
 
             <div className="hn-f">
               <div className="full"><label htmlFor="hn-n">Nombre</label><input id="hn-n" value={form.nombre} onChange={set('nombre')} placeholder="Ej.: Pulsera tejida hilo encerado" /></div>
@@ -1187,9 +1322,9 @@ export default function HansPanel() {
                         </select>
                       </div>
                     </div>
-                    <label className="hn-lb" style={{ marginTop: 12 }}>Acabado del metal</label>
+                    <label className="hn-lb" style={{ marginTop: 12 }}>Acabado del metal (general: balines sin color propio, inicial y dije)</label>
                     <div className="hn-seg" role="group" aria-label="Acabado del metal">
-                      {(['dorado', 'plateado', 'rosado'] as Metal[]).map((m) => (
+                      {METALES.map((m) => (
                         <button key={m} type="button" aria-pressed={dis.metal === m} onClick={() => upDis((d) => ({ ...d, metal: m }))}>{m[0].toUpperCase() + m.slice(1)}</button>
                       ))}
                     </div>
@@ -1206,6 +1341,10 @@ export default function HansPanel() {
                         <select className="hn-in" aria-label="Tamaño" value={b.mm} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, mm: Number(e.target.value) } : x)) }))}>
                           {!sizes.includes(b.mm) && <option value={b.mm}>{b.mm} mm</option>}
                           {sizes.map((s) => <option key={s} value={s}>{s} mm</option>)}
+                        </select>
+                        <select className="hn-in" aria-label="Color del balín" value={b.metal || ''} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, metal: esMetal(e.target.value) ? e.target.value : undefined } : x)) }))}>
+                          <option value="">General ({dis.metal})</option>
+                          {METALES.map((m) => <option key={m} value={m}>{m[0].toUpperCase() + m.slice(1)}</option>)}
                         </select>
                         <input className="hn-in" type="number" min={0} max={60} aria-label="Cantidad" value={b.cant} onChange={(e) => upDis((d) => ({ ...d, balines: d.balines.map((x, j) => (j === i ? { ...x, cant: Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)) } : x)) }))} />
                         <span className="res">{r2(pesoBalin(b, piezas, form.oro))} g c/u · {r2(pesoBalin(b, piezas, form.oro) * b.cant)} g</span>
@@ -1275,7 +1414,7 @@ export default function HansPanel() {
 
             <div className="hn-sec oro">
               <strong>Oro (precio automático)</strong>
-              <span>Si la prenda es de oro, el precio se calcula con el precio del gramo de la pestaña Configuración.</span>
+              <span>Si la prenda es de oro, el precio se calcula con el precio del gramo y los valores por balín de la pestaña Configuración.</span>
               <div className="hn-f" style={{ marginBottom: 0 }}>
                 <div>
                   <label htmlFor="hn-o">Quilataje</label>

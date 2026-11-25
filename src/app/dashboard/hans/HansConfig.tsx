@@ -5,15 +5,16 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 /* ---------- Tipos compartidos con HansPanel ---------- */
 export type PF = {
-  pesos: { mm: string; g: string }[];
+  pesos: { mm: string; g: string; v: string }[]; // v = valor fijo $ por unidad (opcional)
   tipos: { id: string; nombre: string; f: string }[];
   ini: { pequena: string; mediana: string; grande: string };
   dijes: { id: string; nombre: string; g: string }[];
 };
 type PalT = { hi: string; mid: string; lo: string; edge: string };
+type MetalK = 'dorado' | 'plateado' | 'rosado';
 type Ini = { txt: string; estilo: 'placa' | 'cuadrada' | 'letra'; tam: 'pequena' | 'mediana' | 'grande' };
 export type Draw = {
-  pal: PalT;
+  metales: Record<MetalK, PalT>;
   dije: (c: CanvasRenderingContext2D, id: string, pal: PalT, back: boolean) => void;
   inicial: (c: CanvasRenderingContext2D, ini: Ini, pal: PalT, back: boolean) => void;
 };
@@ -35,7 +36,11 @@ const PX_MM = 8; // escala del dibujo de balines: 8 px = 1 mm
 const INI_MM = { pequena: 7, mediana: 9, grande: 12 };
 const INI_TXT = { pequena: 'Pequeña', mediana: 'Mediana', grande: 'Grande' };
 const PRESET_DIJES = ['corazon', 'estrella', 'cruz', 'luna', 'mariposa', 'trebol', 'hamsa', 'infinito', 'ancla', 'medalla'];
-const VERDE = '#0b4a2e';
+const METALES: { k: MetalK; t: string }[] = [
+  { k: 'dorado', t: 'Dorado' },
+  { k: 'plateado', t: 'Plateado' },
+  { k: 'rosado', t: 'Rosado' },
+];
 
 const num = (s?: string) => Number(String(s || '').replace(/\D/g, '')) || 0;
 const gr = (s?: string) => Number(String(s || '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
@@ -46,7 +51,7 @@ const kindOf = (id: string) =>
     : id.includes('estri') || id.includes('rayad') ? 'estriado' : 'liso';
 
 /* ---------- Balín dibujado (SVG, diámetro en px) ---------- */
-function BeadSvg({ d, kind }: { d: number; kind: string }) {
+function BeadSvg({ d, kind, pal }: { d: number; kind: string; pal: PalT }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const r = d / 2;
   const lines: React.ReactNode[] = [];
@@ -54,28 +59,28 @@ function BeadSvg({ d, kind }: { d: number; kind: string }) {
     const step = Math.max(3, r * (kind === 'diamantado' ? 0.55 : 1));
     for (let t = -d, i = 0; t <= d; t += step, i++) {
       lines.push(<line key={`a${i}`} x1={t - d} y1={0} x2={t + d} y2={d} stroke="rgba(255,255,255,.55)" strokeWidth={Math.max(0.5, r * 0.05)} />);
-      if (kind === 'diamantado') lines.push(<line key={`b${i}`} x1={t + d} y1={0} x2={t - d} y2={d} stroke="rgba(70,35,0,.32)" strokeWidth={Math.max(0.5, r * 0.05)} />);
-      else lines.push(<line key={`b${i}`} x1={0} y1={t + d / 2} x2={d} y2={t + d / 2} stroke="rgba(70,35,0,.28)" strokeWidth={Math.max(0.5, r * 0.05)} />);
+      if (kind === 'diamantado') lines.push(<line key={`b${i}`} x1={t + d} y1={0} x2={t - d} y2={d} stroke="rgba(40,20,0,.32)" strokeWidth={Math.max(0.5, r * 0.05)} />);
+      else lines.push(<line key={`b${i}`} x1={0} y1={t + d / 2} x2={d} y2={t + d / 2} stroke="rgba(40,20,0,.28)" strokeWidth={Math.max(0.5, r * 0.05)} />);
     }
   } else if (kind === 'martillado') {
     for (let j = 0; j < 12; j++) {
       const ang = j * 2.4 + 1, rad = r * (0.2 + 0.65 * (((j * 37) % 10) / 10));
       const x = r + Math.cos(ang) * rad, y = r + Math.sin(ang) * rad;
-      lines.push(<circle key={`m${j}`} cx={x} cy={y} r={r * 0.17} fill="rgba(80,40,0,.28)" />);
+      lines.push(<circle key={`m${j}`} cx={x} cy={y} r={r * 0.17} fill="rgba(40,20,0,.28)" />);
       lines.push(<circle key={`n${j}`} cx={x - r * 0.04} cy={y - r * 0.05} r={r * 0.08} fill="rgba(255,255,255,.3)" />);
     }
   } else if (kind === 'estriado') {
-    for (let t = r * 0.2, i = 0; t < d; t += r * 0.38, i++) lines.push(<line key={`e${i}`} x1={0} y1={t} x2={d} y2={t} stroke="rgba(70,35,0,.35)" strokeWidth={Math.max(0.6, r * 0.07)} />);
+    for (let t = r * 0.2, i = 0; t < d; t += r * 0.38, i++) lines.push(<line key={`e${i}`} x1={0} y1={t} x2={d} y2={t} stroke="rgba(40,20,0,.35)" strokeWidth={Math.max(0.6, r * 0.07)} />);
   }
   return (
     <svg width={d} height={d} viewBox={`0 0 ${d} ${d}`} aria-hidden="true" style={{ display: 'block', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.45))' }}>
       <defs>
         <radialGradient id={`g${uid}`} cx="35%" cy="32%" r="78%">
-          <stop offset="0" stopColor="#fff3b0" /><stop offset=".5" stopColor="#e6b422" /><stop offset="1" stopColor="#8a5a00" />
+          <stop offset="0" stopColor={pal.hi} /><stop offset=".5" stopColor={pal.mid} /><stop offset="1" stopColor={pal.lo} />
         </radialGradient>
         <clipPath id={`c${uid}`}><circle cx={r} cy={r} r={r} /></clipPath>
       </defs>
-      <circle cx={r} cy={r} r={Math.max(0.5, r - 0.4)} fill={`url(#g${uid})`} stroke="#6b4300" strokeWidth=".6" />
+      <circle cx={r} cy={r} r={Math.max(0.5, r - 0.4)} fill={`url(#g${uid})`} stroke={pal.edge} strokeWidth=".6" />
       <g clipPath={`url(#c${uid})`}>{lines}</g>
       <ellipse cx={r * 0.64} cy={r * 0.6} rx={r * 0.2} ry={r * 0.13} fill="rgba(255,255,255,.6)" transform={`rotate(-35 ${r * 0.64} ${r * 0.6})`} />
     </svg>
@@ -105,10 +110,12 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
   const [nuevoMm, setNuevoMm] = useState('');
   const [nuevoTipo, setNuevoTipo] = useState('');
   const [nuevoDije, setNuevoDije] = useState('');
+  const [metal, setMetal] = useState<MetalK>('dorado');
+  const pal = draw.metales[metal];
   const p18 = num(cfgForm.oro18);
   const p24 = num(cfgForm.oro24);
 
-  const setPeso = (i: number, k: 'mm' | 'g', v: string) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const setPeso = (i: number, k: 'mm' | 'g' | 'v', v: string) => setPf((p) => ({ ...p, pesos: p.pesos.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
   const setTipo = (i: number, k: 'nombre' | 'f', v: string) => setPf((p) => ({ ...p, tipos: p.tipos.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
   const setDije = (i: number, k: 'nombre' | 'g', v: string) => setPf((p) => ({ ...p, dijes: p.dijes.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
 
@@ -119,7 +126,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
     const ref = pf.pesos.map((r) => ({ mm: gr(r.mm), g: gr(r.g) })).filter((r) => r.mm > 0 && r.g > 0)
       .sort((a, b) => Math.abs(a.mm - mm) - Math.abs(b.mm - mm))[0];
     const est = ref ? Math.round(ref.g * Math.pow(mm / ref.mm, 3) * 1000) / 1000 : 0.1;
-    setPf((p) => ({ ...p, pesos: [...p.pesos, { mm: String(mm), g: String(est) }].sort((a, b) => gr(a.mm) - gr(b.mm)) }));
+    setPf((p) => ({ ...p, pesos: [...p.pesos, { mm: String(mm), g: String(est), v: '' }].sort((a, b) => gr(a.mm) - gr(b.mm)) }));
     setNuevoMm('');
   }
   function addTipo() {
@@ -148,10 +155,14 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
         .cf * { box-sizing: border-box; }
         .cf-card { background: #fff; border: 1px solid #ece7d6; border-radius: 22px; padding: 22px 24px; box-shadow: 0 2px 14px rgba(11,45,31,.05); }
         .cf-h { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+        .cf-hx { flex: 1; min-width: 220px; }
         .cf-ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; background: linear-gradient(135deg, #0b2d1f, #14573f); color: #f0c14b; flex-shrink: 0; }
         .cf-h h2 { margin: 0; font-size: 22px; font-weight: 500; color: #0b2d1f; }
-        .cf-h p { margin: 3px 0 0; font-size: 12.5px; color: #7a857e; line-height: 1.5; max-width: 640px; }
+        .cf-h p { margin: 3px 0 0; font-size: 12.5px; color: #7a857e; line-height: 1.5; max-width: 700px; }
         .cf-2 { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 18px; align-items: start; }
+        .cf-seg { display: inline-flex; border: 1px solid #d8b95f; border-radius: 99px; overflow: hidden; background: #fffdf8; flex-shrink: 0; }
+        .cf-seg button { font: inherit; font-size: 12px; font-weight: 600; padding: 7px 14px; border: 0; background: transparent; cursor: pointer; color: #7a6a30; }
+        .cf-seg button[aria-pressed="true"] { background: #0b2d1f; color: #f6e7b4; }
 
         /* ORO */
         .cf-oro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -171,7 +182,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
         .cf-info b { font-size: 18px; font-weight: 500; color: #0b2d1f; text-align: right; }
 
         /* BALINES */
-        .cf-bgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+        .cf-bgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 12px; }
         .cf-b { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid #ece7d6; background: #fff; display: flex; flex-direction: column; }
         .cf-stage { height: 110px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, #14573f, #06191a 85%); position: relative; }
         .cf-stage::after { content: attr(data-mm); position: absolute; left: 8px; top: 6px; font-size: 11px; font-weight: 700; color: #f0c14b; letter-spacing: .04em; }
@@ -179,14 +190,18 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
         .cf-fld { display: flex; align-items: center; border: 1px solid rgba(128,128,128,.35); border-radius: 10px; background: #fffdf8; overflow: hidden; }
         .cf-fld input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; padding: 8px 6px 8px 10px; text-align: center; }
         .cf-fld em { font-style: normal; font-size: 11px; color: #8a978f; padding-right: 10px; }
+        .cf-fld.money { border-color: #d8b95f; background: #fff9e8; }
+        .cf-fld.money em { padding: 0 0 0 10px; color: #7a6a30; font-weight: 700; }
+        .cf-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #8a978f; font-weight: 700; text-align: center; margin-top: 2px; }
         .cf-val { text-align: center; font-size: 11px; color: #5a6b62; line-height: 1.5; }
         .cf-val b { color: #0b4a2e; font-weight: 600; }
+        .cf-val .fix { color: #8a5a00; }
         .cf-x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; border: 0; cursor: pointer; padding: 0; background: rgba(255,255,255,.14); color: #fff; line-height: 1; font-size: 12px; z-index: 2; }
         .cf-x:hover { background: #b04a3f; }
         .cf-addc { border-radius: 18px; border: 2px dashed #d8b95f; background: #fffdf8; padding: 14px; display: flex; flex-direction: column; gap: 8px; justify-content: center; min-height: 190px; text-align: center; font-size: 12px; color: #7a6a30; }
         .cf-btn { font: inherit; font-size: 12.5px; font-weight: 600; height: 38px; padding: 0 14px; border-radius: 10px; cursor: pointer; border: 1px solid #b08d3c; background: #0b2d1f; color: #f6e7b4; }
         .cf-btn:hover { background: #14573f; }
-        .cf-scale { margin: 14px 0 0; font-size: 11.5px; color: #8a978f; text-align: center; }
+        .cf-scale { margin: 14px 0 0; font-size: 11.5px; color: #8a978f; text-align: center; line-height: 1.5; }
 
         /* TIPOS */
         .cf-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
@@ -264,28 +279,45 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
       <section className="cf-card">
         <div className="cf-h">
           <div className="cf-ic">●</div>
-          <div>
-            <h2>Balines: peso por tamaño</h2>
-            <p>Peso de un balín <b>liso en oro 18 k</b> según su diámetro. Valores estimados: ajústalos con tu balanza. El 24 k se calcula ×{DENS_24}.</p>
+          <div className="cf-hx">
+            <h2>Balines: peso y valor por tamaño</h2>
+            <p>
+              Peso de un balín <b>liso en oro 18 k</b> según su diámetro (el 24 k se calcula ×{DENS_24}). El <b>valor fijo $</b> es opcional:
+              si lo escribes, ese balín vale siempre ese precio por unidad; si lo dejas vacío, vale <b>peso × precio del gramo</b>.
+              Todo se guarda en la hoja y, al cambiar el oro, con <b>Guardar y aplicar</b> se recalculan todas las prendas.
+            </p>
+          </div>
+          <div className="cf-seg" role="group" aria-label="Color de vista previa">
+            {METALES.map((m) => (
+              <button key={m.k} type="button" aria-pressed={metal === m.k} onClick={() => setMetal(m.k)}>{m.t}</button>
+            ))}
           </div>
         </div>
         <div className="cf-bgrid">
           {pf.pesos.map((r, i) => {
-            const mm = gr(r.mm), g = gr(r.g);
+            const mm = gr(r.mm), g = gr(r.g), v = num(r.v);
             const d = Math.max(8, Math.min(100, mm * PX_MM));
             return (
               <div className="cf-b" key={i}>
                 <div className="cf-stage" data-mm={mm ? `${mm} mm` : ''}>
                   <button type="button" className="cf-x" aria-label="Quitar tamaño" onClick={() => setPf((p) => ({ ...p, pesos: p.pesos.filter((_, j) => j !== i) }))}>✕</button>
-                  <BeadSvg d={d} kind="liso" />
+                  <BeadSvg d={d} kind="liso" pal={pal} />
                 </div>
                 <div className="cf-body">
                   <label className="cf-fld"><input aria-label="Diámetro" inputMode="decimal" value={r.mm} onChange={(e) => setPeso(i, 'mm', e.target.value)} /><em>mm</em></label>
                   <label className="cf-fld"><input aria-label="Peso" inputMode="decimal" value={r.g} onChange={(e) => setPeso(i, 'g', e.target.value)} /><em>g</em></label>
+                  <div className="cf-lbl">Valor fijo (opcional)</div>
+                  <label className="cf-fld money"><em>$</em><input aria-label="Valor fijo por unidad" inputMode="numeric" placeholder="automático" value={v ? v.toLocaleString('es-CO') : ''} onChange={(e) => setPeso(i, 'v', e.target.value.replace(/\D/g, ''))} /></label>
                   <div className="cf-val">
-                    {p18 > 0 && g > 0 ? <>18k <b>{copN(g * p18)}</b></> : <>&nbsp;</>}
-                    <br />
-                    {p24 > 0 && g > 0 ? <>24k <b>{copN(g * DENS_24 * p24)}</b></> : <>&nbsp;</>}
+                    {v > 0 ? (
+                      <><span className="fix">Valor fijo</span> <b>{copN(v)}</b><br />&nbsp;</>
+                    ) : (
+                      <>
+                        {p18 > 0 && g > 0 ? <>18k <b>{copN(g * p18)}</b></> : <>&nbsp;</>}
+                        <br />
+                        {p24 > 0 && g > 0 ? <>24k <b>{copN(g * DENS_24 * p24)}</b></> : <>&nbsp;</>}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -305,9 +337,9 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
         <section className="cf-card">
           <div className="cf-h">
             <div className="cf-ic">◆</div>
-            <div>
+            <div className="cf-hx">
               <h2>Tipos de balín</h2>
-              <p>El % indica cuánto pesa frente al liso (100 %). Un diamantado pesa menos porque pierde metal al tallarse.</p>
+              <p>El % indica cuánto pesa frente al liso (100 %). Un diamantado pesa menos porque pierde metal al tallarse. También afecta el valor fijo.</p>
             </div>
           </div>
           <div className="cf-tgrid">
@@ -317,7 +349,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
                 <div className="cf-t" key={t.id}>
                   <div className="cf-stage">
                     {t.id !== 'liso' && <button type="button" className="cf-x" aria-label="Quitar tipo" onClick={() => setPf((p) => ({ ...p, tipos: p.tipos.filter((_, j) => j !== i) }))}>✕</button>}
-                    <BeadSvg d={72} kind={kindOf(`${t.id} ${t.nombre.toLowerCase()}`)} />
+                    <BeadSvg d={72} kind={kindOf(`${t.id} ${t.nombre.toLowerCase()}`)} pal={pal} />
                   </div>
                   <input aria-label="Nombre del tipo" value={t.nombre} onChange={(e) => setTipo(i, 'nombre', e.target.value)} />
                   <label className="cf-fld"><input aria-label="Peso vs liso" inputMode="decimal" value={t.f} onChange={(e) => setTipo(i, 'f', e.target.value)} /><em>%</em></label>
@@ -337,7 +369,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
         <section className="cf-card">
           <div className="cf-h">
             <div className="cf-ic">A</div>
-            <div>
+            <div className="cf-hx">
               <h2>Placa de inicial</h2>
               <p>Peso en gramos (oro 18 k) según el tamaño. Dibujadas a escala real.</p>
             </div>
@@ -346,7 +378,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
             {(['pequena', 'mediana', 'grande'] as const).map((k) => (
               <div className="cf-i" key={k}>
                 <div className="cf-stage" data-mm={`${INI_MM[k]} mm`}>
-                  <Pieza w={96} h={96} s={6} fn={(c) => draw.inicial(c, { txt: 'A', estilo: 'placa', tam: k }, draw.pal, false)} />
+                  <Pieza w={96} h={96} s={6} fn={(c) => draw.inicial(c, { txt: 'A', estilo: 'placa', tam: k }, pal, false)} />
                 </div>
                 <div className="cf-body">
                   <strong>{INI_TXT[k]}</strong>
@@ -363,7 +395,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
       <section className="cf-card">
         <div className="cf-h">
           <div className="cf-ic">♥</div>
-          <div>
+          <div className="cf-hx">
             <h2>Dijes</h2>
             <p>Peso en gramos (oro 18 k) de cada dije. Los que agregues se muestran como una placa genérica.</p>
           </div>
@@ -373,7 +405,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
             <div className="cf-d" key={d.id}>
               <div className="cf-stage">
                 {!PRESET_DIJES.includes(d.id) && <button type="button" className="cf-x" aria-label="Quitar dije" onClick={() => setPf((p) => ({ ...p, dijes: p.dijes.filter((_, j) => j !== i) }))}>✕</button>}
-                <Pieza w={90} h={90} s={5.2} dy={2} fn={(c) => draw.dije(c, d.id, draw.pal, false)} />
+                <Pieza w={90} h={90} s={5.2} dy={2} fn={(c) => draw.dije(c, d.id, pal, false)} />
               </div>
               <div className="cf-body">
                 <input aria-label="Nombre del dije" value={d.nombre} onChange={(e) => setDije(i, 'nombre', e.target.value)} />
@@ -391,7 +423,7 @@ export default function HansConfig({ cfg, cfgForm, setCfgForm, nOro, pf, setPf, 
       </section>
 
       <div className="cf-sticky">
-        <span>Al guardar se recalculan pesos y precios de todas las prendas con oro.</span>
+        <span>Si cambió el oro, escribe el nuevo precio y guarda: se recalculan pesos y precios de todas las prendas con oro.</span>
         <button type="button" onClick={guardarConfig} disabled={guardando}>{guardando ? 'APLICANDO…' : 'GUARDAR Y APLICAR A TODAS'}</button>
       </div>
     </div>
