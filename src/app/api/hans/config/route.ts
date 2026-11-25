@@ -1,31 +1,10 @@
 // 📁 RUTA: src/app/api/hans/config/route.ts
 import { NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { leerConfigHans, guardarConfigHans } from '@/lib/hans';
+import { autorizada } from '@/lib/admin';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-// Se guarda en <proyecto>/data/hans-config.json (la carpeta se crea sola).
-const DIR = path.join(process.cwd(), 'data');
-const FILE = path.join(DIR, 'hans-config.json');
-
-type Config = { oro18: number; oro24: number; actualizado: string; piezas: unknown | null };
-const VACIO: Config = { oro18: 0, oro24: 0, actualizado: '', piezas: null };
-
-async function leer(): Promise<Config> {
-  try {
-    const d = JSON.parse(await fs.readFile(FILE, 'utf8'));
-    return {
-      oro18: Number(d.oro18) || 0,
-      oro24: Number(d.oro24) || 0,
-      actualizado: typeof d.actualizado === 'string' ? d.actualizado : '',
-      piezas: d.piezas && typeof d.piezas === 'object' ? d.piezas : null,
-    };
-  } catch {
-    return VACIO;
-  }
-}
 
 // Validación básica de la tabla de piezas (balines, inicial, dijes)
 function piezasValidas(p: unknown): boolean {
@@ -38,10 +17,16 @@ function piezasValidas(p: unknown): boolean {
 }
 
 export async function GET() {
-  return NextResponse.json(await leer(), { headers: { 'Cache-Control': 'no-store' } });
+  try {
+    return NextResponse.json(await leerConfigHans(), { headers: { 'Cache-Control': 'no-store' } });
+  } catch (e) {
+    console.error('[hans config GET]', e);
+    return NextResponse.json({ error: 'No se pudo leer la configuración' }, { status: 500 });
+  }
 }
 
 export async function PUT(req: Request) {
+  if (!(await autorizada(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   try {
     const b = await req.json();
     const oro18 = Math.round(Number(b.oro18) || 0);
@@ -52,16 +37,17 @@ export async function PUT(req: Request) {
     if (b.piezas !== undefined && !piezasValidas(b.piezas)) {
       return NextResponse.json({ error: 'Tabla de piezas inválida' }, { status: 400 });
     }
-    const prev = await leer();
-    const cfg: Config = {
-      oro18, oro24,
+    const prev = await leerConfigHans();
+    const cfg = {
+      oro18,
+      oro24,
       actualizado: new Date().toISOString(),
       piezas: b.piezas !== undefined ? b.piezas : prev.piezas,
     };
-    await fs.mkdir(DIR, { recursive: true });
-    await fs.writeFile(FILE, JSON.stringify(cfg, null, 2), 'utf8');
+    await guardarConfigHans(cfg);
     return NextResponse.json(cfg);
-  } catch {
+  } catch (e) {
+    console.error('[hans config PUT]', e);
     return NextResponse.json({ error: 'No se pudo guardar la configuración' }, { status: 500 });
   }
 }

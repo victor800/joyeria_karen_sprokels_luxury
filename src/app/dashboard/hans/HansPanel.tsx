@@ -872,22 +872,22 @@ export default function HansPanel() {
       setCfg(nuevo); setPiezas(pn);
 
       const afectadas = lista.filter((x) => x.oro && precioGramo(x.oro, nuevo) > 0 && gr(conG(x, pn).gramos) > 0);
-      let fallos = 0;
-      const resultados = await Promise.all(
-        afectadas.map(async (x) => {
-          const xe = conG(x, pn);
-          const m = precioDe(xe, 'menudeo', nuevo, pn).valor;
-          const w = precioDe(xe, 'mayorista', nuevo, pn).valor;
-          try {
-            const r = await fetch(`/api/hans/${x.id}`, {
-              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ gramos: xe.gramos || '', precio_menudeo: String(m), precio_mayorista: String(w) }),
-            });
-            if (!r.ok) throw new Error();
-            return await r.json();
-          } catch { fallos++; return null; }
-        }),
-      );
+           let fallos = 0;
+      const resultados: (Item | null)[] = [];
+      for (const x of afectadas) {
+        const xe = conG(x, pn);
+        const m = precioDe(xe, 'menudeo', nuevo, pn).valor;
+        const w = precioDe(xe, 'mayorista', nuevo, pn).valor;
+        try {
+          const r = await fetch(`/api/hans/${x.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gramos: xe.gramos || '', precio_menudeo: String(m), precio_mayorista: String(w) }),
+          });
+          if (!r.ok) throw new Error();
+          resultados.push(await r.json());
+        } catch { fallos++; resultados.push(null); }
+      }
+      
       const mapa = new Map<string, Item>();
       resultados.forEach((r) => { if (r?.id) mapa.set(r.id, r); });
       setLista((l) => l.map((x) => mapa.get(x.id) ?? x));

@@ -5,11 +5,13 @@ import { hojas, SHEET_ID } from '@/lib/google-sheets';
 const ID_HOJA = () => process.env.GOOGLE_SHEET_ID_HANS || SHEET_ID();
 const ART = 'Hans_Articulos';
 const CAT = 'Hans_Categorias';
+const CFG = 'Hans_Config';
 const CATS_BASE = ['Pulseras tejidas', 'Anillos', 'Collares', 'Aretes', 'Cadenas', 'Dijes'];
 
 const COLS = [
   'id', 'codigo', 'nombre', 'categoria', 'tipo', 'material', 'precio_menudeo', 'precio_mayorista',
   'min_mayorista', 'stock', 'descripcion', 'foto_url', 'video_url', 'activo', 'creado', 'actualizado',
+  'oro', 'gramos', 'mano_obra', 'mano_obra_mayor', 'diseno',
 ] as const;
 export type HansItem = Record<(typeof COLS)[number], string>;
 const EDITABLES = COLS.filter((c) => !['id', 'codigo', 'creado', 'actualizado'].includes(c));
@@ -28,7 +30,9 @@ async function asegurarPestana(nombre: string, encabezado: string[]) {
     });
   }
   const r = await api.spreadsheets.values.get({ spreadsheetId: ID_HOJA(), range: `${nombre}!A1:${letra(encabezado.length)}1` });
-  if (!r.data.values?.length) {
+  const actual = (r.data.values?.[0] ?? []).map(String);
+  // Si no hay encabezado, o es una versión vieja (faltan columnas), lo reescribe
+  if (actual.length < encabezado.length || encabezado.some((h, i) => actual[i] !== h)) {
     await api.spreadsheets.values.update({
       spreadsheetId: ID_HOJA(),
       range: `${nombre}!A1`,
@@ -61,9 +65,13 @@ function limpiar(cuerpo: Record<string, unknown>) {
   }
   if (out.tipo !== undefined && !TIPOS.includes(out.tipo)) throw new Error('Tipo de venta inválido');
   if (out.activo !== undefined) out.activo = out.activo === 'true' ? 'true' : 'false';
-  for (const k of ['precio_menudeo', 'precio_mayorista', 'min_mayorista', 'stock'] as const) {
+  if (out.oro !== undefined && !['', '18k', '24k'].includes(out.oro)) out.oro = '';
+  for (const k of ['precio_menudeo', 'precio_mayorista', 'min_mayorista', 'stock', 'mano_obra', 'mano_obra_mayor'] as const) {
     if (out[k] !== undefined) out[k] = out[k]!.replace(/\D/g, '');
   }
+  // gramos conserva el decimal (ej. 3.5)
+  if (out.gramos !== undefined) out.gramos = out.gramos.replace(',', '.').replace(/[^\d.]/g, '');
+  if (out.diseno !== undefined && out.diseno.length > 45000) throw new Error('El diseño es demasiado grande');
   return out;
 }
 
@@ -158,4 +166,46 @@ export async function crearCategoriaHans(nombre: string) {
     requestBody: { values: [[n]] },
   });
   return [...actuales, n];
+}
+
+/* ---------- Configuración (precio del oro + tabla de piezas) en la hoja Hans_Config ---------- */
+export type HansConfig = { oro18: number; oro24: number; actualizado: string; piezas: unknown | null };
+
+export async function leerConfigHans(): Promise<HansConfig> {
+  await asegurarPestana(CFG, ['clave', 'valor']);
+  const r = await hojas().spreadsheets.values.get({ spreadsheetId: ID_HOJA(), range: `${CFG}!A2:B` });
+  const m = new Map<string, string>();
+  (r.data.values ?? []).forEach((f) => m.set(String(f[0] ?? ''), String(f[1] ?? '')));
+  let piezas: unknown | null = null;
+  try {
+    const p = JSON.parse(m.get('piezas') || 'null');
+    if (p && typeof p === 'object') piezas = p;
+  } catch {}
+  return {
+    oro18: Number(m.get('oro18')) || 0,
+    oro24: Number(m.get('oro24')) || 0,
+    actualizado: m.get('actualizado') || '',
+    piezas,
+  };
+}
+
+export async function guardarConfigHans(c: HansConfig) {
+  await asegurarPestana(CFG, ['clave', 'valor']);
+  const json = JSON.stringify(c.piezas ?? null);
+  if (json.length > 45000) throw new Error('La tabla de piezas es demasiado grande');
+  // Reescribe la hoja completa (son solo 4 filas)
+  await hojas().spreadsheets.values.clear({ spreadsheetId: ID_HOJA(), range: `${CFG}!A2:B` });
+  await hojas().spreadsheets.values.update({
+    spreadsheetId: ID_HOJA(),
+    range: `${CFG}!A2`,
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [
+        ['oro18', String(c.oro18)],
+        ['oro24', String(c.oro24)],
+        ['actualizado', c.actualizado],
+        ['piezas', json],
+      ],
+    },
+  });
 }
