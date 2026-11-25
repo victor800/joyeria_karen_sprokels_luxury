@@ -32,7 +32,11 @@ function fechaCorta(iso?: unknown) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
 }
 
-/** Versión antigua (tabla genérica). Se deja igual por si otra página la usa. */
+/**
+ * Tabla genérica para PedidosTabla.
+ * Orden: 0 N°, 1 Cliente, 2 Prenda, 3 Total, 4 Entrega, 5 Estado, 6 Pago,
+ *        7 Domiciliario, 8 Valor domicilio, 9 Nota, 10 Teléfono, 11 Destino
+ */
 export async function leerPedidos(joyeriaId: string): Promise<Cel[][]> {
   await asegurarPestana(HOJA_PEDIDOS);
   const { data } = await hojas().spreadsheets.values.get({
@@ -58,6 +62,8 @@ export async function leerPedidos(joyeriaId: string): Promise<Cel[][]> {
         String(r[11] || '—'),
         valorDom ? cop(valorDom) : '—',
         String(r[9] || '—'),
+        String(r[13] || ''), // Teléfono del cliente
+        String(r[14] || ''), // Destino / dirección
       ];
     });
 }
@@ -124,6 +130,14 @@ export type NuevoPedido = {
   valorDomicilio: number;
 };
 
+/** Arma la fila A–O de la hoja a partir de los datos del pedido */
+function filaHoja(joyeriaId: string, numero: string, creado: string, p: NuevoPedido) {
+  return [
+    joyeriaId, numero, creado, p.cliente, p.prenda, p.total, p.entrega, p.estado, p.pago,
+    p.nota, p.domiciliarioId, p.domiciliarioNombre, p.valorDomicilio, p.telefono, p.destino,
+  ];
+}
+
 /** Agrega el pedido al final de la hoja con el ID de la joyería. Devuelve el N° generado. */
 export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<string> {
   await asegurarPestana(HOJA_PEDIDOS);
@@ -152,12 +166,7 @@ export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<st
     // RAW: un texto como "=SUMA(...)" se guarda como texto, no como fórmula
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
-    requestBody: {
-      values: [[
-        joyeriaId, numero, new Date().toISOString(), p.cliente, p.prenda, p.total, p.entrega, p.estado, p.pago,
-        p.nota, p.domiciliarioId, p.domiciliarioNombre, p.valorDomicilio, p.telefono, p.destino,
-      ]],
-    },
+    requestBody: { values: [filaHoja(joyeriaId, numero, new Date().toISOString(), p)] },
   });
   return numero;
 }
@@ -175,6 +184,60 @@ export async function cambiarEstadoPedido(joyeriaId: string, numero: string, est
     range: `${HOJA_PEDIDOS}!H${i + 2}`, // columna H = Estado; la fila 1 es el encabezado
     valueInputOption: 'RAW',
     requestBody: { values: [[estado]] },
+  });
+  return true;
+}
+
+/**
+ * Edita un pedido de ESTA joyería (conserva el N° y la fecha de creación).
+ * false = no se encontró el pedido.
+ */
+export async function actualizarPedido(joyeriaId: string, numero: string, p: NuevoPedido): Promise<boolean> {
+  await asegurarPestana(HOJA_PEDIDOS);
+  const api = hojas();
+  const spreadsheetId = SHEET_ID();
+  const { data } = await api.spreadsheets.values.get({ spreadsheetId, range: `${HOJA_PEDIDOS}!A2:C` });
+  const filas = data.values ?? [];
+  const i = filas.findIndex((r) => r[0] === joyeriaId && String(r[1]) === numero);
+  if (i < 0) return false;
+
+  const creado = String(filas[i][2] ?? '') || new Date().toISOString();
+  const fila = i + 2; // la fila 1 es el encabezado
+  await api.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${HOJA_PEDIDOS}!A${fila}:${ULTIMA_COL}${fila}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [filaHoja(joyeriaId, numero, creado, p)] },
+  });
+  return true;
+}
+
+/** Elimina la fila de un pedido de ESTA joyería. false = no se encontró el pedido. */
+export async function eliminarPedido(joyeriaId: string, numero: string): Promise<boolean> {
+  await asegurarPestana(HOJA_PEDIDOS);
+  const api = hojas();
+  const spreadsheetId = SHEET_ID();
+  const { data } = await api.spreadsheets.values.get({ spreadsheetId, range: `${HOJA_PEDIDOS}!A2:B` });
+  const i = (data.values ?? []).findIndex((r) => r[0] === joyeriaId && String(r[1]) === numero);
+  if (i < 0) return false;
+
+  // deleteDimension necesita el id numérico de la pestaña, no su nombre
+  const meta = await api.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(sheetId,title)' });
+  const sheetId = meta.data.sheets?.find((s) => s.properties?.title === HOJA_PEDIDOS)?.properties?.sheetId;
+  if (sheetId == null) return false;
+
+  await api.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            // índices base 0: la fila 1 (encabezado) es el 0, así que el dato i está en i + 1
+            range: { sheetId, dimension: 'ROWS', startIndex: i + 1, endIndex: i + 2 },
+          },
+        },
+      ],
+    },
   });
   return true;
 }
