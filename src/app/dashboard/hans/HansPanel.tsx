@@ -9,7 +9,7 @@ const LOGO_HANS = '/hans.jpeg';
 
 type Tipo = 'menudeo' | 'mayorista' | 'ambos' | 'tejida';
 type Oro = '' | '18k' | '24k';
-type Metal = 'dorado' | 'plateado' | 'rosado';
+type Metal = 'dorado' | 'plateado' | 'rosado' | 'negro';
 type Item = {
   id: string; codigo: string; nombre: string; categoria: string; tipo: Tipo; material: string;
   precio_menudeo: string; precio_mayorista: string; min_mayorista: string; stock: string;
@@ -39,7 +39,7 @@ type Piezas = {
 const DENS_24 = 1.24; // el oro 24k pesa ~24 % más que el 18k para la misma pieza
 const INI_MM = { pequena: 7, mediana: 9, grande: 12 };
 const INI_TXT = { pequena: 'Pequeña (7 mm)', mediana: 'Mediana (9 mm)', grande: 'Grande (12 mm)' };
-const METALES: Metal[] = ['dorado', 'plateado', 'rosado'];
+const METALES: Metal[] = ['dorado', 'plateado', 'rosado', 'negro'];
 
 const DEF_PIEZAS: Piezas = {
   tipos: [
@@ -78,7 +78,7 @@ const defDis = (): Dis => ({
   balines: [{ tipo: 'liso', mm: 4, cant: 5 }], inicial: null, dije: null,
 });
 
-const esMetal = (m: unknown): m is Metal => m === 'dorado' || m === 'plateado' || m === 'rosado';
+const esMetal = (m: unknown): m is Metal => m === 'dorado' || m === 'plateado' || m === 'rosado' || m === 'negro';
 
 function parseDis(s?: string): Dis | null {
   if (!s) return null;
@@ -215,6 +215,7 @@ export const METAL: Record<Metal, Pal> = {
   dorado: { hi: '#fff3b0', mid: '#e6b422', lo: '#8a5a00', edge: '#6b4300' },
   plateado: { hi: '#ffffff', mid: '#c4cbd2', lo: '#5d6670', edge: '#46505a' },
   rosado: { hi: '#ffe3d6', mid: '#e0a08a', lo: '#8c4a3a', edge: '#6b3328' },
+    negro: { hi: '#8a9099', mid: '#2a2d33', lo: '#07080a', edge: '#000000' },
 };
 const hex2rgb = (h: string): [number, number, number] => {
   const m = /^#?([0-9a-f]{6})$/i.exec((h || '').trim());
