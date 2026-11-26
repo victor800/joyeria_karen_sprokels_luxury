@@ -357,7 +357,7 @@ body { margin: 0; background: #030c08; }
 @keyframes mw-flota { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
 /* Caja del precio del oro: tarjeta flotante de cristal */
-.mw-oro-bar { position: relative; z-index: 1; width: 100%; max-width: none; padding: 0 28px 26px; background: transparent; scroll-margin-top: 68px; }
+.mw-oro-bar { position: relative; z-index: 1; width: 100%; max-width: none; padding: 0 28px 60px; background: transparent; scroll-margin-top: 68px; }
 .mw-oro-in { max-width: 1180px; margin: 0 auto; padding: 16px 26px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
   border: 1px solid rgba(224,183,63,.45); border-radius: 14px; background: linear-gradient(135deg, rgba(8,42,27,.78), rgba(3,12,8,.82)); backdrop-filter: blur(12px);
   box-shadow: 0 18px 44px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07); }
@@ -642,7 +642,7 @@ body { margin: 0; background: #030c08; }
     -webkit-mask-composite: source-in; mask-composite: intersect; }
   .mw .hv.on { opacity: 1; }
   .mw-btn { flex: 1; padding: 15px 16px; }
-  .mw-oro-bar { padding: 0 16px 18px; }
+  .mw-oro-bar { padding: 0 16px 56px; }
   .mw-oro-in { padding: 12px 14px; } .mw-oro-in > span { width: 100%; }
   .mw-oro-in div { width: 100%; justify-content: space-between; } .mw-oro-in div p { padding: 0 10px; } .mw-oro-in div p:first-child { padding-left: 0; } .mw-oro-in b { font-size: 15px; }
 
