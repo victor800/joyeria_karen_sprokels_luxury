@@ -1,9 +1,9 @@
-// 📁 RUTA: src/app/t/[slug]/CatalogoPublico.tsx
+// 📁 RUTA: src/app/t/[slug]/CatalogoPublico.tsx   (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { rutaFoto } from '@/lib/foto-url';
-import { ArmaMalla, TallerReparacion, type DatosMalla } from './SeccionesTaller';
+import { ArmaMalla, type DatosMalla } from './SeccionesTaller';   // ⟵ CAMBIO: el taller ya no va aquí
 
 export type VarianteP = { tamano: string; peso: string; stock: number; precio: number; fotos: string[] };
 export type PrendaP = {
@@ -12,13 +12,14 @@ export type PrendaP = {
 };
 
 type Item = { key: string; id: string; nombre: string; tamano: string; precio: number; qty: number; max: number; foto: string };
-type Vista = 'catalogo' | 'malla' | 'taller';
+type Vista = 'catalogo' | 'malla';   // ⟵ CAMBIO: solo dos pestañas
 
 const LS_CARRITO = 'mw-carrito';
 const LS_LIKES = 'mw-likes';
 const EV_CARRITO = 'mw-carrito';
 const EV_ABRIR = 'mw-abrir-carrito';
-/** Para cambiar de sección desde fuera: window.dispatchEvent(new CustomEvent('mw-vista', { detail: 'malla' })) */
+/** Para cambiar de sección desde fuera: window.dispatchEvent(new CustomEvent('mw-vista', { detail: 'malla' }))
+ *  'taller' ya no es pestaña: baja hasta la sección del taller. */
 const EV_VISTA = 'mw-vista';
 const LS_CUPON = 'mw-cupon';
 const LS_ENVIO = 'mw-envio';
@@ -398,7 +399,8 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
     const releer = () => { setItems(leer<Item[]>(LS_CARRITO, [])); setCupon(leer<Cupon | null>(LS_CUPON, null)); };
     const irVista = (e: Event) => {
       const d = (e as CustomEvent<string>).detail;
-      if (d === 'catalogo' || d === 'malla' || d === 'taller') setVista(d);
+      if (d === 'catalogo' || d === 'malla') setVista(d);
+      else if (d === 'taller') document.getElementById('reparacion')?.scrollIntoView({ behavior: 'smooth', block: 'start' });   // ⟵ CAMBIO
     };
     window.addEventListener(EV_ABRIR, abrir);
     window.addEventListener(EV_CARRITO, releer);
@@ -446,11 +448,11 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
     avisar('Agregado al carrito');
   };
 
-  /** Malla armada en el visor 3D (pieza hecha a pedido: hasta 5 iguales por pedido) */
+  /** Manilla armada en el visor 3D (pieza hecha a pedido: hasta 5 iguales por pedido) */
   const agregarMalla = (d: DatosMalla) => {
     const ex = items.find((i) => i.key === d.key);
     if (ex) {
-      if (ex.qty >= ex.max) return avisar('Máximo 5 mallas iguales por pedido');
+      if (ex.qty >= ex.max) return avisar('Máximo 5 manillas iguales por pedido');   // ⟵ CAMBIO
       persistir(items.map((i) => (i.key === d.key ? { ...i, qty: i.qty + 1, precio: d.precio } : i)));
     } else {
       persistir([...items, {
@@ -458,7 +460,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
         qty: 1, max: 5, foto: d.foto,
       }]);
     }
-    avisar('Malla agregada al carrito');
+    avisar('Manilla agregada al carrito');   // ⟵ CAMBIO
   };
 
   const cambiar = (key: string, d: number) =>
@@ -601,10 +603,10 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
   );
 
   const titulos = ['Tu carrito', 'Datos de envío', 'Confirma tu pedido'];
+  /* ⟵ CAMBIO: solo dos pestañas; "Taller de reparación" se movió a la sección del taller (abajo) */
   const TABS: { id: Vista; t: string }[] = [
     { id: 'catalogo', t: 'Catálogo' },
-    { id: 'malla', t: 'Arma tu malla' },
-    { id: 'taller', t: 'Taller de reparación' },
+    { id: 'malla', t: 'Arma tu manilla' },
   ];
 
   return (
@@ -839,7 +841,6 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
       )}
 
       {vista === 'malla' && <ArmaMalla onAdd={agregarMalla} wa={wa} />}
-      {vista === 'taller' && <TallerReparacion wa={wa} />}
 
       {pFicha && (
         <Ficha p={pFicha} liked={likes.includes(pFicha.id)} conteo={conteos[pFicha.id] ?? 0}

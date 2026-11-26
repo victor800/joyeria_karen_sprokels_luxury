@@ -1,4 +1,4 @@
-// 📁 RUTA: src/app/t/[slug]/page.tsx
+// 📁 RUTA: src/app/t/[slug]/page.tsx   (REEMPLAZA TODO EL ARCHIVO)
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
@@ -9,6 +9,7 @@ import HeroVideo from './HeroVideo';
 import PromocionesPublicas, { type PromoP } from './PromocionesPublicas';
 import CotizacionModal from './CotizacionModal';
 import TallerSeccion from './TallerSeccion';
+import TallerReparacionBloque from './TallerReparacionBloque';   // ⟵ CAMBIO: antes era la 3.ª pestaña del catálogo
 import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
 import MenuInferior from './MenuInferior';
@@ -39,10 +40,10 @@ const INSTAGRAM = 'https://www.instagram.com/joyeria_jks_luxury';
 const FOTO_BANNER = '/pieza13.jpeg';
 const LOGO_JKS = '/logo-jks.jpeg';
 
-/* WhatsApp de cada marca (10 dígitos; waLink agrega el 57) */          // ⟵ CAMBIO
-const WA_JKS = '3225390512';    // Karen Sprockel's (línea principal)   // ⟵ CAMBIO
-const WA_JKS_2 = '3215400151';  // Karen Sprockel's (segunda línea)     // ⟵ CAMBIO
-const WA_HANS = '3046298269';   // Joyería Hans                         // ⟵ CAMBIO
+/* WhatsApp de cada marca (10 dígitos; waLink agrega el 57) */
+const WA_JKS = '3225390512';    // Karen Sprockel's (línea principal)
+const WA_JKS_2 = '3215400151';  // Karen Sprockel's (segunda línea)
+const WA_HANS = '3046298269';   // Joyería Hans
 
 /* ═══════════════════════════════════════════════
    UTILIDADES
@@ -761,10 +762,10 @@ export default async function TiendaPublica({ params }: Params) {
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
   const ig = instagramUser(f.instagram);
   const dom = cop(f.domicilio);
-  // Karen usa su número fijo; si algún día lo quitas, cae al teléfono de Configuración   // ⟵ CAMBIO
-  const wa = WA_JKS ? waLink(WA_JKS) : waLink(f.telefono);                                 // ⟵ CAMBIO
-  const wa2 = waLink(WA_JKS_2);                                                            // ⟵ CAMBIO
-  const waHans = waLink(WA_HANS);                                                          // ⟵ CAMBIO
+  // Karen usa su número fijo; si algún día lo quitas, cae al teléfono de Configuración
+  const wa = WA_JKS ? waLink(WA_JKS) : waLink(f.telefono);
+  const wa2 = waLink(WA_JKS_2);
+  const waHans = waLink(WA_HANS);
   const logo = (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={LOGO_JKS} alt={nombre} className="mw-logo" />
@@ -886,7 +887,7 @@ export default async function TiendaPublica({ params }: Params) {
       </div>
 
       {/* ───── Hans (mayor y menudeo) ───── */}
-      <HansSeccion items={HANS} wa={waHans} /> {/* ⟵ CAMBIO */}
+      <HansSeccion items={HANS} wa={waHans} />
 
       {/* ───── Guía de tallas ───── */}
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
@@ -925,6 +926,9 @@ export default async function TiendaPublica({ params }: Params) {
 
       {/* Taller de reparación: vuelve a su sección original (con su video hero y su formulario) */}
       <TallerSeccion wa={wa} marca={nombre} direccion={f.direccion} horario={f.horario} />
+
+      {/* ⟵ CAMBIO: "Taller de reparación" que antes era pestaña del catálogo, ahora aquí en el taller */}
+      <TallerReparacionBloque wa={wa} />
 
       {/* ───── Banner vitrina: caja completa con giro de exhibición ───── */}
       <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
@@ -987,7 +991,7 @@ export default async function TiendaPublica({ params }: Params) {
 
       <CotizacionModal marca={nombre} wa={wa} />
 
-      <WhatsAppFlotante wa={wa} tienda={nombre} extra={{ nombre: 'Otra línea de atención', wa: wa2 }} /> {/* ⟵ CAMBIO */}
+      <WhatsAppFlotante wa={wa} tienda={nombre} extra={{ nombre: 'Otra línea de atención', wa: wa2 }} />
 
       <MenuInferior
         wa={wa}
