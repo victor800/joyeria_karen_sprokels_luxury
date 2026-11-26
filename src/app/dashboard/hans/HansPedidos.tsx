@@ -10,8 +10,8 @@ export type Pedido = {
   pago_estado: string; estado: string; domiciliario: string; domiciliario_tel: string; fecha_entrega: string;
   recibido_en: string; despachado_en: string; entregado_en: string; notas: string; origen: string; actualizado: string;
 };
-type Linea = { codigo?: string; nombre: string; cant: number; precio: number };
-type Cat = { codigo: string; nombre: string; menudeo: number; mayorista: number };
+type Linea = { codigo?: string; nombre: string; cant: number; precio: number; foto?: string };
+type Cat = { codigo: string; nombre: string; menudeo: number; mayorista: number; foto?: string };
 type Domi = { nombre: string; telefono: string };
 type Props = {
   pedidos: Pedido[];
@@ -45,6 +45,7 @@ const parseItems = (s: string): Linea[] => {
         nombre: String(x?.nombre ?? ''),
         cant: Math.max(1, Number(x?.cant) || 1),
         precio: Number(x?.precio) || 0,
+        foto: x?.foto ? String(x.foto) : undefined,
       }))
       .filter((x) => x.nombre);
   } catch { return []; }
@@ -108,9 +109,11 @@ function Modal({ label, onClose, className = 'hp-hoja', children }: {
     return () => { b.style.overflow = prev; };
   }, []);
   if (!listo) return null;
+  // Color fijo en línea: el portal cuelga de <body> y heredaría el texto claro del tema
+  const tinta: React.CSSProperties = { color: '#1d2a23', colorScheme: 'light' };
   return createPortal(
-    <div className="hp-modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={className} role="dialog" aria-modal="true" aria-label={label}>{children}</div>
+    <div className="hp-modal" style={tinta} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={className} style={tinta} role="dialog" aria-modal="true" aria-label={label}>{children}</div>
     </div>,
     document.body,
   );
@@ -145,6 +148,17 @@ function Contacto({ p }: { p: Pedido }) {
       {wa && <a href={wa} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
       {mapa && <a href={mapa} target="_blank" rel="noreferrer">📍 Mapa</a>}
     </div>
+  );
+}
+
+/** Miniatura de la pieza; al tocarla se abre la foto completa en otra pestaña */
+function Miniatura({ src, alt }: { src?: string; alt: string }) {
+  if (!src) return null;
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="hp-thl" title="Ver foto completa">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="hp-th" src={src} alt={alt} loading="lazy" />
+    </a>
   );
 }
 
@@ -370,7 +384,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
             <summary><span>Artículos ({uds})</span></summary>
             <div>
               {its.map((i, k) => (
-                <div className="hp-li" key={k}><span>{i.cant}× {i.nombre}</span><b>{copN(i.precio * i.cant)}</b></div>
+                <div className="hp-li" key={k}><span className="hp-art"><Miniatura src={i.foto} alt={i.nombre} /><span>{i.cant}× {i.nombre}</span></span><b>{copN(i.precio * i.cant)}</b></div>
               ))}
               <div className="hp-li tot"><span>Total</span><b>{copN(num(p.total))}</b></div>
             </div>
@@ -526,7 +540,8 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
 
         /* ===== Modales (en portal, por encima de todo el dashboard) ===== */
         .hp-modal, .hp-modal * { box-sizing: border-box; }
-        .hp-modal { position: fixed; inset: 0; background: rgba(6,14,10,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 1000; padding: 16px; animation: hpfade .18s ease-out; }
+        .hp-modal { position: fixed; inset: 0; background: rgba(6,14,10,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 1000; padding: 16px; animation: hpfade .18s ease-out;
+          color: #1d2a23; color-scheme: light; }
         @keyframes hpfade { from { opacity: 0; } }
         @keyframes hpsube { from { transform: translateY(24px); opacity: .4; } }
         .hp-hoja { background: #fff; border-radius: 22px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; padding: 24px 26px; overscroll-behavior: contain; animation: hpsube .22s ease-out; }
@@ -545,7 +560,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .hp-it tfoot td { border: 0; font-weight: 700; color: #0b2d1f; padding-top: 10px; }
         .hp-f { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
         .hp-f label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #44514a; }
-        .hp-f input, .hp-f select, .hp-f textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; }
+        .hp-f input, .hp-f select, .hp-f textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); font: inherit; font-size: 14px; background: #fff; color: #1d2a23; }
         .hp-f .full { grid-column: 1 / -1; }
         .hp-btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
         .hp-btns .hp-btn.x { color: #b04a3f; border-color: rgba(176,74,63,.5); background: #fff; margin-right: auto; }
@@ -688,8 +703,15 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .np-cancel { display: none; }
           .np-ok { flex: 1 1 52%; }
           .np-tot b { font-size: 22px; }
+        }
 
-                  /* ===== Colores fijos del modal (legibles sobre fondo blanco) ===== */
+        /* ===== Foto de la pieza en el pedido ===== */
+        .hp-art { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .hp-thl { flex: 0 0 auto; display: block; line-height: 0; }
+        .hp-th { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid #ece7d6; background: #f3efe2; display: block; }
+        .hp-li .hp-th { width: 48px; height: 48px; }
+
+        /* ===== Colores fijos del modal (legibles sobre fondo blanco) ===== */
         .hp-modal, .hp-hoja, .np { color: #1d2a23 !important; color-scheme: light; }
         .hp-hoja h2, .hp-hoja h3 { color: #0b2d1f !important; }
         .hp-bx { color: #2c3a33 !important; }
@@ -717,7 +739,6 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         .np-in { color: #1d2a23 !important; -webkit-text-fill-color: #1d2a23; }
         .np-info b, .np-sug b { color: #0b2d1f !important; }
         .np-info small, .np-sug small { color: #5a6b62 !important; }
-        }
       `}</style>
 
       <div className="hp-stats">
@@ -873,7 +894,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
             <thead><tr><th>Artículo</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
             <tbody>
               {parseItems(sel.items).map((i, k) => (
-                <tr key={k}><td>{i.nombre}{i.codigo && <small style={{ color: '#8a978f' }}> · {i.codigo}</small>}</td><td>{i.cant}</td><td>{copN(i.precio)}</td><td>{copN(i.precio * i.cant)}</td></tr>
+                <tr key={k}><td><div className="hp-art"><Miniatura src={i.foto} alt={i.nombre} /><div>{i.nombre}{i.codigo && <small style={{ color: '#5a6b62' }}> · {i.codigo}</small>}</div></div></td><td>{i.cant}</td><td>{copN(i.precio)}</td><td>{copN(i.precio * i.cant)}</td></tr>
               ))}
             </tbody>
             <tfoot><tr><td colSpan={3}>Total</td><td>{copN(num(sel.total))}</td></tr></tfoot>
@@ -966,7 +987,7 @@ function NuevoPedido({ catalogo, onClose, onCreated }: { catalogo: Cat[]; onClos
     setLs((a) => {
       const i = a.findIndex((l) => l.codigo === c.codigo);
       if (i >= 0) return a.map((l, j) => (j === i ? { ...l, cant: l.cant + 1 } : l));
-      return [...a, { codigo: c.codigo, nombre: c.nombre, cant: 1, precio: precioCat(c, f.tipo) }];
+      return [...a, { codigo: c.codigo, nombre: c.nombre, cant: 1, precio: precioCat(c, f.tipo), foto: c.foto }];
     });
     setBus('');
     setErr('');

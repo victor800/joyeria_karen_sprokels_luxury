@@ -1,6 +1,7 @@
-// 📁 RUTA: src/app/api/hans/pedido-web/route.ts   (ARCHIVO NUEVO)
+// 📁 RUTA: src/app/api/hans/pedido-web/route.ts   (REEMPLAZA TODO EL ARCHIVO)
 // Recibe el pedido del carrito público de Hans y lo guarda en el panel de Hans.
 // Los precios se recalculan AQUÍ con el catálogo real: lo que mande el navegador no se toma como válido.
+// El estado SIEMPRE nace en "nuevo": solo el panel puede avanzarlo (recibido → en camino → entregado).
 import { NextResponse } from 'next/server';
 import { crearPedidoHans } from '@/lib/hans';
 import { leerHansPublico } from '@/lib/hans-publico';
@@ -9,6 +10,11 @@ export const dynamic = 'force-dynamic';
 
 const PAGOS = ['Efectivo', 'Transferencia', 'Contra entrega', 'Tarjeta / PSE'];
 const txt = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+/** Primera foto de la pieza, tomada del catálogo real (no del navegador). Se omite si es una imagen incrustada o muy larga. */
+const fotoDe = (x: { fotos?: unknown }) => {
+  const f = Array.isArray(x.fotos) ? String(x.fotos[0] ?? '').trim() : '';
+  return f.startsWith('data:') || f.length > 500 ? '' : f;
+};
 
 type ItemIn = { codigo?: unknown; modo?: unknown; cant?: unknown };
 
@@ -30,7 +36,7 @@ export async function POST(req: Request) {
     if (!crudos.length) throw new Error('Tu carrito está vacío.');
 
     const catalogo = await leerHansPublico();
-    const items: { codigo: string; nombre: string; cant: number; precio: number }[] = [];
+    const items: { codigo: string; nombre: string; cant: number; precio: number; foto: string }[] = [];
     let mayorista = 0;
 
     for (const it of crudos) {
@@ -57,30 +63,41 @@ export async function POST(req: Request) {
 
       const i = items.findIndex((l) => l.codigo === x.codigo && l.precio === precio);
       if (i >= 0) items[i].cant += cant;
-      else items.push({ codigo: x.codigo, nombre: x.nombre, cant, precio });
+      else items.push({ codigo: x.codigo, nombre: x.nombre, cant, precio, foto: fotoDe(x) });
     }
 
     const total = items.reduce((s, l) => s + l.cant * l.precio, 0);
     const metodo = PAGOS.includes(String(b.metodo_pago)) ? String(b.metodo_pago) : 'Efectivo';
 
-    const pedido = (await crearPedidoHans(
-      {
-        cliente,
-        telefono,
-        email: txt(b.email, 120),
-        direccion,
-        ciudad: txt(b.ciudad, 80),
-        tipo: mayorista === items.length ? 'mayorista' : 'menudeo',
-        metodo_pago: metodo,
-        pago_estado: 'pendiente',
-        fecha_entrega: '',
-        notas: txt(b.notas, 400),
-        items,
-        total,
-        origen: 'web',
-      },
-      true, // viene de la web pública
-    )) as { codigo?: string };
+    // Todo lo que decide el flujo lo fija el SERVIDOR; el navegador no puede mandar estado ni domiciliario.
+    const datos = {
+      cliente,
+      telefono,
+      email: txt(b.email, 120),
+      direccion,
+      ciudad: txt(b.ciudad, 80),
+      tipo: mayorista === items.length ? 'mayorista' : 'menudeo',
+      metodo_pago: metodo,
+      pago_estado: 'pendiente',
+      estado: 'nuevo',
+      fecha_entrega: '',
+      domiciliario: '',
+      domiciliario_tel: '',
+      recibido_en: '',
+      despachado_en: '',
+      entregado_en: '',
+      notas: txt(b.notas, 400),
+      items,
+      total,
+      origen: 'web',
+    };
+
+    const pedido = (await crearPedidoHans(datos, true)) as { codigo?: string; estado?: string };
+
+    // Aviso en el log del servidor si la capa de datos dejó otro estado (así se detecta el origen del problema)
+    if (pedido?.estado && pedido.estado !== 'nuevo') {
+      console.error('[hans pedido-web] El pedido se creó con estado inesperado:', pedido.codigo, pedido.estado);
+    }
 
     return NextResponse.json({ codigo: pedido?.codigo ?? '', total }, { status: 201 });
   } catch (e) {
