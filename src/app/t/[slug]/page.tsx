@@ -302,10 +302,10 @@ body { margin: 0; background: #030c08; }
 .mw .mc-hbtn { color: var(--o2); }
 .mw-head .mc-hbtn, .mw-head svg { color: var(--o3); }
 
-/* ───────── 2. HERO (video un poco más pequeño) ───────── */
+/* ───────── 2. HERO (compartido por Inicio, Taller y Hans) ───────── */
 .mw-hero { position: relative; display: flex; flex-direction: column; min-height: min(90vh, 820px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
   background: radial-gradient(ellipse 60% 70% at 20% 60%, rgba(15,95,59,.8), transparent 70%), linear-gradient(120deg, #030c08, #082a1b 60%, #0b4a2e); }
-/* El video es vertical (9:16): se muestra COMPLETO (contain), sin recortar al ave ni al dije */
+/* Base (es la que usa el MÓVIL, no se toca): video vertical 9:16 mostrado completo (contain) */
 .mw .hv { position: absolute !important; top: 22px !important; bottom: auto !important; left: auto !important; right: clamp(24px, 8vw, 150px) !important;
   height: calc(100% - 150px) !important; width: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; object-position: center top; opacity: 0; transition: opacity 1.8s ease; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
   /* bordes difuminados por los 4 lados: no se ve el cuadro del video */
@@ -314,6 +314,18 @@ body { margin: 0; background: #030c08; }
   -webkit-mask-composite: source-in; mask-composite: intersect; }
 .mw .hv.on { opacity: 1; }
 .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.65) 35%, rgba(3,12,8,0) 65%), linear-gradient(0deg, rgba(3,12,8,.85) 0%, transparent 25%); }
+
+/* ESCRITORIO (601px en adelante): el video llena el hero como fondo, fundido hacia el texto y hacia abajo */
+@media (min-width: 601px) {
+  .mw .hv { top: 0 !important; bottom: 0 !important; left: auto !important; right: 0 !important;
+    width: 64% !important; height: 100% !important; aspect-ratio: auto !important;
+    object-fit: cover !important; object-position: 50% 28%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 18%, #000 42%, #000 100%), linear-gradient(180deg, #000 0%, #000 78%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 18%, #000 42%, #000 100%), linear-gradient(180deg, #000 0%, #000 78%, transparent 100%);
+    -webkit-mask-composite: source-in; mask-composite: intersect; }
+  .mw-shade { background: linear-gradient(90deg, rgba(3,12,8,.92) 0%, rgba(3,12,8,.7) 30%, rgba(3,12,8,.15) 55%, rgba(3,12,8,0) 70%), linear-gradient(0deg, rgba(3,12,8,.9) 0%, transparent 28%); }
+}
+
 .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 48px; padding-bottom: 40px; }
 .mw .mw-hero-in { max-width: none; margin: 0; padding-left: clamp(24px, 6vw, 96px); padding-right: 24px; }
 .mw-hero-txt { max-width: 560px; }
