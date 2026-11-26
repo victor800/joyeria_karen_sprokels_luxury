@@ -688,6 +688,35 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           .np-cancel { display: none; }
           .np-ok { flex: 1 1 52%; }
           .np-tot b { font-size: 22px; }
+
+                  /* ===== Colores fijos del modal (legibles sobre fondo blanco) ===== */
+        .hp-modal, .hp-hoja, .np { color: #1d2a23 !important; color-scheme: light; }
+        .hp-hoja h2, .hp-hoja h3 { color: #0b2d1f !important; }
+        .hp-bx { color: #2c3a33 !important; }
+        .hp-bx b { color: #0b2d1f !important; }
+        .hp-bx h4 { color: #8a6d1f !important; }
+        .hp-it th { color: #5a6b62 !important; }
+        .hp-it td { color: #2c3a33 !important; }
+        .hp-it td small { color: #5a6b62 !important; }
+        .hp-it tfoot td { color: #0b2d1f !important; }
+        .hp-hh small { color: #5a6b62 !important; }
+        .hp-st { color: #6b7a72 !important; }
+        .hp-st.on { color: #0b2d1f !important; }
+        .hp-st small { color: #5a6b62 !important; }
+        .hp-f label { color: #2c3a33 !important; }
+        .hp-f input, .hp-f select, .hp-f textarea { color: #1d2a23 !important; -webkit-text-fill-color: #1d2a23; background: #fff !important; }
+        .hp-f input:disabled, .hp-f select:disabled, .hp-f textarea:disabled { color: #5a6b62 !important; -webkit-text-fill-color: #5a6b62; background: #f3efe2 !important; opacity: 1; }
+        .hp-modal input::placeholder, .hp-modal textarea::placeholder { color: #7a857e !important; -webkit-text-fill-color: #7a857e; opacity: 1; }
+        .hp-modal input[type="date"] { color: #1d2a23 !important; -webkit-text-fill-color: #1d2a23; }
+        .hp-modal .hp-btn { color: #7a6a30; }
+        .hp-modal .hp-btn.p { color: #f6e7b4; }
+        .hp-modal .hp-btn.g { color: #1b1608; }
+        .hp-modal .hp-btn.x { color: #b04a3f; }
+        .np-sec h3 { color: #0b2d1f !important; }
+        .np-l { color: #5a6b62 !important; }
+        .np-in { color: #1d2a23 !important; -webkit-text-fill-color: #1d2a23; }
+        .np-info b, .np-sug b { color: #0b2d1f !important; }
+        .np-info small, .np-sug small { color: #5a6b62 !important; }
         }
       `}</style>
 
