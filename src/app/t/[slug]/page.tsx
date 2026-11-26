@@ -33,7 +33,7 @@ type Params = { params: Promise<{ slug: string }> };
 /* ═══════════════════════════════════════════════
    CONSTANTES DE LA MARCA
    ═══════════════════════════════════════════════ */
-const MARCA = "Karen Sploker's";
+const MARCA = "Karen Sprockel's";
 const VIDEO_HERO = '/sprokel.mp4';
 const INSTAGRAM = 'https://www.instagram.com/joyeria_jks_luxury';
 const FOTO_BANNER = '/pieza13.jpeg';
@@ -307,9 +307,11 @@ body { margin: 0; background: #030c08; }
   background: radial-gradient(ellipse 60% 70% at 20% 60%, rgba(15,95,59,.8), transparent 70%), linear-gradient(120deg, #030c08, #082a1b 60%, #0b4a2e); }
 /* El video es vertical (9:16): se muestra COMPLETO (contain), sin recortar al ave ni al dije */
 .mw .hv { position: absolute !important; top: 22px !important; bottom: auto !important; left: auto !important; right: clamp(24px, 8vw, 150px) !important;
-  height: calc(100% - 150px) !important; width: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; object-position: center top; opacity: 0; transition: opacity 1.8s ease; border-radius: 22px;
-  border: 1px solid rgba(224,183,63,.35); box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 60px rgba(15,95,59,.45);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%); mask-image: linear-gradient(90deg, transparent 0%, #000 14%); }
+  height: calc(100% - 150px) !important; width: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; object-position: center top; opacity: 0; transition: opacity 1.8s ease; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+  /* bordes difuminados por los 4 lados: no se ve el cuadro del video */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%), linear-gradient(180deg, transparent 0%, #000 12%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%), linear-gradient(180deg, transparent 0%, #000 12%, #000 80%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
 .mw .hv.on { opacity: 1; }
 .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.65) 35%, rgba(3,12,8,0) 65%), linear-gradient(0deg, rgba(3,12,8,.85) 0%, transparent 25%); }
 .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 48px; padding-bottom: 40px; }
@@ -617,8 +619,10 @@ body { margin: 0; background: #030c08; }
   .mw .mw-hero-in { padding-top: 32px; padding-bottom: 28px; }
   .mw-hero-logo { display: none; }
   .mw-hero p { font-size: 13.5px; margin-bottom: 22px; }
-  .mw .hv { position: absolute !important; inset: auto !important; top: 30px !important; right: 0 !important; width: 60% !important; height: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; opacity: 0; transition: opacity 1.8s ease; border-radius: 18px 0 0 18px; border-right: 0;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%); mask-image: linear-gradient(90deg, transparent 0%, #000 30%); }
+  .mw .hv { position: absolute !important; inset: auto !important; top: 30px !important; right: 0 !important; width: 64% !important; height: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; opacity: 0; transition: opacity 1.8s ease; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 32%, #000 100%), linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 32%, #000 100%), linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
+    -webkit-mask-composite: source-in; mask-composite: intersect; }
   .mw .hv.on { opacity: 1; }
   .mw-btn { flex: 1; padding: 15px 16px; }
   .mw-oro-bar { padding: 0 16px 18px; }
