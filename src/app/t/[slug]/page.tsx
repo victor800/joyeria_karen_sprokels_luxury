@@ -8,6 +8,7 @@ import CatalogoPublico, { CarritoHeader, type PrendaP, type VarianteP } from './
 import HeroVideo from './HeroVideo';
 import PromocionesPublicas, { type PromoP } from './PromocionesPublicas';
 import CotizacionModal from './CotizacionModal';
+import TallerSeccion from './TallerSeccion';
 import GuiaTallas from './GuiaTallas';
 import PersonalizacionTrabajos from './PersonalizacionTrabajos';
 import MenuInferior from './MenuInferior';
@@ -302,11 +303,13 @@ body { margin: 0; background: #030c08; }
 .mw-head .mc-hbtn, .mw-head svg { color: var(--o3); }
 
 /* ───────── 2. HERO (video un poco más pequeño) ───────── */
-.mw-hero { position: relative; display: flex; flex-direction: column; min-height: min(82vh, 740px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
+.mw-hero { position: relative; display: flex; flex-direction: column; min-height: min(90vh, 820px); overflow: hidden; color: #f4efdc; scroll-margin-top: 68px;
   background: radial-gradient(ellipse 60% 70% at 20% 60%, rgba(15,95,59,.8), transparent 70%), linear-gradient(120deg, #030c08, #082a1b 60%, #0b4a2e); }
-.mw .hv { position: absolute; top: 18px; right: 0; left: auto; bottom: auto; height: calc(100% - 168px); width: 44%; object-fit: cover; object-position: 50% 50%; opacity: 0; transition: opacity 1.8s ease; border-radius: 0 0 0 28px;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(0deg, transparent 0%, #000 14%); mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(0deg, transparent 0%, #000 14%);
-  -webkit-mask-composite: source-in; mask-composite: intersect; }
+/* El video es vertical (9:16): se muestra COMPLETO (contain), sin recortar al ave ni al dije */
+.mw .hv { position: absolute !important; top: 22px !important; bottom: auto !important; left: auto !important; right: clamp(24px, 8vw, 150px) !important;
+  height: calc(100% - 150px) !important; width: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; object-position: center top; opacity: 0; transition: opacity 1.8s ease; border-radius: 22px;
+  border: 1px solid rgba(224,183,63,.35); box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 60px rgba(15,95,59,.45);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%); mask-image: linear-gradient(90deg, transparent 0%, #000 14%); }
 .mw .hv.on { opacity: 1; }
 .mw-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.65) 35%, rgba(3,12,8,0) 65%), linear-gradient(0deg, rgba(3,12,8,.85) 0%, transparent 25%); }
 .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 48px; padding-bottom: 40px; }
@@ -610,14 +613,12 @@ body { margin: 0; background: #030c08; }
   .mw-wrap { padding: 0 16px; } .mw-head .mw-wrap { height: 58px; }
   .mw-head .mw-nombre { font-size: 16px; letter-spacing: .08em; max-width: 52vw; }
   .mw-head .mw-logo { width: 36px; height: 36px; }
-  .mw-hero { min-height: 72svh; }
+  .mw-hero { min-height: max(72svh, 640px); }
   .mw .mw-hero-in { padding-top: 32px; padding-bottom: 28px; }
   .mw-hero-logo { display: none; }
   .mw-hero p { font-size: 13.5px; margin-bottom: 22px; }
-  .mw .hv { position: absolute; inset: auto; top: 10px; right: 0; width: 62%; height: 54%; object-fit: cover; object-position: 62% 50%; opacity: 0; transition: opacity 1.8s ease; border-radius: 0;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 42%), linear-gradient(0deg, transparent 0%, #000 22%);
-    mask-image: linear-gradient(90deg, transparent 0%, #000 42%), linear-gradient(0deg, transparent 0%, #000 22%);
-    -webkit-mask-composite: source-in; mask-composite: intersect; }
+  .mw .hv { position: absolute !important; inset: auto !important; top: 30px !important; right: 0 !important; width: 60% !important; height: auto !important; aspect-ratio: 478 / 850; object-fit: contain !important; opacity: 0; transition: opacity 1.8s ease; border-radius: 18px 0 0 18px; border-right: 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%); mask-image: linear-gradient(90deg, transparent 0%, #000 30%); }
   .mw .hv.on { opacity: 1; }
   .mw-btn { flex: 1; padding: 15px 16px; }
   .mw-oro-bar { padding: 0 16px 18px; }
@@ -718,42 +719,6 @@ function ColeccionesBento({ cats }: { cats: { n: string; c: number; foto: string
   );
 }
 
-const SERVICIOS_REP: { i: keyof typeof P; t: string }[] = [
-  { i: 'ring', t: 'Cambio de talla' }, { i: 'tool', t: 'Soldadura' }, { i: 'gem', t: 'Engaste de piedras' },
-  { i: 'spark', t: 'Pulido y limpieza' }, { i: 'pencil', t: 'Grabado' }, { i: 'shield', t: 'Restauración' },
-];
-
-function TallerReparacion({ direccion, horario }: { direccion?: string; horario?: string }) {
-  return (
-    <div className="mw-rep" id="taller">
-      <div className="mw-rep-info">
-        <h3>Taller de reparación</h3>
-        <p>Devolvemos la vida a tus joyas. Diagnóstico sin costo y precio confirmado antes de empezar.</p>
-        <ol className="mw-rep-pasos">
-          <li><b>1</b><div><strong>Cuéntanos</strong><span>Elige el servicio y describe la pieza.</span></div></li>
-          <li><b>2</b><div><strong>Diagnóstico gratis</strong><span>La revisamos y te damos el valor final.</span></div></li>
-          <li><b>3</b><div><strong>Reparamos</strong><span>Te avisamos por WhatsApp cuando esté lista.</span></div></li>
-        </ol>
-        <div className="mw-rep-tip">Tip: después de enviar, comparte una foto de la pieza por el chat para cotizar más rápido.</div>
-      </div>
-      <div className="mw-rep-srv">
-        <h4>¿Qué necesita tu joya?</h4>
-        <p>Trabajamos con oro y plata. Cuéntanos el daño y te cotizamos sin compromiso.</p>
-        <div className="mw-rep-lista">
-          {SERVICIOS_REP.map((s) => (<div className="mw-rep-s" key={s.t}><span><Ic n={s.i} s={18} /></span>{s.t}</div>))}
-        </div>
-        {(direccion || horario) && (
-          <ul className="mw-rep-meta">
-            {direccion && <li><Ic n="pin" s={15} /> {direccion}</li>}
-            {horario && <li><Ic n="truck" s={15} /> {horario}</li>}
-          </ul>
-        )}
-        <button type="button" className="mw-btn solid" data-cotizar="reparacion">Cotizar reparación</button>
-      </div>
-    </div>
-  );
-}
-
 const FRANJA = ['Oro certificado', 'Garantía de por vida', 'Diseño a medida', 'Reparación y restauración', 'Grabados personalizados', 'Envíos asegurados'];
 const PASOS: { i: keyof typeof P; t: string; d: string }[] = [
   { i: 'pencil', t: 'Diseño', d: 'Cuéntanos tu idea o envía una foto de referencia.' },
@@ -812,7 +777,8 @@ export default async function TiendaPublica({ params }: Params) {
             {cats.length > 0 && <a href="#categorias">Colecciones</a>}
             <a href="#catalogo">Catálogo</a>
             <a href="#hans">Hans</a>
-            <a href="#atelier">Taller</a>
+            <a href="#atelier">Fabricación</a>
+            <a href="#taller">Reparación</a>
             <a href="#tallas-bloque">Tallas</a>
             <a href="#oro">Precio del oro</a>
             <a href="#contacto">Contacto</a>
@@ -931,9 +897,10 @@ export default async function TiendaPublica({ params }: Params) {
         <div className="mw-atelier-sep"><span>Fabricación personalizada</span></div>
         <PersonalizacionTrabajos wa={wa} nombre={nombre} />
 
-        <div className="mw-atelier-sep"><span>Taller de reparación</span></div>
-        <TallerReparacion direccion={f.direccion} horario={f.horario} />
       </section>
+
+      {/* Taller de reparación: vuelve a su sección original (con su video hero y su formulario) */}
+      <TallerSeccion wa={wa} marca={nombre} direccion={f.direccion} horario={f.horario} />
 
       {/* ───── Banner vitrina: caja completa con giro de exhibición ───── */}
       <section className="mw-ban" aria-label="Joyas que cuentan tu historia">
