@@ -39,6 +39,11 @@ const INSTAGRAM = 'https://www.instagram.com/joyeria_jks_luxury';
 const FOTO_BANNER = '/pieza13.jpeg';
 const LOGO_JKS = '/logo-jks.jpeg';
 
+/* WhatsApp de cada marca (10 dígitos; waLink agrega el 57) */          // ⟵ CAMBIO
+const WA_JKS = '3225390512';    // Karen Sprockel's (línea principal)   // ⟵ CAMBIO
+const WA_JKS_2 = '3215400151';  // Karen Sprockel's (segunda línea)     // ⟵ CAMBIO
+const WA_HANS = '3046298269';   // Joyería Hans                         // ⟵ CAMBIO
+
 /* ═══════════════════════════════════════════════
    UTILIDADES
    ═══════════════════════════════════════════════ */
@@ -756,7 +761,10 @@ export default async function TiendaPublica({ params }: Params) {
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
   const ig = instagramUser(f.instagram);
   const dom = cop(f.domicilio);
-  const wa = waLink(f.telefono);
+  // Karen usa su número fijo; si algún día lo quitas, cae al teléfono de Configuración   // ⟵ CAMBIO
+  const wa = WA_JKS ? waLink(WA_JKS) : waLink(f.telefono);                                 // ⟵ CAMBIO
+  const wa2 = waLink(WA_JKS_2);                                                            // ⟵ CAMBIO
+  const waHans = waLink(WA_HANS);                                                          // ⟵ CAMBIO
   const logo = (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={LOGO_JKS} alt={nombre} className="mw-logo" />
@@ -878,7 +886,7 @@ export default async function TiendaPublica({ params }: Params) {
       </div>
 
       {/* ───── Hans (mayor y menudeo) ───── */}
-      <HansSeccion items={HANS} wa={wa} />
+      <HansSeccion items={HANS} wa={waHans} /> {/* ⟵ CAMBIO */}
 
       {/* ───── Guía de tallas ───── */}
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">
@@ -979,7 +987,7 @@ export default async function TiendaPublica({ params }: Params) {
 
       <CotizacionModal marca={nombre} wa={wa} />
 
-      <WhatsAppFlotante wa={wa} tienda={nombre} />
+      <WhatsAppFlotante wa={wa} tienda={nombre} extra={{ nombre: 'Otra línea de atención', wa: wa2 }} /> {/* ⟵ CAMBIO */}
 
       <MenuInferior
         wa={wa}

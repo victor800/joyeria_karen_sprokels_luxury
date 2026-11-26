@@ -10,11 +10,21 @@ const OPCIONES = [
   { e: '📏', t: 'Ayuda con mi talla', m: 'Necesito ayuda para saber mi talla.' },
 ];
 
-/** Botón de WhatsApp flotante con popup. Va encima del botón del carrito. `wa` viene del teléfono de Configuración. */
-export default function WhatsAppFlotante({ wa, tienda }: { wa: string; tienda: string }) {
+type Extra = { nombre: string; wa: string };
+
+/** Botón de WhatsApp flotante con globo y popup. `wa` = línea principal; `extra` = segunda línea opcional. */
+export default function WhatsAppFlotante({ wa, tienda, extra }: { wa: string; tienda: string; extra?: Extra }) {
   const [abierto, setAbierto] = useState(false);
   const [oculto, setOculto] = useState(false);
+  const [globo, setGlobo] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Globo "Hola, ¿podemos ayudarte?": aparece a los 2 s y se va solo a los 12 s
+  useEffect(() => {
+    const a = window.setTimeout(() => setGlobo(true), 2000);
+    const b = window.setTimeout(() => setGlobo(false), 12000);
+    return () => { window.clearTimeout(a); window.clearTimeout(b); };
+  }, []);
 
   // Cierra al tocar fuera o con Escape
   useEffect(() => {
@@ -44,11 +54,13 @@ export default function WhatsAppFlotante({ wa, tienda }: { wa: string; tienda: s
 
   if (wa === '#') return null;
 
-  const enlace = (texto?: string) => {
-    if (!texto) return wa;
+  const enlace = (texto?: string, base: string = wa) => {
+    if (!texto) return base;
     const msg = `Hola, *${tienda}* 👋\n${texto}`;
-    return `${wa}${wa.includes('?') ? '&' : '?'}text=${encodeURIComponent(msg)}`;
+    return `${base}${base.includes('?') ? '&' : '?'}text=${encodeURIComponent(msg)}`;
   };
+
+  const abrirPopup = () => { setGlobo(false); setAbierto(true); };
 
   return (
     <>
@@ -75,10 +87,27 @@ export default function WhatsAppFlotante({ wa, tienda }: { wa: string; tienda: s
               <a className="wf-libre" href={enlace()} target="_blank" rel="noopener noreferrer" onClick={() => setAbierto(false)}>
                 Escribir otro mensaje
               </a>
+              {extra && extra.wa !== '#' && (
+                <a className="wf-otra" href={enlace('Hola, quisiera más información.', extra.wa)} target="_blank" rel="noopener noreferrer" onClick={() => setAbierto(false)}>
+                  {extra.nombre}
+                </a>
+              )}
             </div>
           </div>
         )}
-        <button type="button" className="wf-fab" aria-expanded={abierto} aria-label={abierto ? 'Cerrar WhatsApp' : 'Abrir WhatsApp'} onClick={() => setAbierto((a) => !a)}>
+
+        {globo && !abierto && (
+          <div className="wf-globo" role="status">
+            <button type="button" className="wf-gx" aria-label="Cerrar mensaje" onClick={() => setGlobo(false)}>×</button>
+            <button type="button" className="wf-gt" onClick={abrirPopup}>
+              <b>{tienda}</b>
+              Hola, ¿podemos ayudarte?
+            </button>
+          </div>
+        )}
+
+        <button type="button" className="wf-fab" aria-expanded={abierto} aria-label={abierto ? 'Cerrar WhatsApp' : 'Abrir WhatsApp'}
+          onClick={() => (abierto ? setAbierto(false) : abrirPopup())}>
           {abierto ? (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="m6 6 12 12M18 6 6 18" /></svg>
           ) : (
@@ -92,12 +121,12 @@ export default function WhatsAppFlotante({ wa, tienda }: { wa: string; tienda: s
   );
 }
 
-/*  Posición: queda ~146px sobre el borde inferior para ir ENCIMA del botón del carrito (que está a ~82px y mide ~52px).
-    Si en tu pantalla se cruzan, cambia solo el valor de --wf-sube.  */
+/*  Posición: ~146px sobre el borde inferior para ir ENCIMA del botón del carrito.
+    Si se cruzan en tu pantalla, cambia solo --wf-sube.  */
 const CSS = `
 .wf { --wf-sube: 146px; position: fixed; right: 14px; bottom: var(--wf-sube); z-index: 45; transition: opacity .2s, transform .25s; }
 .wf[data-oculto="true"] { opacity: 0; pointer-events: none; transform: translateY(12px); }
-.wf-fab { width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; background: #1faa59; color: #fff;
+.wf-fab { position: relative; width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; background: #1faa59; color: #fff;
   box-shadow: 0 8px 22px rgba(31,170,89,.45); -webkit-tap-highlight-color: transparent; }
 .wf-fab:active { transform: scale(.95); }
 .wf-card { position: absolute; right: 0; bottom: 64px; width: min(300px, calc(100vw - 28px)); border-radius: 18px; overflow: hidden; background: #fff;
@@ -115,5 +144,15 @@ const CSS = `
 .wf-ops a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: 12px; background: #fff; color: #14201a; text-decoration: none; font-size: 13.5px; font-weight: 600; border: 1px solid #e3dcc8; }
 .wf-ops a:active, .wf-ops a:hover { border-color: #1faa59; background: #f1faf4; }
 .wf-libre { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #1faa59; color: #fff; text-decoration: none; font-size: 13.5px; font-weight: 700; }
-@media (prefers-reduced-motion: reduce) { .wf, .wf-card { animation: none; transition: none; } }
+.wf-otra { display: flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 12px; border: 1px solid #1faa59; color: #137a3f; text-decoration: none; font-size: 13px; font-weight: 600; background: transparent; }
+
+/* Globo de saludo */
+.wf-globo { position: absolute; right: 64px; bottom: 4px; width: max-content; max-width: min(230px, calc(100vw - 100px)); padding: 10px 30px 10px 14px; border-radius: 14px; background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.22); animation: wf-ent .35s ease both; }
+.wf-globo::after { content: ""; position: absolute; right: -6px; bottom: 16px; width: 12px; height: 12px; background: #fff; transform: rotate(45deg); }
+.wf-gt { display: block; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font: inherit; font-size: 13.5px; line-height: 1.35; color: #14201a; }
+.wf-gt b { display: block; font-size: 12px; color: #128c7e; margin-bottom: 2px; }
+.wf-gx { position: absolute; top: 4px; right: 6px; border: 0; background: none; font-size: 16px; line-height: 1; color: #8a948e; cursor: pointer; }
+@keyframes wf-ent { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wf, .wf-card, .wf-globo { animation: none; transition: none; } }
 `;
