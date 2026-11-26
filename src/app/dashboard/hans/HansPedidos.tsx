@@ -203,7 +203,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
           arr
             .map((x) => {
               const o = x as Record<string, unknown>;
-              return { nombre: String(o.nombre ?? o.name ?? '').trim(), telefono: String(o.telefono ?? o.celular ?? o.whatsapp ?? '').trim() };
+              return { nombre: String(o.nombre ?? o.name ?? '').trim(), telefono: String(o.telefono ?? o.celular ?? o.whatsapp ?? o.tel ?? o.phone ?? o.movil ?? '').trim() };
             })
             .filter((x) => x.nombre),
         );
@@ -861,7 +861,12 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
         Última actualización: {fmtUlt(ultima)} · se refresca sola cada 30 s. Exportar descarga todos los pedidos filtrados (no solo la página visible).
       </p>
 
-      <datalist id="hp-domis">{nombresDomi.map((n) => <option key={n} value={n} />)}</datalist>
+      <datalist id="hp-domis">
+        {nombresDomi.map((n) => {
+          const t = domis.find((d) => d.nombre.toLowerCase() === n.toLowerCase())?.telefono;
+          return <option key={n} value={n} label={t || undefined} />;
+        })}
+      </datalist>
 
       {sel && (
         <Modal label={`Pedido ${sel.codigo}`} onClose={() => setSelId(null)}>
@@ -906,6 +911,7 @@ export default function HansPedidos({ pedidos, setPedidos, catalogo, avisar, car
             <div>
               <label htmlFor="hp-dm">Domiciliario</label>
               <input id="hp-dm" list="hp-domis" value={ed.domiciliario} onChange={(e) => elegirDomi(e.target.value)} placeholder="Elige o escribe el nombre" disabled={sel.estado === 'entregado' || sel.estado === 'cancelado'} />
+              {domis.length === 0 && <small style={{ display: 'block', marginTop: 4, color: '#8a5a00' }}>No se pudo leer la hoja Domiciliarios: escribe el nombre y el teléfono a mano.</small>}
             </div>
             <div>
               <label htmlFor="hp-dt">Teléfono del domiciliario</label>

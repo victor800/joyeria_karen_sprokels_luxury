@@ -119,7 +119,7 @@ const Chev = ({ dir }: { dir: 'l' | 'r' }) => (
   </svg>
 );
 
-/* ---------- Icono del carrito para la cabecera (lo usa page.tsx) ---------- */
+/* ---------- Icono del carrito para la cabecera (lo usa page.tsx). Es el ÚNICO botón del carrito. ---------- */
 export function CarritoHeader() {
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -374,7 +374,7 @@ function Campo({ id, label, opcional, error, children }: { id: string; label: st
 }
 
 /* ═════════════ Catálogo + carrito ═════════════ */
-export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's" }: { prendas: PrendaP[]; wa: string; logo?: string; tienda?: string }) {
+export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel's" }: { prendas: PrendaP[]; wa: string; logo?: string; tienda?: string }) {
   const [items, setItems] = useState<Item[]>([]);
   const [likes, setLikes] = useState<string[]>([]);
   const [conteos, setConteos] = useState<Record<string, number>>({});
@@ -546,7 +546,6 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's
     setCupon(null);
     window.dispatchEvent(new Event(EV_CARRITO));
   };
-  const cantidad = items.reduce((a, i) => a + i.qty, 0);
   const pFicha = ficha ? prendas.find((p) => p.id === ficha) : undefined;
 
   /* ---- Datos de envío ---- */
@@ -559,7 +558,6 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's
   const tocar = (k: string) => setTocados((t) => (t[k] ? t : { ...t, [k]: true }));
   const err = (k: keyof Envio) => (tocados[k] ? errores[k] : undefined);
 
-  const abrirCarrito = () => { setPaso(0); setAbierto(true); };
   const cerrarCarrito = () => setAbierto(false);
 
   const pedido = () => {
@@ -721,11 +719,9 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's
         .mc-modal-x { position: absolute; top: 10px; right: 10px; z-index: 6; width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.65) !important; color: #f1ecd8 !important; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.15) !important; }
         .mc-modal .mc-like { right: 54px; }
 
+        /* Carrito de la cabecera (único botón del carrito) */
         .mc-hbtn { position: relative; border: 0; background: none; color: var(--v); cursor: pointer; padding: 6px; display: grid; place-items: center; }
         .mc-badge { position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--o); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; }
-
-        .mc-fab { position: fixed; right: 18px; bottom: 82px; z-index: 30; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--v); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 22px rgba(11,74,46,.35); }
-        .mc-fab .mc-badge { top: -3px; right: -3px; }
 
         /* ── Carrito (3 pasos) ── */
         .mc-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; }
@@ -805,7 +801,6 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's
           .mc-grupo-tit h4 { font-size: 22px; }
           .mc-grupo + .mc-grupo { margin-top: 26px; }
           .mc-nom { font-size: 18px !important; }
-          .mc-fab { right: 14px; bottom: 76px; }
           .mc-datos.tres { grid-template-columns: 1fr 1fr; }
           .mc-dos { grid-template-columns: 1fr; }
           .mc-pasos span { font-size: 10.5px; gap: 5px; }
@@ -849,13 +844,6 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sploker's
       {pFicha && (
         <Ficha p={pFicha} liked={likes.includes(pFicha.id)} conteo={conteos[pFicha.id] ?? 0}
           onLike={() => alternarLike(pFicha)} onAdd={(v) => agregar(pFicha, v)} onCerrar={() => setFicha(null)} />
-      )}
-
-      {!abierto && !ficha && (
-        <button type="button" className="mc-fab" aria-label={`Ver carrito (${cantidad})`} onClick={abrirCarrito}>
-          <Cart s={24} />
-          {cantidad > 0 && <span className="mc-badge">{cantidad}</span>}
-        </button>
       )}
 
       {abierto && (

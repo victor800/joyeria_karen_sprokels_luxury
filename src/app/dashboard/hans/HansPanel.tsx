@@ -748,6 +748,7 @@ export default function HansPanel() {
       return {
         codigo: x.codigo,
         nombre: x.nombre,
+        foto: parseFotos(x.foto_url)[0] || '',
         menudeo: precioDe(xe, 'menudeo', cfg, piezas).valor,
         mayorista: precioDe(xe, 'mayorista', cfg, piezas).valor,
       };

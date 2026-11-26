@@ -26,6 +26,9 @@ type Foto = { url: string; nueva: string | null }; // url = ya guardada · nueva
 
 class ErrorFoto extends Error {}
 
+/** Teléfono del domiciliario (acceso seguro: compila aunque el tipo aún no tenga el campo) */
+const telDe = (d?: Domiciliario) => (d as (Domiciliario & { telefono?: string }) | undefined)?.telefono ?? '';
+
 /* ───────── Selector de foto ───────── */
 function SelectorFoto({
   titulo,
@@ -94,6 +97,7 @@ export default function ModalDomiciliario({ locales, inicial, onCerrar, onGuarda
 
   const [form, setForm] = useState({
     nombre: inicial?.nombre ?? '',
+    telefono: telDe(inicial),
     localId: inicial?.localId ?? (locales.length === 1 ? locales[0].id : ''),
     zona: inicial?.zona ?? '',
     vehiculo: inicial?.vehiculo ?? 'Moto',
@@ -151,6 +155,7 @@ export default function ModalDomiciliario({ locales, inicial, onCerrar, onGuarda
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          telefono: form.telefono.trim(),
           placa: requierePlaca ? form.placa : '',
           fotoUrl,
           fotoVehiculoUrl,
@@ -216,6 +221,20 @@ export default function ModalDomiciliario({ locales, inicial, onCerrar, onGuarda
               <label className={s.etiqueta}>Nombre completo</label>
               <input className={s.campo} value={form.nombre} onChange={(e) => set('nombre', e.target.value)} />
               {msg('nombre')}
+            </div>
+
+            <div className={s.completo}>
+              <label className={s.etiqueta}>Teléfono / WhatsApp</label>
+              <input
+                className={s.campo}
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="300 000 0000"
+                value={form.telefono}
+                onChange={(e) => set('telefono', e.target.value.replace(/[^\d+\s()-]/g, '').slice(0, 20))}
+              />
+              <p className={s.ayuda}>Es el número que se carga automáticamente cuando asignas este domiciliario a un pedido.</p>
+              {msg('telefono')}
             </div>
 
             <div>

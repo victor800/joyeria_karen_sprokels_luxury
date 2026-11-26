@@ -1,3 +1,4 @@
+// 📁 RUTA: src/types/domiciliario.ts   (REEMPLAZA TODO EL ARCHIVO)
 export type EstadoDomiciliario =
   | 'creado'
   | 'disponible'
@@ -36,6 +37,7 @@ export interface Domiciliario {
   id: string;               // ID del domiciliario (lo genera el servidor)
   localId: string;          // ID del local (cfg.id de la configuración)
   nombre: string;
+  telefono: string;         // celular / WhatsApp (solo dígitos, con + opcional al inicio)
   zona: string;
   vehiculo: string;
   placa: string;
@@ -49,6 +51,7 @@ export interface Domiciliario {
 export interface DomiciliarioInput {
   localId: string;
   nombre: string;
+  telefono: string;
   zona: string;
   vehiculo: string;
   placa: string;

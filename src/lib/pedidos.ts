@@ -138,7 +138,14 @@ function filaHoja(joyeriaId: string, numero: string, creado: string, p: NuevoPed
   ];
 }
 
-/** Agrega el pedido al final de la hoja con el ID de la joyería. Devuelve el N° generado. */
+const formatoNumero = (n: number) => `P-${String(n).padStart(4, '0')}`;
+const valorNumero = (v: unknown) => parseInt(String(v ?? '').replace(/\D/g, ''), 10) || 0;
+
+/**
+ * Agrega el pedido al final de la hoja con el ID de la joyería. Devuelve el N° generado.
+ * Después de escribir, verifica que el N° no esté repetido (pedidos simultáneos) y, si lo está,
+ * le asigna el siguiente libre a ESTA fila.
+ */
 export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<string> {
   await asegurarPestana(HOJA_PEDIDOS);
   const api = hojas();
@@ -157,10 +164,10 @@ export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<st
   const { data } = await api.spreadsheets.values.get({ spreadsheetId, range: `${HOJA_PEDIDOS}!A2:B` });
   const max = (data.values ?? [])
     .filter((r) => r[0] === joyeriaId)
-    .reduce((m, r) => Math.max(m, parseInt(String(r[1]).replace(/\D/g, ''), 10) || 0), 0);
-  const numero = `P-${String(max + 1).padStart(4, '0')}`;
+    .reduce((m, r) => Math.max(m, valorNumero(r[1])), 0);
+  let numero = formatoNumero(max + 1);
 
-  await api.spreadsheets.values.append({
+  const res = await api.spreadsheets.values.append({
     spreadsheetId,
     range: `${HOJA_PEDIDOS}!A:${ULTIMA_COL}`,
     // RAW: un texto como "=SUMA(...)" se guarda como texto, no como fórmula
@@ -168,6 +175,34 @@ export async function crearPedido(joyeriaId: string, p: NuevoPedido): Promise<st
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [filaHoja(joyeriaId, numero, new Date().toISOString(), p)] },
   });
+
+  // Verificación anti-duplicado: ¿en qué fila quedó mi pedido y hay otro igual antes que él?
+  try {
+    const rango = res.data.updates?.updatedRange ?? '';
+    const fila = parseInt(/!\D*(\d+)/.exec(rango)?.[1] ?? '', 10);
+    if (fila > 1) {
+      const { data: tras } = await api.spreadsheets.values.get({ spreadsheetId, range: `${HOJA_PEDIDOS}!A2:B` });
+      const filas = tras.values ?? [];
+      const propias = filas
+        .map((r, idx) => ({ r, hoja: idx + 2 }))
+        .filter(({ r }) => r[0] === joyeriaId);
+      const repetido = propias.some(({ r, hoja }) => String(r[1]) === numero && hoja !== fila);
+      if (repetido) {
+        const nuevoMax = propias.reduce((m, { r }) => Math.max(m, valorNumero(r[1])), 0);
+        numero = formatoNumero(nuevoMax + 1);
+        await api.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${HOJA_PEDIDOS}!B${fila}`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [[numero]] },
+        });
+      }
+    }
+  } catch (e) {
+    // El pedido ya está guardado; si la verificación falla no se pierde nada
+    console.error('[crearPedido] verificación de N° duplicado', e);
+  }
+
   return numero;
 }
 

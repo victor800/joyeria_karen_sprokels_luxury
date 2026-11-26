@@ -1,3 +1,4 @@
+// 📁 RUTA: src/lib/validar-domiciliario.ts   (REEMPLAZA TODO EL ARCHIVO)
 import {
   ESTADOS,
   VEHICULOS,
@@ -37,6 +38,17 @@ export function validarDomiciliario(body: unknown, idsLocalesValidos: string[]):
   if (!localId || !idsLocalesValidos.includes(localId)) errores.localId = 'Selecciona un local válido.';
   if (!ESTADOS.includes(estado)) errores.estado = 'Estado inválido.';
 
+  // Teléfono: opcional; si se escribe, se guarda compacto (solo dígitos y un + inicial)
+  let telefono = '';
+  const telCrudo = typeof b.telefono === 'string' ? b.telefono.trim() : '';
+  if (telCrudo) {
+    telefono = telCrudo.replace(/[\s()-]/g, '');
+    if (!/^\+?\d{7,15}$/.test(telefono)) {
+      errores.telefono = 'Ingresa un teléfono válido (ej: 300 000 0000).';
+      telefono = '';
+    }
+  }
+
   // Placa: obligatoria para moto y carro, se ignora para bicicleta / a pie
   let placa = '';
   if (VEHICULOS_CON_PLACA.includes(vehiculo)) {
@@ -62,6 +74,7 @@ export function validarDomiciliario(body: unknown, idsLocalesValidos: string[]):
     ok: true,
     data: {
       nombre,
+      telefono,
       zona,
       vehiculo,
       localId,

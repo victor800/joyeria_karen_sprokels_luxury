@@ -24,6 +24,9 @@ type Popup =
   | { tipo: 'foto'; url: string; titulo: string }
   | null;
 
+/** Teléfono del domiciliario (acceso seguro: compila aunque el tipo aún no tenga el campo) */
+const telDe = (d: Domiciliario) => (d as Domiciliario & { telefono?: string }).telefono ?? '';
+
 /* ───────── Piezas pequeñas ───────── */
 function iniciales(nombre: string) {
   return (
@@ -196,7 +199,7 @@ export default function DomiciliariosVista({
     return filas.filter((d) => {
       if (estado !== 'todos' && d.estado !== estado) return false;
       if (!t) return true;
-      return [d.id, d.nombre, d.zona, d.vehiculo, d.placa, d.localId, nombres.get(d.localId) ?? '']
+      return [d.id, d.nombre, telDe(d), d.zona, d.vehiculo, d.placa, d.localId, nombres.get(d.localId) ?? '']
         .join(' ')
         .toLowerCase()
         .includes(t);
@@ -215,10 +218,11 @@ export default function DomiciliariosVista({
   function exportar() {
     const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const lineas = [
-      ['ID', 'Nombre', 'Local ID', 'Local', 'Zona', 'Vehículo', 'Placa', 'Entregas hoy', 'Estado', 'Foto', 'Foto vehículo'],
+      ['ID', 'Nombre', 'Teléfono', 'Local ID', 'Local', 'Zona', 'Vehículo', 'Placa', 'Entregas hoy', 'Estado', 'Foto', 'Foto vehículo'],
       ...visibles.map((d) => [
         d.id,
         d.nombre,
+        telDe(d),
         d.localId,
         nombres.get(d.localId) ?? '',
         d.zona,
@@ -317,6 +321,7 @@ export default function DomiciliariosVista({
                         <div className={s.nombreBox}>
                           <span className={s.nombre}>{d.nombre}</span>
                           <span className={s.mono}>{d.id}</span>
+                          {telDe(d) && <span className={s.mono}>{telDe(d)}</span>}
                         </div>
                       </div>
                     </td>
@@ -399,6 +404,10 @@ export default function DomiciliariosVista({
                             <div>
                               <dt>ID</dt>
                               <dd className={s.mono}>{d.id}</dd>
+                            </div>
+                            <div>
+                              <dt>Teléfono</dt>
+                              <dd>{telDe(d) || '—'}</dd>
                             </div>
                             <div>
                               <dt>Local</dt>
