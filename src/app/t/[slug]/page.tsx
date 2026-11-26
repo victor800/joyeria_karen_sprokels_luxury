@@ -317,13 +317,13 @@ body { margin: 0; background: #030c08; }
 
 /* ESCRITORIO (601px en adelante): el video llena el hero como fondo, fundido hacia el texto y hacia abajo */
 @media (min-width: 601px) {
-  .mw .hv { top: 0 !important; bottom: 0 !important; left: auto !important; right: 0 !important;
-    width: 64% !important; height: 100% !important; aspect-ratio: auto !important;
-    object-fit: cover !important; object-position: 50% 28%;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 18%, #000 42%, #000 100%), linear-gradient(180deg, #000 0%, #000 78%, transparent 100%);
-    mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 18%, #000 42%, #000 100%), linear-gradient(180deg, #000 0%, #000 78%, transparent 100%);
+  .mw .hv { top: 0 !important; bottom: 0 !important; left: auto !important; right: clamp(0px, 4vw, 70px) !important;
+    width: 40% !important; height: 100% !important; aspect-ratio: auto !important;
+    object-fit: cover !important; object-position: 50% 22%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 72%, transparent 100%), linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 72%, transparent 100%), linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
     -webkit-mask-composite: source-in; mask-composite: intersect; }
-  .mw-shade { background: linear-gradient(90deg, rgba(3,12,8,.92) 0%, rgba(3,12,8,.7) 30%, rgba(3,12,8,.15) 55%, rgba(3,12,8,0) 70%), linear-gradient(0deg, rgba(3,12,8,.9) 0%, transparent 28%); }
+  .mw-shade { background: linear-gradient(90deg, rgba(3,12,8,.9) 0%, rgba(3,12,8,.6) 35%, rgba(3,12,8,0) 60%), linear-gradient(0deg, rgba(3,12,8,.9) 0%, transparent 28%); }
 }
 
 .mw-hero-in { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; width: 100%; padding-top: 48px; padding-bottom: 40px; }
