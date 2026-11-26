@@ -6,10 +6,12 @@ import { useEffect, useRef, useState } from 'react';
 type Props = { src: string; poster?: string };
 
 /**
- * Video de fondo del hero.
- * - iOS: fuerza muted + playsinline desde JavaScript (React no siempre escribe `muted` en el HTML),
- *   oculta el botón de play de Safari y reintenta el play() si iOS lo bloquea.
- * - Android / escritorio: se comporta igual que antes.
+ * Video de fondo del hero, en bucle continuo.
+ * - iOS: muted + playsinline como ATRIBUTOS antes de play().
+ * - Solo se muestra cuando REALMENTE reproduce (no queda un fotograma congelado).
+ * - Ahorro de batería / autoplay bloqueado: arranca con el primer toque o clic (scroll NO cuenta en iOS).
+ * - Vigilante: si se pausa o el tiempo deja de avanzar (buffer o loop trabado), lo reanuda.
+ * - Solo insiste mientras el hero está en pantalla y la pestaña visible.
  */
 export default function HeroVideo({ src, poster }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -19,67 +21,97 @@ export default function HeroVideo({ src, poster }: Props) {
     const v = ref.current;
     if (!v) return;
 
-    // iOS solo permite autoplay si el video está silenciado ANTES de llamar a play()
     v.muted = true;
     v.defaultMuted = true;
-    v.volume = 0;
     v.loop = true;
     v.controls = false;
+    v.playsInline = true;
     v.setAttribute('muted', '');
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
+    v.setAttribute('x-webkit-airplay', 'deny');
 
-    let desbloqueado = false;
+    let vivo = true;
+    let visible = true;
+    let ultimo = -1;
+    let trabado = 0;
 
-    const intentar = () => {
+    const reproducir = () => {
+      if (!vivo || document.hidden || !visible) return;
+      if (!v.paused && !v.ended) return;
+      if (v.ended) v.currentTime = 0;
       v.muted = true;
       const p = v.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
-          // iOS bloqueó el autoplay (modo ahorro de batería, etc.): se reintenta al primer gesto
-        });
-      }
+      if (p && typeof p.catch === 'function') p.catch(() => { /* bloqueado: reintenta el toque o el vigilante */ });
     };
 
-    const alGesto = () => {
-      if (desbloqueado) return;
-      desbloqueado = true;
-      intentar();
-      limpiarGestos();
-    };
-    const gestos: (keyof WindowEventMap)[] = ['touchstart', 'touchend', 'pointerdown', 'click', 'scroll', 'keydown'];
-    const limpiarGestos = () => gestos.forEach((g) => window.removeEventListener(g, alGesto));
-    gestos.forEach((g) => window.addEventListener(g, alGesto, { passive: true, once: false }));
+    /* Gestos válidos para iOS (scroll NO desbloquea la reproducción) */
+    const gestos: (keyof DocumentEventMap)[] = ['touchend', 'click', 'keydown'];
+    const alGesto = () => reproducir();
+    const quitarGestos = () => gestos.forEach((g) => document.removeEventListener(g, alGesto));
+    gestos.forEach((g) => document.addEventListener(g, alGesto, { passive: true }));
 
-    const mostrar = () => setOn(true);
-    const alReproducir = () => { setOn(true); desbloqueado = true; limpiarGestos(); };
-    const alVolver = () => { if (document.visibilityState === 'visible' && v.paused) intentar(); };
+    const alReproducir = () => { setOn(true); trabado = 0; quitarGestos(); };
+    const alTerminar = () => { v.currentTime = 0; reproducir(); };
+    const alPausar = () => { if (!document.hidden && visible) window.setTimeout(reproducir, 120); };
+    const alVolver = () => { if (!document.hidden) reproducir(); };
 
-    v.addEventListener('loadeddata', mostrar);
-    v.addEventListener('canplay', intentar);
     v.addEventListener('playing', alReproducir);
-    v.addEventListener('pause', alVolver);
+    v.addEventListener('ended', alTerminar);
+    v.addEventListener('pause', alPausar);
+    v.addEventListener('canplay', reproducir);
+    v.addEventListener('loadedmetadata', reproducir);
     document.addEventListener('visibilitychange', alVolver);
-    window.addEventListener('pageshow', intentar);
+    window.addEventListener('pageshow', alVolver);
+    window.addEventListener('focus', alVolver);
 
-    if (v.readyState >= 2) mostrar();
-    intentar();
+    let io: IntersectionObserver | null = null;
+    if ('IntersectionObserver' in window) {
+      io = new IntersectionObserver(([e]) => {
+        visible = e.isIntersecting;
+        if (visible) reproducir();
+      }, { threshold: 0.05 });
+      io.observe(v);
+    }
+
+    const vigilante = window.setInterval(() => {
+      if (!vivo || document.hidden || !visible) return;
+      if (v.paused || v.ended) { reproducir(); return; }
+      if (v.currentTime === ultimo && v.readyState >= 2) {
+        if (++trabado >= 2) {
+          trabado = 0;
+          const d = v.duration;
+          v.currentTime = Number.isFinite(d) && d - v.currentTime < 0.3 ? 0 : v.currentTime + 0.01;
+          reproducir();
+        }
+      } else {
+        trabado = 0;
+      }
+      ultimo = v.currentTime;
+    }, 1500);
+
+    reproducir();
 
     return () => {
-      limpiarGestos();
-      v.removeEventListener('loadeddata', mostrar);
-      v.removeEventListener('canplay', intentar);
+      vivo = false;
+      window.clearInterval(vigilante);
+      io?.disconnect();
+      quitarGestos();
       v.removeEventListener('playing', alReproducir);
-      v.removeEventListener('pause', alVolver);
+      v.removeEventListener('ended', alTerminar);
+      v.removeEventListener('pause', alPausar);
+      v.removeEventListener('canplay', reproducir);
+      v.removeEventListener('loadedmetadata', reproducir);
       document.removeEventListener('visibilitychange', alVolver);
-      window.removeEventListener('pageshow', intentar);
+      window.removeEventListener('pageshow', alVolver);
+      window.removeEventListener('focus', alVolver);
     };
   }, [src]);
 
   return (
     <>
       <style>{`
-        /* Oculta por completo los controles y el botón de play de Safari / iOS */
+        /* Oculta controles y el botón de play de Safari / iOS */
         .hv::-webkit-media-controls,
         .hv::-webkit-media-controls-panel,
         .hv::-webkit-media-controls-play-button,
@@ -91,7 +123,6 @@ export default function HeroVideo({ src, poster }: Props) {
       <video
         ref={ref}
         className={`hv${on ? ' on' : ''}`}
-        src={src}
         poster={poster}
         autoPlay
         muted
@@ -104,7 +135,9 @@ export default function HeroVideo({ src, poster }: Props) {
         controlsList="nodownload nofullscreen noremoteplayback"
         aria-hidden="true"
         tabIndex={-1}
-      />
+      >
+        <source src={src} type="video/mp4" />
+      </video>
     </>
   );
 }
