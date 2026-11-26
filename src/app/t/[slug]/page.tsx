@@ -4,7 +4,9 @@ import type { Metadata } from 'next';
 import { Playfair_Display } from 'next/font/google';
 import { leerConfigPublica } from '@/lib/configuracion';
 import { leerPrendasPublicas } from '@/lib/prendas';
-import CatalogoPublico, { CarritoHeader, type PrendaP, type VarianteP } from './CatalogoPublico';
+import CatalogoPublico, { CarritoHeader } from './CatalogoPublico';
+import { normalizarPrendas } from '@/lib/prendas-publicas';   // ⟵ CAMBIO: la misma lógica de precios la usa /api/pedido-web
+import { parseZonas, valorDomicilio } from '@/lib/zonas';      // ⟵ CAMBIO: zonas y domicilio de la hoja Configuración
 import HeroVideo from './HeroVideo';
 import PromocionesPublicas, { type PromoP } from './PromocionesPublicas';
 import CotizacionModal from './CotizacionModal';
@@ -68,86 +70,6 @@ const waLink = (tel?: string) => {
 };
 const slugCat = (k: string) =>
   k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-/* ═══════════════════════════════════════════════
-   PRENDAS DEL SHEET → TARJETAS (sin cambios)
-   ═══════════════════════════════════════════════ */
-const SEP = '|';
-const parseFotos = (v: unknown): string[] =>
-  (Array.isArray(v) ? v.map(String) : String(v ?? '').split(SEP)).map((x) => x.trim()).filter(Boolean);
-const primerasFotos = (...vs: unknown[]): string[] => {
-  for (const v of vs) { const f = parseFotos(v); if (f.length) return f; }
-  return [];
-};
-const soloDigitos = (v: unknown) => Number(String(v ?? '').replace(/\D/g, '')) || 0;
-
-type VarCruda = { t?: unknown; p?: unknown; s?: unknown; m?: unknown; f?: unknown };
-function parseVariantes(tamano: unknown): VarCruda[] | null {
-  const t = String(tamano ?? '').trim();
-  if (!t.startsWith('[')) return null;
-  try {
-    const arr = JSON.parse(t);
-    return Array.isArray(arr) && arr.length ? arr : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizarPrendas(crudas: unknown[], precios: Record<string, unknown>): PrendaP[] {
-  const margen = Number(String(precios.margen ?? '0').replace(',', '.')) || 0;
-  const calc = (quilate: string, peso: unknown, manual: unknown) => {
-    const m = soloDigitos(manual);
-    if (m > 0) return m;
-    const gramo = soloDigitos(precios[`p${quilate}`]);
-    const pe = Number(String(peso ?? '').replace(',', '.'));
-    return pe > 0 && gramo > 0 ? Math.round(pe * gramo * (1 + margen / 100)) : 0;
-  };
-
-  const salida: PrendaP[] = [];
-  for (const raw of crudas) {
-    const r = raw as Record<string, unknown>;
-    const nombre = String(r.nombre ?? '').trim();
-    if (!nombre) continue;
-    if (r.activo !== undefined && String(r.activo) !== 'true') continue;
-
-    const quilate = String(r.quilate ?? '18');
-    const fotosBase = primerasFotos(r.foto_url, r.foto, r.fotos, r.imagen_url, r.imagen);
-    const crudasVar = parseVariantes(r.tamano);
-
-    let variantes: VarianteP[];
-    if (crudasVar) {
-      const vs = crudasVar.map((x) => ({
-        tamano: String(x.t ?? ''),
-        peso: String(x.p ?? ''),
-        stock: Number(x.s ?? 0) || 0,
-        precio: calc(quilate, x.p, x.m),
-        fotos: parseFotos(x.f),
-      }));
-      const respaldo = vs.find((x) => x.fotos.length)?.fotos ?? fotosBase;
-      variantes = vs.map((x) => ({ ...x, fotos: x.fotos.length ? x.fotos : respaldo }));
-    } else {
-      const precio = Number(r.precio) > 0 ? Number(r.precio) : soloDigitos(r.precio) || calc(quilate, r.peso, r.precio_manual);
-      variantes = [{
-        tamano: String(r.tamano ?? ''),
-        peso: String(r.peso ?? ''),
-        stock: Number(r.stock ?? 1) || 0,
-        precio,
-        fotos: fotosBase,
-      }];
-    }
-
-    salida.push({
-      id: String(r.id ?? r.codigo ?? nombre),
-      codigo: String(r.codigo ?? ''),
-      nombre,
-      categoria: String(r.categoria ?? ''),
-      quilate,
-      descripcion: String(r.descripcion ?? r.detalle ?? ''),
-      variantes,
-    });
-  }
-  return salida;
-}
 
 /* ═══════════════════════════════════════════════
    PROMOCIONES ACTIVAS
@@ -762,6 +684,8 @@ export default async function TiendaPublica({ params }: Params) {
   const lema = f.encabezado || 'Joyas en oro certificado, creadas para celebrar tus momentos más preciosos.';
   const ig = instagramUser(f.instagram);
   const dom = cop(f.domicilio);
+  const ZONAS = parseZonas(f.cobertura);         // ⟵ CAMBIO: "Medellin, Envigado , Sabaneta, Norte"
+  const DOMICILIO = valorDomicilio(f.domicilio); // ⟵ CAMBIO: 18000
   // Karen usa su número fijo; si algún día lo quitas, cae al teléfono de Configuración
   const wa = WA_JKS ? waLink(WA_JKS) : waLink(f.telefono);
   const wa2 = waLink(WA_JKS_2);
@@ -880,14 +804,14 @@ export default async function TiendaPublica({ params }: Params) {
         <div className="mw-wrap">
           <div className="mw-tit"><small>Los favoritos</small><h3>Nuestras piezas más amadas</h3><i /></div>
           {PRENDAS.length
-            ? <CatalogoPublico prendas={PRENDAS} wa={wa} logo={LOGO_JKS} tienda={nombre} />
+            ? <CatalogoPublico prendas={PRENDAS} wa={wa} logo={LOGO_JKS} tienda={nombre} zonas={ZONAS} domicilio={DOMICILIO} />
             : <p className="mw-aviso">Muy pronto: nuestro catálogo en línea.</p>}
         </div>
       </section>
       </div>
 
       {/* ───── Hans (mayor y menudeo) ───── */}
-      <HansSeccion items={HANS} wa={waHans} />
+      <HansSeccion items={HANS} wa={waHans} zonas={ZONAS} domicilio={DOMICILIO} /> {/* ⟵ CAMBIO */}
 
       {/* ───── Guía de tallas ───── */}
       <Colapsa id="tallas" sub="Guía de tallas" titulo="Encuentra tu medida ideal">

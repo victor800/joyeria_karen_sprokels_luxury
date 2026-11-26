@@ -1,10 +1,13 @@
 // 📁 RUTA: src/app/api/hans/pedido-web/route.ts   (REEMPLAZA TODO EL ARCHIVO)
-// Recibe el pedido del carrito público de Hans y lo guarda en el panel de Hans.
+// Recibe el pedido del carrito público de Hans y lo guarda en el panel de Hans (joyeria_id: 'hans').
+// Zona y domicilio salen de la hoja Configuración; total = prendas + domicilio.
 // Los precios se recalculan AQUÍ con el catálogo real: lo que mande el navegador no se toma como válido.
 // El estado SIEMPRE nace en "nuevo": solo el panel puede avanzarlo (recibido → en camino → entregado).
 import { NextResponse } from 'next/server';
 import { crearPedidoHans } from '@/lib/hans';
 import { leerHansPublico } from '@/lib/hans-publico';
+import { leerConfig } from '@/lib/configuracion';                     // ⟵ CAMBIO: zonas y domicilio de la hoja Configuración
+import { parseZonas, valorDomicilio, mismaZona } from '@/lib/zonas';  // ⟵ CAMBIO
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +34,14 @@ export async function POST(req: Request) {
     if (!cliente) throw new Error('Escribe tu nombre.');
     if (telefono.replace(/\D/g, '').length < 10) throw new Error('Escribe un celular válido.');
     if (!direccion) throw new Error('Escribe la dirección de entrega.');
+
+    // ⟵ CAMBIO: la zona debe ser una de la hoja Configuración (fila "cobertura")
+    const cfg = await leerConfig();
+    const zonas = parseZonas(cfg.cobertura);
+    const pedida = txt(b.zona, 80);
+    const zona = zonas.length ? zonas.find((z) => mismaZona(z, pedida)) ?? '' : pedida;
+    if (!zona) throw new Error('Elige una zona de entrega de la lista.');
+    const domicilio = valorDomicilio(cfg.domicilio);   // fila "domicilio" (ej: 18000)
 
     const crudos: ItemIn[] = Array.isArray(b.items) ? b.items.slice(0, 40) : [];
     if (!crudos.length) throw new Error('Tu carrito está vacío.');
@@ -66,7 +77,8 @@ export async function POST(req: Request) {
       else items.push({ codigo: x.codigo, nombre: x.nombre, cant, precio, foto: fotoDe(x) });
     }
 
-    const total = items.reduce((s, l) => s + l.cant * l.precio, 0);
+    const subtotal = items.reduce((s, l) => s + l.cant * l.precio, 0);
+    const total = subtotal + domicilio;   // ⟵ CAMBIO: prendas + domicilio
     const metodo = PAGOS.includes(String(b.metodo_pago)) ? String(b.metodo_pago) : 'Efectivo';
 
     // Todo lo que decide el flujo lo fija el SERVIDOR; el navegador no puede mandar estado ni domiciliario.
@@ -75,7 +87,10 @@ export async function POST(req: Request) {
       telefono,
       email: txt(b.email, 120),
       direccion,
-      ciudad: txt(b.ciudad, 80),
+      ciudad: [zona, txt(b.barrio ?? b.ciudad, 80)].filter(Boolean).join(' · '),   // ⟵ CAMBIO: zona · barrio
+      zona,          // ⟵ CAMBIO
+      subtotal,      // ⟵ CAMBIO
+      domicilio,     // ⟵ CAMBIO
       tipo: mayorista === items.length ? 'mayorista' : 'menudeo',
       metodo_pago: metodo,
       pago_estado: 'pendiente',
@@ -86,10 +101,11 @@ export async function POST(req: Request) {
       recibido_en: '',
       despachado_en: '',
       entregado_en: '',
-      notas: txt(b.notas, 400),
+      notas: [`Zona: ${zona} · Domicilio: $${domicilio.toLocaleString('es-CO')}`, txt(b.notas, 400)].filter(Boolean).join(' — '),   // ⟵ CAMBIO
       items,
       total,
       origen: 'web',
+      joyeria_id: 'hans',   // ⟵ CAMBIO: este pedido es de Hans (panel de Hans)
     };
 
     const pedido = (await crearPedidoHans(datos, true)) as { codigo?: string; estado?: string };
@@ -99,7 +115,7 @@ export async function POST(req: Request) {
       console.error('[hans pedido-web] El pedido se creó con estado inesperado:', pedido.codigo, pedido.estado);
     }
 
-    return NextResponse.json({ codigo: pedido?.codigo ?? '', total }, { status: 201 });
+    return NextResponse.json({ codigo: pedido?.codigo ?? '', subtotal, domicilio, zona, total }, { status: 201 });
   } catch (e) {
     console.error('[hans pedido-web POST]', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo crear el pedido' }, { status: 400 });

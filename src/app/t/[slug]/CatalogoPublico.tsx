@@ -32,11 +32,15 @@ type Cupon = { codigo: string; nombre: string; tipo: 'porcentaje' | 'monto'; val
 type Envio = {
   entrega: 'domicilio' | 'recoger';
   nombre: string; telefono: string; correo: string;
-  ciudad: string; barrio: string; direccion: string; complemento: string; indicaciones: string;
+  zona: string; barrio: string; direccion: string; complemento: string; indicaciones: string;   // ⟵ CAMBIO: zona (antes ciudad)
 };
 const ENVIO_VACIO: Envio = {
   entrega: 'domicilio', nombre: '', telefono: '', correo: '',
-  ciudad: '', barrio: '', direccion: '', complemento: '', indicaciones: '',
+  zona: '', barrio: '', direccion: '', complemento: '', indicaciones: '',
+};
+const mismaZona = (a: string, b: string) => {
+  const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return !!a && !!b && n(a) === n(b);
 };
 const PASOS = ['Carrito', 'Envío', 'Confirmar'];
 
@@ -46,14 +50,15 @@ const soloCelular = (t: string) => {
   return d;
 };
 
-function validarEnvio(e: Envio): Partial<Record<keyof Envio, string>> {
+function validarEnvio(e: Envio, zonas: string[]): Partial<Record<keyof Envio, string>> {
   const r: Partial<Record<keyof Envio, string>> = {};
   const nombre = e.nombre.trim();
   if (nombre.length < 5 || nombre.split(/\s+/).length < 2) r.nombre = 'Escribe tu nombre y apellido';
   if (!/^3\d{9}$/.test(soloCelular(e.telefono))) r.telefono = 'Celular de 10 dígitos. Ej: 3001234567';
   if (e.correo.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.correo.trim())) r.correo = 'El correo no es válido';
   if (e.entrega === 'domicilio') {
-    if (e.ciudad.trim().length < 2) r.ciudad = 'Indica la ciudad o municipio';
+    if (zonas.length ? !zonas.some((z) => mismaZona(z, e.zona)) : e.zona.trim().length < 2)
+      r.zona = zonas.length ? 'Elige tu zona de entrega' : 'Indica la zona de entrega';   // ⟵ CAMBIO
     if (e.barrio.trim().length < 2) r.barrio = 'Indica el barrio';
     if (e.direccion.trim().length < 5) r.direccion = 'Escribe la dirección completa';
   }
@@ -375,7 +380,11 @@ function Campo({ id, label, opcional, error, children }: { id: string; label: st
 }
 
 /* ═════════════ Catálogo + carrito ═════════════ */
-export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel's" }: { prendas: PrendaP[]; wa: string; logo?: string; tienda?: string }) {
+export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel's", zonas = [], domicilio = 0 }: {
+  prendas: PrendaP[]; wa: string; logo?: string; tienda?: string;
+  zonas?: string[];     // ⟵ CAMBIO: fila "cobertura" de Configuración
+  domicilio?: number;   // ⟵ CAMBIO: fila "domicilio" de Configuración
+}) {
   const [items, setItems] = useState<Item[]>([]);
   const [likes, setLikes] = useState<string[]>([]);
   const [conteos, setConteos] = useState<Record<string, number>>({});
@@ -388,6 +397,9 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
   const [paso, setPaso] = useState(0);
   const [envio, setEnvio] = useState<Envio>(ENVIO_VACIO);
   const [tocados, setTocados] = useState<Record<string, boolean>>({});
+  const [enviando, setEnviando] = useState(false);                                                          // ⟵ CAMBIO
+  const [errEnvio, setErrEnvio] = useState('');                                                             // ⟵ CAMBIO
+  const [listo, setListo] = useState<{ codigo: string; total: number; link: string } | null>(null);        // ⟵ CAMBIO
   const enVuelo = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -395,7 +407,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
     setLikes(leer<string[]>(LS_LIKES, []));
     setCupon(leer<Cupon | null>(LS_CUPON, null));
     setEnvio({ ...ENVIO_VACIO, ...leer<Partial<Envio>>(LS_ENVIO, {}) });
-    const abrir = () => { setPaso(0); setAbierto(true); };
+    const abrir = () => { setPaso(0); setListo(null); setErrEnvio(''); setAbierto(true); };
     const releer = () => { setItems(leer<Item[]>(LS_CARRITO, [])); setCupon(leer<Cupon | null>(LS_CUPON, null)); };
     const irVista = (e: Event) => {
       const d = (e as CustomEvent<string>).detail;
@@ -542,7 +554,8 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
   const descuento = cuponOk && subtotal > 0
     ? Math.min(subtotal, cuponOk.tipo === 'porcentaje' ? Math.round((subtotal * cuponOk.valor) / 100) : cuponOk.valor)
     : 0;
-  const total = subtotal - descuento;
+  const costoDom = envio.entrega === 'domicilio' ? domicilio : 0;   // ⟵ CAMBIO
+  const total = subtotal - descuento + costoDom;                    // ⟵ CAMBIO: prendas − cupón + domicilio
   const quitarCupon = () => {
     try { localStorage.removeItem(LS_CUPON); } catch { /* */ }
     setCupon(null);
@@ -551,7 +564,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
   const pFicha = ficha ? prendas.find((p) => p.id === ficha) : undefined;
 
   /* ---- Datos de envío ---- */
-  const errores = useMemo(() => validarEnvio(envio), [envio]);
+  const errores = useMemo(() => validarEnvio(envio, zonas), [envio, zonas]);
   const faltan = Object.keys(errores).length;
   const valido = faltan === 0;
   const pasoEf = items.length === 0 ? 0 : paso === 2 && !valido ? 1 : paso;
@@ -562,7 +575,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
 
   const cerrarCarrito = () => setAbierto(false);
 
-  const pedido = () => {
+  const pedido = (codigo: string, tot: number) => {
     const lineas = items.map((i) =>
       `• ${i.nombre}${i.tamano ? ` (${i.tamano})` : ''} x${i.qty} — ${cop(i.precio * i.qty)}`);
     const extra = cuponOk && descuento > 0
@@ -575,19 +588,46 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
       `Teléfono: ${soloCelular(e.telefono)}`,
       e.correo.trim() ? `Correo: ${e.correo.trim()}` : '',
       e.entrega === 'domicilio'
-        ? `Entrega: Domicilio\nCiudad: ${e.ciudad.trim()}\nBarrio: ${e.barrio.trim()}\nDirección: ${e.direccion.trim()}${e.complemento.trim() ? `, ${e.complemento.trim()}` : ''}`
+        ? `Entrega: Domicilio\nZona: ${e.zona.trim()}\nBarrio: ${e.barrio.trim()}\nDirección: ${e.direccion.trim()}${e.complemento.trim() ? `, ${e.complemento.trim()}` : ''}\nDomicilio: ${cop(costoDom)}`
         : 'Entrega: Recoger en tienda',
       e.indicaciones.trim() ? `Indicaciones: ${e.indicaciones.trim()}` : '',
     ].filter(Boolean).join('\n');
-    const msg = `Hola, *${tienda}* 👋\nQuiero hacer este pedido:\n\n${lineas.join('\n')}${extra}\n\n*Total: ${cop(total)}*${datos}\n\n¿Me confirmas disponibilidad, envío y forma de pago? ¡Gracias!`;
+    const msg = `Hola, *${tienda}* 👋\nHice el pedido *${codigo}*:\n\n${lineas.join('\n')}${extra}\n\n*Total: ${cop(tot)}*${datos}\n\n¿Me confirmas disponibilidad, envío y forma de pago? ¡Gracias!`;
     const sep = wa.includes('?') ? '&' : '?';
     return `${wa}${sep}text=${encodeURIComponent(msg)}`;
   };
   const waOk = wa !== '#';
 
-  const pedir = () => {
-    if (!valido || !waOk || items.length === 0) return;
-    window.open(pedido(), '_blank', 'noopener,noreferrer');
+  /* ⟵ CAMBIO: el pedido se guarda en la hoja "Pedidos" de Karen (su joyeria_id) y después se ofrece WhatsApp.
+     El enlace de WhatsApp es un <a> que la persona toca: así Safari/iPhone no lo bloquea como ventana emergente. */
+  const pedir = async () => {
+    if (!valido || items.length === 0 || enviando) return;
+    setEnviando(true);
+    setErrEnvio('');
+    try {
+      const r = await fetch('/api/pedido-web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...envio,
+          telefono: soloCelular(envio.telefono),
+          cupon: cuponOk?.codigo ?? '',
+          items: items.map((i) => ({ id: i.id, nombre: i.nombre, tamano: i.tamano, qty: i.qty, precio: i.precio })),
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { codigo?: string; total?: number; error?: string };
+      if (!r.ok) throw new Error(d.error || 'No se pudo enviar el pedido');
+      const codigo = String(d.codigo ?? '');
+      const tot = Number(d.total) || total;
+      setListo({ codigo, total: tot, link: waOk ? pedido(codigo, tot) : '#' });
+      persistir([]);
+      quitarCupon();
+      setPaso(0);
+    } catch (e) {
+      setErrEnvio(e instanceof Error ? e.message : 'No se pudo enviar el pedido');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const totales = (
@@ -598,6 +638,12 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
           <div className="mc-sub desc"><span>Cupón {cuponOk?.codigo}</span><span>−{cop(descuento)}</span></div>
         </>
       )}
+      {descuento <= 0 && <div className="mc-sub"><span>Prendas</span><span>{cop(subtotal)}</span></div>}
+      {/* ⟵ CAMBIO: domicilio según la zona elegida */}
+      <div className="mc-sub">
+        <span>{envio.entrega === 'recoger' ? 'Recoger en tienda' : `Domicilio${envio.zona ? ` · ${envio.zona}` : ''}`}</span>
+        <span>{envio.entrega === 'recoger' ? '$0' : domicilio > 0 ? cop(domicilio) : 'Por confirmar'}</span>
+      </div>
       <div className="mc-tot"><span>Total</span><b>{cop(total)}</b></div>
     </>
   );
@@ -780,6 +826,18 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
         .mc-c input:focus, .mc-c textarea:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(11,74,46,.1); }
         .mc-c input[aria-invalid="true"], .mc-c textarea[aria-invalid="true"] { border-color: #c4453c; }
         .mc-err { font-size: 12px; color: #b3372f; }
+        /* ⟵ CAMBIO: selector de zona, error al enviar y confirmación */
+        .mc-sel { width: 100%; padding: 11px 38px 11px 13px; border-radius: 11px; border: 1px solid #ddd5bd; font: inherit; font-size: 16px; color: var(--tx); outline: none; cursor: pointer;
+          appearance: none; -webkit-appearance: none; background: #fff linear-gradient(45deg, transparent 50%, #0b4a2e 50%) calc(100% - 19px) 50% / 6px 6px no-repeat;
+          background-image: linear-gradient(45deg, transparent 50%, #0b4a2e 50%), linear-gradient(135deg, #0b4a2e 50%, transparent 50%);
+          background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+        .mc-sel:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(11,74,46,.1); }
+        .mc-sel[aria-invalid="true"] { border-color: #c4453c; }
+        .mc-err-box { margin: 0; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; color: #b3372f; background: #fbeceb; border: 1px solid #efc2bd; }
+        .mc-ok { display: flex; gap: 14px; align-items: center; margin: 18px 0; padding: 16px; border-radius: 14px; background: #f1f7f3; border: 1px solid #cfe0d5; }
+        .mc-ok > span { flex: 0 0 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; color: #f3e2a6; background: var(--v); }
+        .mc-ok p { margin: 0; font-size: 14px; line-height: 1.55; color: #35493f; } .mc-ok b { color: var(--v); }
+        .mw .mc-sig.mc-sig-sec, .mc-sig.mc-sig-sec { background: transparent !important; color: var(--v) !important; border: 1px solid var(--v); }
         .mc-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .mc-recoger { margin: 0; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; color: #6b5214; background: #faf3dc; border: 1px dashed #c9a24a; }
 
@@ -856,12 +914,12 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
                 {pasoEf > 0 && (
                   <button type="button" className="mc-x" aria-label="Paso anterior" onClick={() => setPaso(pasoEf - 1)}><Chev dir="l" /></button>
                 )}
-                <b>{titulos[pasoEf]}</b>
+                <b>{listo ? '¡Pedido recibido!' : titulos[pasoEf]}</b>
               </div>
               <button type="button" className="mc-x" aria-label="Cerrar" onClick={cerrarCarrito}><Close /></button>
             </div>
 
-            {items.length > 0 && (
+            {!listo && items.length > 0 && (
               <div className="mc-pasos" aria-label="Progreso del pedido">
                 {PASOS.map((t, i) => (
                   <span key={t} className={i === pasoEf ? 'on' : i < pasoEf ? 'hecho' : ''} aria-current={i === pasoEf ? 'step' : undefined}>
@@ -872,7 +930,25 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
             )}
 
             {/* ── Paso 1: carrito ── */}
-            {pasoEf === 0 && (
+            {/* ⟵ CAMBIO: pedido guardado en el panel de Karen → confirmación + WhatsApp */}
+            {listo && (
+              <>
+                <div className="mc-lista">
+                  <div className="mc-ok">
+                    <span><Check s={22} /></span>
+                    <p>Tu pedido <b>{listo.codigo || 'quedó registrado'}</b> por <b>{cop(listo.total)}</b> llegó a {tienda}. Te contactaremos para confirmar la entrega y el pago.</p>
+                  </div>
+                </div>
+                <div className="mc-pie">
+                  {listo.link !== '#' && (
+                    <a className="mc-pedir" href={listo.link} target="_blank" rel="noopener noreferrer">Enviar resumen por WhatsApp</a>
+                  )}
+                  <button type="button" className="mc-sig mc-sig-sec" onClick={() => { setListo(null); cerrarCarrito(); }}>Listo</button>
+                </div>
+              </>
+            )}
+
+            {!listo && pasoEf === 0 && (
               <>
                 <div className="mc-lista">
                   {cuponOk && (
@@ -912,7 +988,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
                   <div className="mc-pie">
                     {totales}
                     <button type="button" className="mc-sig" onClick={() => setPaso(1)}>Continuar con mis datos</button>
-                    <p className="mc-nota">El valor del domicilio se confirma según tu zona.</p>
+                    <p className="mc-nota">{zonas.length ? `Domicilio a ${zonas.join(', ')}` : 'El domicilio se confirma según tu zona.'}</p>
                   </div>
                 )}
               </>
@@ -946,9 +1022,18 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
                     {envio.entrega === 'domicilio' ? (
                       <>
                         <div className="mc-dos">
-                          <Campo id="env-ciudad" label="Ciudad o municipio" error={err('ciudad')}>
-                            <input id="env-ciudad" value={envio.ciudad} autoComplete="address-level2" placeholder="Ej: Medellín"
-                              aria-invalid={!!err('ciudad')} onBlur={() => tocar('ciudad')} onChange={(e) => poner('ciudad', e.target.value)} />
+                          {/* ⟵ CAMBIO: zonas de la hoja Configuración */}
+                          <Campo id="env-zona" label="Zona de entrega" error={err('zona')}>
+                            {zonas.length ? (
+                              <select id="env-zona" className="mc-sel" value={envio.zona}
+                                aria-invalid={!!err('zona')} onBlur={() => tocar('zona')} onChange={(e) => { poner('zona', e.target.value); tocar('zona'); }}>
+                                <option value="">Elige tu zona</option>
+                                {zonas.map((z) => <option key={z} value={z}>{z}</option>)}
+                              </select>
+                            ) : (
+                              <input id="env-zona" value={envio.zona} autoComplete="address-level2" placeholder="Ej: Medellín"
+                                aria-invalid={!!err('zona')} onBlur={() => tocar('zona')} onChange={(e) => poner('zona', e.target.value)} />
+                            )}
                           </Campo>
                           <Campo id="env-barrio" label="Barrio" error={err('barrio')}>
                             <input id="env-barrio" value={envio.barrio} placeholder="Ej: El Poblado"
@@ -978,7 +1063,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
                 </div>
 
                 <div className="mc-pie">
-                  <div className="mc-tot"><span>Total</span><b>{cop(total)}</b></div>
+                  {totales}
                   <button type="button" className="mc-sig" disabled={!valido} onClick={() => setPaso(2)}>Continuar</button>
                   {!valido && (
                     <p className="mc-bloq">Completa {faltan === 1 ? 'el campo obligatorio' : `los ${faltan} campos obligatorios`} para continuar.</p>
@@ -1009,7 +1094,7 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
                       {envio.entrega === 'domicilio' ? (
                         <span>
                           {envio.direccion.trim()}{envio.complemento.trim() ? `, ${envio.complemento.trim()}` : ''}<br />
-                          {envio.barrio.trim()}, {envio.ciudad.trim()}
+                          {envio.barrio.trim()}, {envio.zona.trim()}
                         </span>
                       ) : (
                         <span>Recoger en tienda</span>
@@ -1021,10 +1106,11 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
 
                 <div className="mc-pie">
                   {totales}
-                  <button type="button" className="mc-pedir" disabled={!valido || !waOk} onClick={pedir}>
-                    <Check s={18} /> Pedir
+                  {errEnvio && <p className="mc-err-box" role="alert">{errEnvio}</p>}
+                  <button type="button" className="mc-pedir" disabled={!valido || enviando} onClick={pedir}>
+                    <Check s={18} /> {enviando ? 'Enviando…' : 'Enviar pedido'}
                   </button>
-                  <p className="mc-nota">{waOk ? 'Te confirmamos disponibilidad, envío y forma de pago.' : 'La tienda aún no tiene WhatsApp configurado.'}</p>
+                  <p className="mc-nota">Te confirmamos disponibilidad, envío y forma de pago.</p>
                 </div>
               </>
             )}

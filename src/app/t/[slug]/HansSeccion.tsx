@@ -171,20 +171,22 @@ function Detalle({ x, onClose, onAdd }: { x: HansPub; onClose: () => void; onAdd
 }
 
 /* ---------- Carrito de Hans + pedido ---------- */
-type Form = { cliente: string; telefono: string; email: string; direccion: string; ciudad: string; metodo_pago: string; notas: string; hp: string };
-const FORM0: Form = { cliente: '', telefono: '', email: '', direccion: '', ciudad: '', metodo_pago: 'Efectivo', notas: '', hp: '' };
+type Form = { cliente: string; telefono: string; email: string; zona: string; barrio: string; direccion: string; metodo_pago: string; notas: string; hp: string };
+const FORM0: Form = { cliente: '', telefono: '', email: '', zona: '', barrio: '', direccion: '', metodo_pago: 'Efectivo', notas: '', hp: '' };
 
-function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa }: {
+function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa, zonas, domicilio }: {
   lineas: Linea[]; setLineas: React.Dispatch<React.SetStateAction<Linea[]>>; abierto: boolean; setAbierto: (v: boolean) => void; wa: string;
+  zonas: string[]; domicilio: number;   // ⟵ CAMBIO: de la hoja Configuración
 }) {
   const [f, setF] = useState<Form>(FORM0);
   const [err, setErr] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<{ codigo: string; total: number } | null>(null);
-  const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   const uds = lineas.reduce((s, l) => s + l.cant, 0);
-  const total = lineas.reduce((s, l) => s + l.cant * l.precio, 0);
+  const subtotal = lineas.reduce((s, l) => s + l.cant * l.precio, 0);
+  const total = subtotal + (lineas.length ? domicilio : 0);   // ⟵ CAMBIO: prendas + domicilio
 
   useEffect(() => {
     if (!abierto) return;
@@ -204,6 +206,7 @@ function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa }: {
     if (!lineas.length) return setErr('Tu carrito está vacío.');
     if (!f.cliente.trim()) return setErr('Escribe tu nombre.');
     if (f.telefono.replace(/\D/g, '').length < 10) return setErr('Escribe un celular válido (10 dígitos).');
+    if (!f.zona.trim()) return setErr(zonas.length ? 'Elige la zona de entrega.' : 'Escribe la zona de entrega.');   // ⟵ CAMBIO
     if (!f.direccion.trim()) return setErr('Escribe la dirección de entrega.');
     setEnviando(true);
     try {
@@ -283,7 +286,19 @@ function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa }: {
                 <div><label htmlFor="hc-t">Celular / WhatsApp *</label><input id="hc-t" className="hc-in" inputMode="tel" autoComplete="tel" value={f.telefono} onChange={set('telefono')} placeholder="300 000 0000" /></div>
                 <div><label htmlFor="hc-e">Correo (opcional)</label><input id="hc-e" className="hc-in" type="email" autoComplete="email" value={f.email} onChange={set('email')} /></div>
                 <div className="full"><label htmlFor="hc-d">Dirección de entrega *</label><input id="hc-d" className="hc-in" autoComplete="street-address" value={f.direccion} onChange={set('direccion')} placeholder="Calle, número, apto / indicaciones" /></div>
-                <div className="full"><label htmlFor="hc-c">Ciudad / barrio</label><input id="hc-c" className="hc-in" value={f.ciudad} onChange={set('ciudad')} /></div>
+                {/* ⟵ CAMBIO: zona de la hoja Configuración + barrio */}
+                <div>
+                  <label htmlFor="hc-z">Zona de entrega *</label>
+                  {zonas.length ? (
+                    <select id="hc-z" className="hc-in" value={f.zona} onChange={set('zona')}>
+                      <option value="">Elige tu zona</option>
+                      {zonas.map((z) => <option key={z} value={z}>{z}</option>)}
+                    </select>
+                  ) : (
+                    <input id="hc-z" className="hc-in" value={f.zona} onChange={set('zona')} placeholder="Ciudad o municipio" />
+                  )}
+                </div>
+                <div><label htmlFor="hc-c">Barrio</label><input id="hc-c" className="hc-in" value={f.barrio} onChange={set('barrio')} /></div>
               </div>
               <span className="hc-l">Método de pago</span>
               <div className="hc-chips" role="group" aria-label="Método de pago">
@@ -298,9 +313,12 @@ function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa }: {
             </div>
             <footer className="hc-foot">
               {err && <p className="hc-err" role="alert">{err}</p>}
-              <div className="hc-tot"><span>Total · {uds} u.</span><b>{cop(total)}</b></div>
+              {/* ⟵ CAMBIO: prendas + domicilio = total */}
+              <div className="hc-sub"><span>Prendas · {uds} u.</span><span>{cop(subtotal)}</span></div>
+              <div className="hc-sub"><span>Domicilio{f.zona ? ` · ${f.zona}` : ''}</span><span>{domicilio > 0 ? cop(domicilio) : 'Por confirmar'}</span></div>
+              <div className="hc-tot"><span>Total</span><b>{cop(total)}</b></div>
               <button type="button" className="hh-b big" onClick={enviar} disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar pedido'}</button>
-              <p className="hc-nota">El valor del domicilio se confirma al contactarte.</p>
+              <p className="hc-nota">Te contactamos para confirmar la entrega y el pago.</p>
             </footer>
           </>
         )}
@@ -310,7 +328,7 @@ function CarritoHans({ lineas, setLineas, abierto, setAbierto, wa }: {
 }
 
 /* ---------- Sección ---------- */
-export default function HansSeccion({ items, wa }: { items: HansPub[]; wa: string }) {
+export default function HansSeccion({ items, wa, zonas = [], domicilio = 0 }: { items: HansPub[]; wa: string; zonas?: string[]; domicilio?: number }) {
   const [cat, setCat] = useState('todas');
   const [ver, setVer] = useState<HansPub | null>(null);
   const [lineas, setLineas] = useState<Linea[]>([]);
@@ -480,6 +498,9 @@ export default function HansSeccion({ items, wa }: { items: HansPub[]; wa: strin
           .hc-chips button[aria-pressed="true"] { color: #1a1405; font-weight: 600; background: linear-gradient(135deg, var(--o3), var(--o2)); border-color: transparent; }
           .hc-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
           .hc-foot { padding: 14px 20px 18px; border-top: 1px solid rgba(224,183,63,.25); background: rgba(3,12,8,.6); display: grid; gap: 10px; }
+          .hc-sub { display: flex; justify-content: space-between; font-size: 12.5px; color: #9fb1a5; }
+          .hc-sub span:last-child { font-family: system-ui, sans-serif; color: #dfe5e1; }
+          select.hc-in { appearance: none; -webkit-appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, #e0b73f 50%), linear-gradient(135deg, #e0b73f 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
           .hc-tot { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: #b9c4be; }
           .hc-tot b { font-family: system-ui, sans-serif; font-size: 22px; color: var(--o3); }
           .hc-err { margin: 0; padding: 9px 12px; font-size: 12.5px; color: #f0a48f; border-radius: 10px; border: 1px solid rgba(224,133,107,.4); background: rgba(224,133,107,.1); }
@@ -551,7 +572,7 @@ export default function HansSeccion({ items, wa }: { items: HansPub[]; wa: strin
       )}
       {aviso && <div className="hc-aviso" role="status">{aviso}</div>}
 
-      <CarritoHans lineas={lineas} setLineas={setLineas} abierto={carrito} setAbierto={setCarrito} wa={wa} />
+      <CarritoHans lineas={lineas} setLineas={setLineas} abierto={carrito} setAbierto={setCarrito} wa={wa} zonas={zonas} domicilio={domicilio} />
     </>
   );
 }
