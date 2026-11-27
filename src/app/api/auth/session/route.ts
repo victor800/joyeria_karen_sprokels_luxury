@@ -7,7 +7,8 @@ import { SESSION_COOKIE, esAdminEmail } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
-const CINCO_DIAS = 60 * 60 * 24 * 5;
+// 14 días es el máximo que permite Firebase para una cookie de sesión
+const CATORCE_DIAS = 60 * 60 * 24 * 14;
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!esAdminEmail(decoded.email))
       return NextResponse.json({ error: 'Este correo no tiene acceso al panel.' }, { status: 403 });
 
-    const cookie = await adminAuth.createSessionCookie(idToken, { expiresIn: CINCO_DIAS * 1000 });
+    const cookie = await adminAuth.createSessionCookie(idToken, { expiresIn: CATORCE_DIAS * 1000 });
     const res = NextResponse.json({ ok: true, redirect: '/dashboard' });
     res.cookies.set(SESSION_COOKIE, cookie, {
       httpOnly: true,
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       sameSite: 'lax',
       path: '/',
       // "Recordar credencial" desmarcado → la sesión termina al cerrar el navegador
-      ...(recordar ? { maxAge: CINCO_DIAS } : {}),
+      ...(recordar ? { maxAge: CATORCE_DIAS } : {}),
     });
     return res;
   } catch (err) {

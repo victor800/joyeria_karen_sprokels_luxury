@@ -7,11 +7,11 @@ import {
   getRedirectResult, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut,
   type AuthProvider, type User,
 } from 'firebase/auth';
-import { getClientAuth, proveedorApple, proveedorGoogle } from '@/lib/firebase/client';
+import { getClientAuth, proveedorGoogle } from '@/lib/firebase/client';
 import { Icono } from './iconos';
 
 /**
- * Acceso real con Firebase (correo y clave, Google o Apple).
+ * Acceso real con Firebase (correo y clave, o Google).
  * Firebase confirma quién es la persona; luego /api/auth/session revisa que el correo esté en ADMIN_EMAILS
  * y crea la cookie que protege /dashboard (ver src/proxy.ts).
  */
@@ -35,7 +35,7 @@ function fuerza(clave: string) {
   return Math.min(p, 5);
 }
 
-/** Primer nombre para el saludo: displayName de Google/Apple, o la parte del correo antes de la @ */
+/** Primer nombre para el saludo: displayName de Google, o la parte del correo antes de la @ */
 function nombreDe(user: User): string {
   const crudo = user.displayName?.trim() || user.email?.split('@')[0] || '';
   const primero = crudo.split(/[\s._-]+/)[0] ?? '';
@@ -83,11 +83,6 @@ const IcoCorreo = () => (<svg {...svg}><rect x="3" y="5" width="18" height="14" 
 const IcoExterno = () => (<svg {...svg} width={13} height={13}><path d="M7 17 17 7M9 7h8v8" /></svg>);
 const IcoAuricular = () => (<svg {...svg} width={13} height={13}><path d="M4 14v-2a8 8 0 0 1 16 0v2" /><rect x="3" y="14" width="4" height="6" rx="1.5" /><rect x="17" y="14" width="4" height="6" rx="1.5" /></svg>);
 const IcoCandado = () => (<svg {...svg} width={12} height={12}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>);
-const IcoApple = () => (
-  <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-  </svg>
-);
 const IcoGoogle = () => (
   <svg width={16} height={16} viewBox="0 0 48 48" aria-hidden="true">
     <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -116,7 +111,7 @@ function Campo({ id, etiqueta, final, ref, ...input }: CampoProps) {
   );
 }
 
-type Cargando = null | 'clave' | 'google' | 'apple' | 'registro';
+type Cargando = null | 'clave' | 'google' | 'registro';
 
 export default function PanelAcceso() {
   const router = useRouter();
@@ -171,7 +166,7 @@ export default function PanelAcceso() {
     router.refresh();
   }
 
- 
+  /* Si se usó el método de redirección (Safari bloqueó la ventana), aquí se recibe el resultado */
   useEffect(() => {
     let vivo = true;
     getRedirectResult(getClientAuth())
@@ -186,12 +181,12 @@ export default function PanelAcceso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function ingresarCon(cual: 'google' | 'apple') {
+  async function ingresarConGoogle() {
     if (cargando) return;
     setError(null);
     setOk(null);
-    setCargando(cual);
-    const proveedor: AuthProvider = cual === 'google' ? proveedorGoogle : proveedorApple;
+    setCargando('google');
+    const proveedor: AuthProvider = proveedorGoogle;
     try {
       const r = await signInWithPopup(getClientAuth(), proveedor);
       await crearSesion(r.user);
@@ -292,19 +287,15 @@ export default function PanelAcceso() {
     <>
       <div className="jks-divisor"><span>O CONTINUAR CON</span></div>
       <div className="jks-sociales" style={{ display: 'grid', gap: 10 }}>
-        <button type="button" className="jks-boton-apple jks-boton-google" onClick={() => ingresarCon('google')} disabled={!!cargando}>
+        <button type="button" className="jks-boton-apple jks-boton-google" onClick={ingresarConGoogle} disabled={!!cargando}>
           {cargando === 'google' ? <span className="jks-spinner" aria-hidden="true" /> : <IcoGoogle />}
           <span>{cargando === 'google' ? 'Conectando…' : 'CONTINUAR CON GOOGLE'}</span>
-        </button>
-        <button type="button" className="jks-boton-apple" onClick={() => ingresarCon('apple')} disabled={!!cargando}>
-          {cargando === 'apple' ? <span className="jks-spinner jks-spinner-claro" aria-hidden="true" /> : <IcoApple />}
-          <span>{cargando === 'apple' ? 'Conectando…' : 'CONTINUAR CON APPLE'}</span>
         </button>
       </div>
     </>
   );
 
-  
+  /* Acceso correcto: pantalla de bienvenida con el nombre mientras se abre el panel */
   if (bienvenida !== null) {
     return (
       <div className="jks-panel" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '56px 0' }}>
