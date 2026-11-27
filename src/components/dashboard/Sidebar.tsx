@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { MARCA } from '@/lib/marca';
 import './sidebar.css';
 import CargandoNavegacion from '@/components/CargandoNavegacion';
@@ -90,7 +90,6 @@ const CLAVE_MINI = 'sb-mini';
 
 export default function Sidebar() {
   const ruta = usePathname() ?? '';
-  const router = useRouter();
 
   const [abierto, setAbierto] = useState(false); // móvil: menú deslizable
   const [mini, setMini] = useState(false); // escritorio: barra de íconos
@@ -133,10 +132,14 @@ export default function Sidebar() {
     };
   }, [confirmar]);
 
-  const cerrarSesion = () => {
+  const cerrarSesion = async () => {
     setConfirmar(false);
-    // Si tienes logout real (Supabase, NextAuth, cookie...), llámalo aquí antes del push
-    router.push('/login');
+    try {
+      // Borra la cookie de sesión y revoca la sesión en Firebase
+      await fetch('/api/auth/session', { method: 'DELETE' });
+    } catch {}
+    // Navegación completa (no router.push): así el proxy ya ve la cookie borrada
+    window.location.href = '/login';
   };
 
   const alternarGrupo = (titulo: string) =>

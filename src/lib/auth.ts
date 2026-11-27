@@ -12,7 +12,7 @@ export function esAdminEmail(email?: string | null): boolean {
   return lista.includes(email.toLowerCase());
 }
 
-/** Devuelve el admin logueado o null. Úsalo en layouts y rutas API. */
+
 export async function getAdmin() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
