@@ -171,7 +171,7 @@ export default function PanelAcceso() {
     router.refresh();
   }
 
-  /* Si se usó el método de redirección (Safari bloqueó la ventana), aquí se recibe el resultado */
+ 
   useEffect(() => {
     let vivo = true;
     getRedirectResult(getClientAuth())
