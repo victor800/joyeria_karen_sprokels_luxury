@@ -35,6 +35,13 @@ function fuerza(clave: string) {
   return Math.min(p, 5);
 }
 
+/** Primer nombre para el saludo: displayName de Google/Apple, o la parte del correo antes de la @ */
+function nombreDe(user: User): string {
+  const crudo = user.displayName?.trim() || user.email?.split('@')[0] || '';
+  const primero = crudo.split(/[\s._-]+/)[0] ?? '';
+  return primero ? primero.charAt(0).toUpperCase() + primero.slice(1).toLowerCase() : '';
+}
+
 /** Mensajes de Firebase en español */
 function mensajeError(err: unknown): string | null {
   const code = (err as { code?: string })?.code ?? '';
@@ -120,6 +127,7 @@ export default function PanelAcceso() {
   const [cargando, setCargando] = useState<Cargando>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [bienvenida, setBienvenida] = useState<string | null>(null); // nombre para el saludo tras entrar
   const correoRef = useRef<HTMLInputElement>(null);
   const recordarRef = useRef<HTMLInputElement>(null);
 
@@ -144,6 +152,7 @@ export default function PanelAcceso() {
 
   /** Firebase ya confirmó a la persona → el servidor revisa ADMIN_EMAILS y crea la cookie del panel */
   async function crearSesion(user: User) {
+    const nombre = nombreDe(user); // se toma antes de cerrar la sesión de Firebase en el navegador
     const idToken = await user.getIdToken(true);
     const res = await fetch(RUTAS.sesion, {
       method: 'POST',
@@ -154,6 +163,10 @@ export default function PanelAcceso() {
     // La cookie del servidor es la que manda; la sesión del navegador ya no se necesita
     await signOut(getClientAuth()).catch(() => {});
     if (!res.ok) throw new Error(json.error ?? 'No fue posible iniciar sesión.');
+
+    // Acceso correcto: saludo breve con el nombre y luego al panel
+    setBienvenida(nombre);
+    await new Promise((r) => setTimeout(r, 1800));
     router.replace(destino());
     router.refresh();
   }
@@ -290,6 +303,17 @@ export default function PanelAcceso() {
       </div>
     </>
   );
+
+  
+  if (bienvenida !== null) {
+    return (
+      <div className="jks-panel" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '56px 0' }}>
+        <span className="jks-spinner" aria-hidden="true" style={{ margin: '0 auto 22px', display: 'block' }} />
+        <h2 className="jks-titulo-panel">Bienvenido(a){bienvenida ? `, ${bienvenida}` : ''}</h2>
+        <p className="jks-texto">Abriendo su bóveda…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="jks-panel" key={modo}>
