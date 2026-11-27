@@ -27,10 +27,21 @@ export function getClientAuth(): Auth {
   return _auth;
 }
 
-export const proveedorGoogle = new GoogleAuthProvider();
-proveedorGoogle.setCustomParameters({ prompt: 'select_account' });
+/** Proveedor de Google (también lo usa el BotonGoogle.tsx que ya tenías) */
+export function crearProveedorGoogle(): GoogleAuthProvider {
+  const p = new GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account' });
+  return p;
+}
 
-export const proveedorApple = new OAuthProvider('apple.com');
-proveedorApple.addScope('email');
-proveedorApple.addScope('name');
-proveedorApple.setCustomParameters({ locale: 'es' });
+/** Proveedor de Apple */
+export function crearProveedorApple(): OAuthProvider {
+  const p = new OAuthProvider('apple.com');
+  p.addScope('email');
+  p.addScope('name');
+  p.setCustomParameters({ locale: 'es' });
+  return p;
+}
+
+export const proveedorGoogle = crearProveedorGoogle();
+export const proveedorApple = crearProveedorApple();
