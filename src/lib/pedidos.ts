@@ -4,12 +4,14 @@ import { asegurarPestana, hojas, SHEET_ID } from './google-sheets';
 import { cop, type Cel } from './datos-dashboard';
 
 export const HOJA_PEDIDOS = 'Pedidos';
-export const ESTADOS = ['Pendiente', 'En proceso', 'Entregado', 'Cancelado'] as const;
+export const ESTADOS = ['Pendiente', 'En proceso', 'En ruta', 'Novedad', 'Entregado', 'Cancelado'] as const;
 export const PAGOS = ['Pendiente', 'Transferencia', 'Efectivo', 'Pagado'] as const;
 
 const TONO: Record<string, 'ok' | 'warn' | 'mal' | 'info'> = {
   Pendiente: 'warn',
   'En proceso': 'info',
+  'En ruta': 'info',
+  Novedad: 'mal',
   Entregado: 'ok',
   Cancelado: 'mal',
 };
