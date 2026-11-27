@@ -1,27 +1,18 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth, type Auth } from 'firebase-admin/auth';
+// 📁 RUTA: src/lib/firebase/admin.ts   (si ya existe y exporta `adminAuth`, puedes dejar el tuyo)
+import 'server-only';
+import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
-function obtenerApp() {
-  if (getApps().length) return getApps()[0];
+/** Cuenta de servicio (Firebase → Configuración del proyecto → Cuentas de servicio → Generar clave privada) */
+const app = getApps().length
+  ? getApp()
+  : initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // En Vercel la clave llega con "\n" escritos: se convierten en saltos de línea reales
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+      }),
+    });
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Faltan las variables de Firebase Admin (FIREBASE_*).');
-  }
-
-  return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-}
-
-let auth: Auth | undefined;
-
-// Se inicia al usarlo, no al importar el archivo (así el build no falla sin llaves)
-export const adminAuth = new Proxy({} as Auth, {
-  get(_objetivo, propiedad) {
-    auth ??= getAuth(obtenerApp());
-    const valor = Reflect.get(auth, propiedad);
-    return typeof valor === 'function' ? valor.bind(auth) : valor;
-  },
-});
+export const adminAuth = getAuth(app);
