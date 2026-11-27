@@ -1,4 +1,4 @@
-// 📁 RUTA: src/components/auth/BovedaIntro.tsx
+// 📁 RUTA: src/components/auth/BovedaIntro.tsx   (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -7,14 +7,19 @@ import Image from 'next/image';
 import { MARCA } from '@/lib/marca';
 
 type Fase = 'cerrada' | 'abriendo' | 'abierta' | 'fuera';
+type Etapa = 'jks' | 'hans' | 'salida'; // qué se muestra una vez abierta la bóveda
 type Audio = { ctx: AudioContext; out: AudioNode };
 
 // La bóveda se muestra SIEMPRE: cada vez que se abre la app o el login.
 const CLAVE_SONIDO = 'jks-boveda-silencio';
 const UMBRAL = 220; // grados de giro necesarios para abrir
 const T_PUERTA = 6300; // ms hasta que la puerta termina de abrirse
-const T_FIN = 7300; // ms hasta quitar el overlay
+const T_JKS = 2400; // ms mostrando el logo JKS (ya abierta la puerta)
+const T_HANS = 3000; // ms mostrando el logo Hans
+const T_SALIDA = 1000; // ms de desvanecimiento final
 const T_AUTO = 1100; // ms: se abre sola, sin tocar nada
+const LOGO_HANS = '/hans.jpeg'; // archivo en /public
+
 /** Combinación nueva en cada apertura: 3 números distintos entre 10 y 99 */
 function nuevaCombinacion(): number[] {
   const lista: number[] = [];
@@ -126,6 +131,7 @@ function apertura(a: Audio) {
 
 export default function BovedaIntro() {
   const [fase, setFase] = useState<Fase>('cerrada');
+  const [etapa, setEtapa] = useState<Etapa>('jks');
   const [giro, setGiro] = useState(0);
   const [progreso, setProgreso] = useState(0);
   const [arrastrando, setArrastrando] = useState(false);
@@ -211,15 +217,18 @@ export default function BovedaIntro() {
         if (a && (conGesto || a.ctx.state === 'running')) apertura(a);
       }
 
+      // Línea de tiempo: puerta abierta → logo JKS → logo Hans → desvanecer → quitar
       timers.current.push(
         window.setTimeout(() => {
           faseRef.current = 'abierta';
           setFase('abierta');
         }, T_PUERTA),
+        window.setTimeout(() => setEtapa('hans'), T_PUERTA + T_JKS),
+        window.setTimeout(() => setEtapa('salida'), T_PUERTA + T_JKS + T_HANS),
         window.setTimeout(() => {
           faseRef.current = 'fuera';
           setFase('fuera');
-        }, T_FIN),
+        }, T_PUERTA + T_JKS + T_HANS + T_SALIDA),
       );
     },
     [preparar],
@@ -308,10 +317,42 @@ export default function BovedaIntro() {
     <div
       className="jks-boveda"
       data-fase={fase}
+      data-etapa={fase === 'abierta' ? etapa : undefined}
+      data-logo={etapa === 'jks' ? 'jks' : 'hans'}
       role="dialog"
       aria-modal="true"
       aria-label="Apertura de la bóveda"
     >
+      <style>{`
+        /* Con la puerta abierta, la bóveda se mantiene visible mientras se muestran los logos */
+        .jks-boveda[data-etapa='jks'],
+        .jks-boveda[data-etapa='hans'],
+        .jks-boveda[data-etapa='jks'] .jks-boveda-marco,
+        .jks-boveda[data-etapa='hans'] .jks-boveda-marco,
+        .jks-boveda[data-etapa='jks'] .jks-boveda-interior,
+        .jks-boveda[data-etapa='hans'] .jks-boveda-interior { opacity: 1 !important; visibility: visible !important; }
+        .jks-boveda[data-etapa='jks'] .jks-boveda-logo { opacity: 1 !important; }
+
+        /* Salida final: todo se desvanece */
+        .jks-boveda[data-etapa='salida'] { opacity: 0 !important; transition: opacity ${T_SALIDA}ms ease !important; }
+
+        /* Cambio de logo: el de JKS se va y aparece el de Hans */
+        .jks-boveda[data-logo='hans'] .jks-boveda-logo { opacity: 0 !important; transition: opacity 0.9s ease !important; }
+        .jks-boveda-hans {
+          position: absolute; inset: 0; z-index: 3;
+          display: grid; place-items: center;
+          opacity: 0; transform: scale(0.94);
+          transition: opacity 0.9s ease, transform 0.9s ease;
+          pointer-events: none;
+        }
+        .jks-boveda[data-logo='hans'] .jks-boveda-hans { opacity: 1; transform: none; }
+        .jks-boveda-hans-caja {
+          position: relative; width: 64%; aspect-ratio: 3 / 2;
+          border-radius: 16px; overflow: hidden; background: #000;
+          box-shadow: 0 0 0 1px rgba(201, 162, 74, 0.55), 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+      `}</style>
+
       <button
         type="button"
         className="jks-boveda-sonido"
@@ -336,8 +377,22 @@ export default function BovedaIntro() {
         {/* Interior: lo que se revela al abrir */}
         <div className="jks-boveda-interior" aria-hidden>
           <div className="jks-boveda-rayos" />
+          {/* Logo 1: JKS */}
           <div className="jks-boveda-logo">
             <Image src={MARCA.logo} alt="" width={1536} height={1024} priority sizes="(max-width: 600px) 45vw, 260px" />
+          </div>
+          {/* Logo 2: Hans (aparece después del de JKS) */}
+          <div className="jks-boveda-hans">
+            <div className="jks-boveda-hans-caja">
+              <Image
+                src={LOGO_HANS}
+                alt=""
+                fill
+                priority
+                sizes="(max-width: 600px) 40vw, 240px"
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
           </div>
         </div>
 
