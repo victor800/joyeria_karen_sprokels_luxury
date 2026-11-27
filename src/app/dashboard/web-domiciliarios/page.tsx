@@ -23,11 +23,14 @@ export default function WebDomiciliarios() {
         </div>
       </div>
 
-      <div className="d-card" style={{ maxWidth: 430, width: '100%', padding: 10 }}>
+      <div
+        className="d-card"
+        style={{ maxWidth: 430, width: '100%', padding: 0, overflow: 'hidden', background: '#06180f', borderRadius: 22 }}
+      >
         <iframe
           src={ruta}
           title="Vista previa de la web de domiciliarios"
-          style={{ display: 'block', width: '100%', height: 700, border: 0, borderRadius: 10 }}
+          style={{ display: 'block', width: '100%', height: 780, border: 0, background: '#06180f' }}
         />
       </div>
     </main>
