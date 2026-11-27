@@ -1,5 +1,5 @@
 // 📁 RUTA: src/app/dashboard/web-domiciliarios/page.tsx   (REEMPLAZA TODO EL ARCHIVO)
-// Vista del admin: enlace + QR de los domiciliarios y vista previa de su web.
+// Vista del admin: enlace + QR de los domiciliarios y vista previa de su web (ocupa todo el espacio).
 import DomiEnlace from '@/lib/DomiEnlace';
 import { SLUG_DOMICILIARIOS } from '@/lib/domi-config';
 
@@ -8,7 +8,10 @@ export default function WebDomiciliarios() {
   const enlace = `https://joyeria-karen-sprokels-luxury-five.vercel.app${ruta}`;
 
   return (
-    <main className="d-cont simple">
+    <main
+      className="d-cont simple"
+      style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 'calc(100dvh - 24px)' }}
+    >
       <div className="d-cab">
         <div>
           <h1>Web domiciliarios</h1>
@@ -24,13 +27,20 @@ export default function WebDomiciliarios() {
       </div>
 
       <div
-        className="d-card"
-        style={{ maxWidth: 430, width: '100%', padding: 0, overflow: 'hidden', background: '#06180f', borderRadius: 22 }}
+        style={{
+          flex: 1,
+          width: '100%',
+          minHeight: 640,
+          overflow: 'hidden',
+          borderRadius: 22,
+          background: '#06180f',
+          border: '1px solid rgba(217,180,90,.28)',
+        }}
       >
         <iframe
           src={ruta}
           title="Vista previa de la web de domiciliarios"
-          style={{ display: 'block', width: '100%', height: 780, border: 0, background: '#06180f' }}
+          style={{ display: 'block', width: '100%', height: '100%', minHeight: 640, border: 0, background: '#06180f' }}
         />
       </div>
     </main>
