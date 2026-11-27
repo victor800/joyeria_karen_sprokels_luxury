@@ -7,7 +7,7 @@ import {
   getRedirectResult, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut,
   type AuthProvider, type User,
 } from 'firebase/auth';
-import { auth, proveedorApple, proveedorGoogle } from '@/lib/firebase/client';
+import { getClientAuth, proveedorApple, proveedorGoogle } from '@/lib/firebase/client';
 import { Icono } from './iconos';
 
 /**
@@ -139,7 +139,7 @@ export default function PanelAcceso() {
   /** A dónde volver después de entrar (ej. /login?volver=/dashboard/pedidos) */
   function destino() {
     const v = new URLSearchParams(window.location.search).get('volver') ?? '';
-    return v.startsWith('/dashboard') ? v : RUTAS.destino;
+    return /^\/(dashboard|admin)(\/|$|\?)/.test(v) ? v : RUTAS.destino;
   }
 
   /** Firebase ya confirmó a la persona → el servidor revisa ADMIN_EMAILS y crea la cookie del panel */
@@ -152,7 +152,7 @@ export default function PanelAcceso() {
     });
     const json = await res.json().catch(() => ({}));
     // La cookie del servidor es la que manda; la sesión del navegador ya no se necesita
-    await signOut(auth).catch(() => {});
+    await signOut(getClientAuth()).catch(() => {});
     if (!res.ok) throw new Error(json.error ?? 'No fue posible iniciar sesión.');
     router.replace(destino());
     router.refresh();
@@ -161,7 +161,7 @@ export default function PanelAcceso() {
   /* Si se usó el método de redirección (Safari bloqueó la ventana), aquí se recibe el resultado */
   useEffect(() => {
     let vivo = true;
-    getRedirectResult(auth)
+    getRedirectResult(getClientAuth())
       .then(async (r) => {
         if (!r?.user || !vivo) return;
         setCargando('google');
@@ -180,13 +180,13 @@ export default function PanelAcceso() {
     setCargando(cual);
     const proveedor: AuthProvider = cual === 'google' ? proveedorGoogle : proveedorApple;
     try {
-      const r = await signInWithPopup(auth, proveedor);
+      const r = await signInWithPopup(getClientAuth(), proveedor);
       await crearSesion(r.user);
     } catch (err) {
       const code = (err as { code?: string })?.code;
       // iPhone / navegador que bloquea ventanas: se usa redirección completa
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-        await signInWithRedirect(auth, proveedor);
+        await signInWithRedirect(getClientAuth(), proveedor);
         return;
       }
       setError(mensajeError(err));
@@ -206,7 +206,7 @@ export default function PanelAcceso() {
 
     setCargando('clave');
     try {
-      const r = await signInWithEmailAndPassword(auth, correo, clave);
+      const r = await signInWithEmailAndPassword(getClientAuth(), correo, clave);
       await crearSesion(r.user);
     } catch (err) {
       setError(mensajeError(err));
@@ -223,7 +223,7 @@ export default function PanelAcceso() {
       return setError('Escriba su correo arriba y vuelva a tocar "¿Olvidó su clave?".');
     }
     try {
-      await sendPasswordResetEmail(auth, correo);
+      await sendPasswordResetEmail(getClientAuth(), correo);
     } catch { /* por seguridad no se revela si el correo existe */ }
     setOk(`Si ${correo} tiene acceso, le enviamos un enlace para crear una clave nueva.`);
   }

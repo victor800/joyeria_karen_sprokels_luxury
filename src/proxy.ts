@@ -1,5 +1,5 @@
 // 📁 RUTA: src/proxy.ts   (ARCHIVO NUEVO — en Next 16 reemplaza a middleware.ts)
-// Protege el panel: sin sesión válida de un correo de ADMIN_EMAILS, /dashboard manda a /login.
+// Protege el panel: sin sesión válida de un correo de ADMIN_EMAILS, /dashboard y /admin mandan a /login.
 // Si ya hay sesión, /login manda directo a /dashboard.
 import { NextResponse, type NextRequest } from 'next/server';
 import { adminAuth } from '@/lib/firebase/admin';
@@ -20,7 +20,8 @@ export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const ok = await sesionValida(req);
 
-  if (pathname.startsWith('/dashboard') && !ok) {
+  const privada = ['/dashboard', '/admin'].some((p) => pathname === p || pathname.startsWith(p + '/'));
+  if (privada && !ok) {
     const url = new URL('/login', req.url);
     url.searchParams.set('volver', pathname + search);
     const res = NextResponse.redirect(url);
@@ -36,5 +37,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/dashboard', '/dashboard/:path*', '/admin', '/admin/:path*', '/login'],
 };

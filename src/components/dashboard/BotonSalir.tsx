@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { getClientAuth } from '@/lib/firebase/client';
 
 export default function BotonSalir({ className = '' }: { className?: string }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function BotonSalir({ className = '' }: { className?: string }) {
     setSaliendo(true);
     try {
       await fetch('/api/auth/session', { method: 'DELETE' });
-      await signOut(auth).catch(() => {});
+      await signOut(getClientAuth()).catch(() => {});
     } finally {
       router.replace('/login');
       router.refresh();

@@ -1,8 +1,8 @@
-// 📁 RUTA: src/lib/firebase/client.ts   (ARCHIVO NUEVO — si ya tienes uno igual, deja el tuyo)
-'use client';
-
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+// 📁 RUTA: src/lib/firebase/client.ts   (REEMPLAZA TODO EL ARCHIVO)
+// Firebase del navegador. Se inicia "perezoso" (solo cuando se usa), así el build y el render del
+// servidor no fallan. Mantiene getClientAuth() porque ya lo usan otros componentes (ej. admin/Sidebar).
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, OAuthProvider, type Auth } from 'firebase/auth';
 
 /** Datos públicos del proyecto (Firebase → Configuración del proyecto → Tus apps → Web) */
 const config = {
@@ -12,9 +12,20 @@ const config = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = getApps().length ? getApp() : initializeApp(config);
-export const auth = getAuth(firebaseApp);
-auth.languageCode = 'es';
+let _auth: Auth | null = null;
+
+export function getClientApp(): FirebaseApp {
+  return getApps().length ? getApp() : initializeApp(config);
+}
+
+/** Auth de Firebase en el navegador (misma instancia siempre) */
+export function getClientAuth(): Auth {
+  if (!_auth) {
+    _auth = getAuth(getClientApp());
+    _auth.languageCode = 'es';
+  }
+  return _auth;
+}
 
 export const proveedorGoogle = new GoogleAuthProvider();
 proveedorGoogle.setCustomParameters({ prompt: 'select_account' });
