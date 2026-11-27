@@ -14,7 +14,7 @@ const HOJA = 'Domiciliarios'; // ⚠ nombre exacto de la pestaña en tu Google S
 
 export const slugValido = (slug: string | null | undefined) => slug === SLUG_DOMICILIARIOS;
 
-export type Domiciliario = { usuario: string; telefono: string; activo: boolean };
+export type Domiciliario = { usuario: string; telefono: string; activo: boolean; foto: string };
 
 /* ═════════ Lectura de la hoja ═════════ */
 
@@ -30,7 +30,7 @@ async function leerHojaDomiciliarios(): Promise<string[][]> {
 
 export const sinAcentos = (t: string) =>
   t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-const soloDigitos = (t: string) => t.replace(/\D/g, '');
+export const soloDigitos = (t: string) => t.replace(/\D/g, '');
 
 /** Busca la columna por palabras clave, respetando el orden de prioridad de las claves */
 function columna(enc: string[], ...claves: string[]) {
@@ -41,6 +41,17 @@ function columna(enc: string[], ...claves: string[]) {
   return -1;
 }
 
+/** Acepta una URL normal o un enlace de Google Drive (lo convierte a miniatura visible) */
+function urlFoto(valor: string) {
+  const t = valor.trim();
+  if (!t) return '';
+  if (/drive\.google\.com|docs\.google\.com/.test(t)) {
+    const m = t.match(/\/d\/([\w-]{10,})/) || t.match(/[?&]id=([\w-]{10,})/);
+    return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400` : '';
+  }
+  return /^https?:\/\//i.test(t) ? t : '';
+}
+
 const NEGATIVOS = ['inactivo', 'no', 'false', '0', 'suspendido', 'bloqueado', 'baja', 'retirado'];
 
 function parsear(filas: string[][]): Domiciliario[] {
@@ -49,6 +60,7 @@ function parsear(filas: string[][]): Domiciliario[] {
   const iUsuario = columna(enc, 'usuario', 'nombre');
   const iTel = columna(enc, 'telefono', 'celular', 'whatsapp', 'tel', 'cel');
   const iEstado = columna(enc, 'activo', 'estado');
+  const iFoto = columna(enc, 'foto', 'imagen', 'avatar', 'fotografia');
   if (iUsuario < 0 || iTel < 0) return [];
 
   const lista: Domiciliario[] = [];
@@ -57,7 +69,8 @@ function parsear(filas: string[][]): Domiciliario[] {
     const telefono = String(fila[iTel] ?? '').trim();
     if (!usuario || soloDigitos(telefono).length < 7) continue;
     const activo = iEstado < 0 || !NEGATIVOS.includes(sinAcentos(String(fila[iEstado] ?? '')));
-    lista.push({ usuario, telefono, activo });
+    const foto = iFoto >= 0 ? urlFoto(String(fila[iFoto] ?? '')) : '';
+    lista.push({ usuario, telefono, activo, foto });
   }
   return lista;
 }

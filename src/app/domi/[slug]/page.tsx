@@ -1,4 +1,4 @@
-// 📁 RUTA: src/app/domi/[slug]/page.tsx
+// 📁 RUTA: src/app/domi/[slug]/page.tsx   (REEMPLAZA TODO EL ARCHIVO)
 // Enlace público de domiciliarios: valida el slug y la sesión, y muestra el login o el panel.
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
@@ -25,5 +25,5 @@ export default async function PaginaDomi({ params }: { params: Promise<{ slug: s
     return null;
   });
 
-  return <PanelDomi slug={slug} nombre={d?.usuario ?? null} />;
+  return <PanelDomi slug={slug} nombre={d?.usuario ?? null} foto={d?.foto || null} />;
 }

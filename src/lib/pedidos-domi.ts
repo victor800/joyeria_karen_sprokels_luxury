@@ -6,25 +6,9 @@ import 'server-only';
 import { sinAcentos, type Domiciliario } from '@/lib/domiciliarios-web';
 import { listarPedidosHans, actualizarPedidoHans } from '@/lib/hans';
 import { leerPedidosDetalle, cambiarEstadoPedido, actualizarPedido, type Pedido } from '@/lib/pedidos';
+import type { Estado, PedidoDomi } from '@/lib/pedido-tipos';
 
-export type Estado = 'asignado' | 'en_ruta' | 'entregado' | 'novedad';
-export type Tienda = 'karen' | 'hans';
-
-export type PedidoDomi = {
-  id: string; // "karen:<n°>" o "hans:<id>" (evita choques entre las dos hojas)
-  tienda: Tienda;
-  cliente: string;
-  telefono: string;
-  direccion: string;
-  barrio: string;
-  total: string;
-  metodoPago: string;
-  notas: string;
-  detalle: string; // piezas del pedido
-  estado: Estado;
-  novedad: string;
-  fecha: string; // YYYY-MM-DD ('' si no se conoce)
-};
+export type { Estado, Tienda, PedidoDomi } from '@/lib/pedido-tipos';
 
 type PedidoCrudo = PedidoDomi & { idReal: string; domiciliario: string; _nota: string; _raw?: Pedido };
 
@@ -50,7 +34,8 @@ const JOYERIA_KAREN = process.env.JOYERIA_KAREN_ID || 'jks_e1852bd04257';
 /* ═════════ Utilidades ═════════ */
 const cop = (n: unknown) => `$${(Number(n) || 0).toLocaleString('es-CO')}`;
 const fechaDe = (v: unknown) => (/^\d{4}-\d{2}-\d{2}/.test(String(v ?? '')) ? String(v).slice(0, 10) : '');
-const hoy = (atras = 0) => new Date(Date.now() - atras * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+const hoy = (atras = 0) =>
+  new Date(Date.now() - atras * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
 /** Texto de la hoja → estado del panel. null = pedido cancelado (no se muestra) */
 function aEstado(t: unknown): Estado | null {
@@ -63,6 +48,23 @@ function aEstado(t: unknown): Estado | null {
 }
 
 const esRecoger = (d: string) => sinAcentos(d).includes('recoger');
+
+/** Quita los campos internos antes de enviar el pedido al navegador */
+const publico = (p: PedidoCrudo): PedidoDomi => ({
+  id: p.id,
+  tienda: p.tienda,
+  cliente: p.cliente,
+  telefono: p.telefono,
+  direccion: p.direccion,
+  barrio: p.barrio,
+  total: p.total,
+  metodoPago: p.metodoPago,
+  notas: p.notas,
+  detalle: p.detalle,
+  estado: p.estado,
+  novedad: p.novedad,
+  fecha: p.fecha,
+});
 
 /* ═════════ Karen (src/lib/pedidos · hoja "Pedidos") ═════════ */
 async function cargarKaren(): Promise<PedidoCrudo[]> {
@@ -104,9 +106,18 @@ async function guardarKaren(p: PedidoCrudo, estado: Estado, novedad: string) {
   const r = p._raw;
   const nota = [r.nota, `Novedad domiciliario: ${novedad}`].filter(Boolean).join(' | ').slice(0, 500);
   const ok = await actualizarPedido(JOYERIA_KAREN, r.numero, {
-    cliente: r.cliente, telefono: r.telefono, destino: r.destino, prenda: r.prenda, total: r.total,
-    entrega: r.entrega, estado: TEXTO_ESTADO[estado], pago: r.pago, nota,
-    domiciliarioId: r.domiciliarioId, domiciliarioNombre: r.domiciliario, valorDomicilio: r.valorDomicilio,
+    cliente: r.cliente,
+    telefono: r.telefono,
+    destino: r.destino,
+    prenda: r.prenda,
+    total: r.total,
+    entrega: r.entrega,
+    estado: TEXTO_ESTADO[estado],
+    pago: r.pago,
+    nota,
+    domiciliarioId: r.domiciliarioId,
+    domiciliarioNombre: r.domiciliario,
+    valorDomicilio: r.valorDomicilio,
   });
   if (!ok) throw new Error('Pedido no encontrado');
 }
@@ -180,8 +191,8 @@ export async function pedidosDe(d: Domiciliario, _slug: string): Promise<PedidoD
   const orden: Record<Estado, number> = { en_ruta: 0, novedad: 1, asignado: 2, entregado: 3 };
   return (await cargar())
     .filter((p) => esDe(p, d) && (p.estado !== 'entregado' || p.fecha >= desde || p.fecha === ''))
-    .map(({ domiciliario: _d, idReal: _i, _nota, _raw, ...p }) => p)
-    .sort((a, b) => orden[a.estado] - orden[b.estado]);
+    .sort((a, b) => orden[a.estado] - orden[b.estado])
+    .map(publico);
 }
 
 const TRANSICIONES: Record<Estado, Estado[]> = {
