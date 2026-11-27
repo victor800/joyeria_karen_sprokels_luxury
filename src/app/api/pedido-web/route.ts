@@ -10,6 +10,7 @@ import { listar as leerPromociones } from '@/lib/promociones-store';
 import { estadoPromo, type Promocion } from '@/types/promocion';
 import { parseZonas, valorDomicilio, mismaZona } from '@/lib/zonas';
 import { guardarPedidoTienda, nuevoCodigo, type ItemPedido } from '@/lib/pedidos-tienda';
+import { joyeriaActual } from '@/lib/joyeria';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,10 +106,16 @@ export async function POST(req: Request) {
     const domicilio = entrega === 'domicilio' ? valorDomicilio(cfg.domicilio) : 0;
     const total = subtotal - descuento + domicilio;
 
+    // ⟵ CAMBIO: el MISMO id con el que el panel filtra los pedidos (JOYERIA_ID / joyeriaActual)
+    const joyeriaId =
+      process.env.JOYERIA_ID?.trim() ||
+      String((await Promise.resolve().then(() => joyeriaActual()).catch(() => '')) || '') ||
+      cfg.id || 'jks';
+
     const pedido = await guardarPedidoTienda({
       codigo: nuevoCodigo(),
       fecha: new Date().toISOString(),
-      joyeria_id: cfg.id || 'jks',
+      joyeria_id: joyeriaId,
       tienda: cfg.nombre || "Karen Sprockel's",
       cliente,
       telefono,

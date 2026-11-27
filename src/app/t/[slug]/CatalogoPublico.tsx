@@ -622,6 +622,10 @@ export default function CatalogoPublico({ prendas, wa, tienda = "Karen Sprockel'
       setListo({ codigo, total: tot, link: waOk ? pedido(codigo, tot) : '#' });
       persistir([]);
       quitarCupon();
+      // ⟵ CAMBIO: el carrito queda limpio, también los datos de envío (no se precargan en el siguiente pedido)
+      setEnvio(ENVIO_VACIO);
+      setTocados({});
+      try { localStorage.removeItem(LS_ENVIO); } catch { /* modo privado */ }
       setPaso(0);
     } catch (e) {
       setErrEnvio(e instanceof Error ? e.message : 'No se pudo enviar el pedido');

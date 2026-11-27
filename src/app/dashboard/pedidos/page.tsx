@@ -1,4 +1,6 @@
+// 📁 RUTA: src/app/dashboard/pedidos/page.tsx   (REEMPLAZA TODO EL ARCHIVO — si tu página de pedidos está en otra carpeta, pégalo ahí)
 import PedidosTabla from '@/components/dashboard/PedidosTabla';
+import PedidosEnVivo from '@/components/dashboard/PedidosEnVivo';   // ⟵ CAMBIO: pedidos en vivo con sonido
 import type { Campo } from '@/lib/campos';
 import type { Cel } from '@/lib/datos-dashboard';
 import { joyeriaActual } from '@/lib/joyeria';
@@ -8,15 +10,17 @@ import { crearPedidoAction, editarPedidoAction, eliminarPedidoAction } from './a
 
 export const dynamic = 'force-dynamic';
 
-const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export default async function Pedidos() {
   let filas: Cel[][] = [];
   let domiciliarios: OpcionDomiciliario[] = [];
   let aviso: string | undefined;
+  let leido = false;   // ⟵ CAMBIO: solo se compara la cantidad si la hoja se leyó bien (evita falsas alarmas)
   try {
     const id = await joyeriaActual();
     [filas, domiciliarios] = await Promise.all([leerPedidos(id), domiciliariosAsignables(id)]);
+    leido = true;
   } catch (e) {
     console.error('Pedidos', e);
     aviso = 'No se pudo leer la hoja de pedidos. Revisa las variables de Google Sheets y JOYERIA_ID.';
@@ -53,15 +57,19 @@ export default async function Pedidos() {
   ];
 
   return (
-    <PedidosTabla
-      filas={filas}
-      campos={campos}
-      onCrear={crearPedidoAction}
-      onEditar={editarPedidoAction}
-      onEliminar={eliminarPedidoAction}
-      nombreJoyeria={nombreJoyeria}
-      telefonosDomi={telefonosDomi}
-      aviso={aviso}
-    />
+    <>
+      <PedidosTabla
+        filas={filas}
+        campos={campos}
+        onCrear={crearPedidoAction}
+        onEditar={editarPedidoAction}
+        onEliminar={eliminarPedidoAction}
+        nombreJoyeria={nombreJoyeria}
+        telefonosDomi={telefonosDomi}
+        aviso={aviso}
+      />
+      {/* ⟵ CAMBIO: revisa cada 8 s, suena y avisa cuando llega un pedido nuevo de la tienda */}
+      {leido && <PedidosEnVivo cantidad={filas.length} cadaSegundos={8} />}
+    </>
   );
 }

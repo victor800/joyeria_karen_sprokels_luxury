@@ -6,6 +6,7 @@
 // Nunca crea columnas nuevas: lo que no tiene columna propia (correo, cupón, subtotal…) va en "Nota".
 import 'server-only';
 import { hojas, SHEET_ID, asegurarPestana } from './google-sheets';
+import { ESTADOS, PAGOS } from './pedidos';   // mismas opciones que usa el panel
 
 const HOJA = 'Pedidos';
 
@@ -69,13 +70,14 @@ function fechaComo(muestra: string) {
   return `${fecha} ${hora}`;
 }
 
-/** Reutiliza la forma en que el panel escribe un valor (ej. "Nuevo" vs "nuevo") */
-function comoEnHoja(existentes: string[], ...opciones: string[]) {
-  for (const o of opciones) {
-    const hit = existentes.find((v) => norm(v) === norm(o));
+/** Elige la opción del panel que corresponde (ej. "Nuevo" o "Pendiente"); si no hay ninguna, la primera de la lista */
+function opcionPanel(lista: readonly unknown[], ...preferidas: string[]) {
+  const ops = lista.map((o) => (typeof o === 'string' ? o : String((o as { value?: unknown })?.value ?? o)));
+  for (const pref of preferidas) {
+    const hit = ops.find((o) => norm(o) === norm(pref));
     if (hit) return hit;
   }
-  return opciones[0];
+  return ops[0] ?? preferidas[0];
 }
 
 export async function guardarPedidoTienda(p: PedidoTienda) {
@@ -120,6 +122,7 @@ export async function guardarPedidoTienda(p: PedidoTienda) {
     p.cupon ? `Cupón ${p.cupon} (−${cop(p.descuento)})` : '',
     p.domicilio > 0 ? `Domicilio ${p.zona} ${cop(p.domicilio)}` : '',
     p.email ? `Correo: ${p.email}` : '',
+    p.entrega !== 'Domicilio' ? 'Recoge en tienda' : '',
     'Pedido web',
   ].filter(Boolean).join(' · ');
 
@@ -130,9 +133,9 @@ export async function guardarPedidoTienda(p: PedidoTienda) {
     'Cliente': p.cliente,
     'Prenda': prenda,
     'Total': p.total,
-    'Entrega': p.entrega,
-    'Estado': comoEnHoja(columna('Estado'), 'nuevo', 'pendiente'),
-    'Pago': comoEnHoja(columna('Pago'), 'pendiente'),
+    'Entrega': '',   // en el panel es la FECHA de entrega: la pone la joyería al programar
+    'Estado': opcionPanel(ESTADOS, 'nuevo', 'pendiente', 'recibido'),
+    'Pago': opcionPanel(PAGOS, 'pendiente', 'por pagar', 'sin pagar'),
     'Nota': nota,
     'ID Domiciliario': '',
     'Domiciliario': '',
