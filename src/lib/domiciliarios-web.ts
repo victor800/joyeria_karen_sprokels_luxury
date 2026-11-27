@@ -1,14 +1,16 @@
-// 📁 RUTA: src/lib/domiciliarios-web.ts   (ARCHIVO NUEVO)
+// 📁 RUTA: src/lib/domiciliarios-web.ts   (REEMPLAZA TODO EL ARCHIVO)
 // Acceso público de domiciliarios: lee la hoja "Domiciliarios", valida usuario + clave
 // (clave = últimos 4 dígitos del teléfono), firma la cookie de sesión y limita los intentos.
 import 'server-only';
 import crypto from 'node:crypto';
+import { hojas, SHEET_ID } from '@/lib/google-sheets';
+import { SLUG_DOMICILIARIOS } from '@/lib/domi-config';
 
-/** Slug público del enlace: https://TU-DOMINIO/domi/<SLUG> (cámbialo si quieres otro) */
-export const SLUG_DOMICILIARIOS = 'karen-sprockels';
+/** Slug público del enlace (vive en lib/domi-config.ts para poder usarlo también en el panel del admin) */
+export { SLUG_DOMICILIARIOS };
 export const SESSION_DOMI = 'domi_session';
 export const DIAS_SESION = 30;
-const HOJA = 'Domiciliarios';
+const HOJA = 'Domiciliarios'; // ⚠ nombre exacto de la pestaña en tu Google Sheet
 
 export const slugValido = (slug: string | null | undefined) => slug === SLUG_DOMICILIARIOS;
 
@@ -16,20 +18,18 @@ export type Domiciliario = { usuario: string; telefono: string; activo: boolean 
 
 /* ═════════ Lectura de la hoja ═════════ */
 
-/**
- * ÚNICO punto que depende de cómo lees Google Sheets en tu proyecto.
- * Debe devolver la hoja "Domiciliarios" como matriz de texto: la fila 0 son los encabezados.
- */
+/** Devuelve la hoja "Domiciliarios" como matriz de texto: la fila 0 son los encabezados. */
 async function leerHojaDomiciliarios(): Promise<string[][]> {
-  // ⬇ CONECTA AQUÍ tu lector de hojas (el de src/lib/sheets). Ejemplo de forma:
-  // const { leerHoja } = await import('@/lib/sheets');
-  // return leerHoja(HOJA);
-  void HOJA;
-  throw new Error('Falta conectar la lectura de la hoja "Domiciliarios" en leerHojaDomiciliarios().');
+  const { data } = await hojas().spreadsheets.values.get({
+    spreadsheetId: SHEET_ID(),
+    range: `${HOJA}!A1:Z`,
+    valueRenderOption: 'FORMATTED_VALUE', // los teléfonos llegan como texto, no como número
+  });
+  return (data.values ?? []).map((fila) => fila.map((c) => String(c ?? '')));
 }
 
 export const sinAcentos = (t: string) =>
-  t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const soloDigitos = (t: string) => t.replace(/\D/g, '');
 
 /** Busca la columna por palabras clave, respetando el orden de prioridad de las claves */
