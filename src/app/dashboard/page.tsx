@@ -1,31 +1,31 @@
-// 📁 RUTA: src/app/dashboard/page.tsx
+// 📁 RUTA: src/app/dashboard/page.tsx   (REEMPLAZA TODO EL ARCHIVO)
 import Link from 'next/link';
-import { Saludo } from '@/components/dashboard/Reloj';
-import { PRECIOS_ORO, cop } from '@/lib/datos-dashboard';
+import { SaludoUsuario } from '@/components/dashboard/SaludoUsuario';
+import { cop } from '@/lib/datos-dashboard';
+import { obtenerResumen } from '@/lib/resumen-dashboard';
 
-const KPIS = [
-  { t: 'Ventas de hoy', v: '$0' },
-  { t: 'Ventas del mes', v: '$0' },
-  { t: 'Pedidos activos', v: '0' },
-  { t: 'Ticket promedio', v: '$0' },
-  { t: 'Oro en bóveda', v: '0 g' },
-  { t: 'Retiros pendientes', v: '0' },
-  { t: 'Domicilios en ruta', v: '0' },
-  { t: 'Stock bajo', v: '0' },
-];
-const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-const CATEGORIAS = ['Anillos', 'Cadenas', 'Aretes', 'Esclavas', 'Dijes'];
-const ATENDER = [
-  { t: 'Pedidos por despachar', href: '/dashboard/pedidos' },
-  { t: 'Retiros de bóveda solicitados', href: '/dashboard/boveda' },
-  { t: 'Prendas con stock bajo', href: '/dashboard/prendas' },
-  { t: 'Domicilios sin asignar', href: '/dashboard/domiciliarios' },
-];
+// Se calcula en cada visita (con caché de 30 s dentro de obtenerResumen)
+export const dynamic = 'force-dynamic';
+
+const CATEGORIAS_VACIAS = ['Anillos', 'Cadenas', 'Aretes', 'Esclavas', 'Dijes'];
 const ACCIONES = [
   { t: 'Nueva venta', href: '/dashboard/pedidos', principal: true },
   { t: 'Nueva prenda', href: '/dashboard/prendas' },
   { t: 'Registrar custodia', href: '/dashboard/boveda' },
 ];
+const ESTADO: Record<string, string> = {
+  nuevo: 'Nuevo',
+  recibido: 'Recibido',
+  en_camino: 'En camino',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado',
+};
+
+const dinero = (n: number) => (n > 0 ? cop(n) : '$0');
+/** Etiqueta corta para las barras: 1,2M · 350k */
+const corto = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n);
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 function Vacio({ texto, href, accion }: { texto: string; href?: string; accion?: string }) {
   return (
@@ -39,14 +39,49 @@ function Vacio({ texto, href, accion }: { texto: string; href?: string; accion?:
   );
 }
 
-export default function Inicio() {
+export default async function Inicio() {
+  const r = await obtenerResumen();
+  const k = r.kpis;
+
+  const KPIS = [
+    { t: 'Ventas de hoy', v: dinero(k.ventasHoy), sub: plural(k.pedidosHoy, 'pedido', 'pedidos') },
+    { t: 'Ventas del mes', v: dinero(k.ventasMes), sub: plural(k.pedidosMes, 'pedido', 'pedidos') },
+    { t: 'Pedidos activos', v: String(k.activos), sub: `${k.porDespachar} por despachar` },
+    { t: 'Ticket promedio', v: dinero(k.ticket), sub: 'Promedio del mes' },
+    { t: 'Oro en bóveda', v: '—', sub: 'Sin conectar aún' },
+    { t: 'Retiros pendientes', v: '—', sub: 'Sin conectar aún' },
+    { t: 'Domicilios en ruta', v: String(k.enRuta), sub: plural(r.domiciliarios.length, 'domiciliario', 'domiciliarios') },
+    { t: 'Stock bajo', v: String(k.stockBajo), sub: 'Quedan 1 o menos unidades' },
+  ];
+
+  const ATENDER = [
+    { t: 'Pedidos por despachar', href: '/dashboard/hans', n: String(k.porDespachar) },
+    { t: 'Retiros de bóveda solicitados', href: '/dashboard/boveda', n: '—' },
+    { t: 'Prendas y artículos con stock bajo', href: '/dashboard/prendas', n: String(k.stockBajo) },
+    { t: 'Domicilios sin asignar', href: '/dashboard/hans', n: String(k.sinAsignar) },
+  ];
+
+  const maxSemana = Math.max(...r.semana.map((d) => d.total), 1);
+  const totalSemana = r.semana.reduce((a, d) => a + d.total, 0);
+  const categorias = r.categorias.length
+    ? r.categorias
+    : CATEGORIAS_VACIAS.map((nombre) => ({ nombre, n: 0, pct: 0 }));
+
+  const oro = r.oro
+    ? [
+        { k: '24K', v: r.oro.k24 },
+        { k: '18K', v: r.oro.k18 },
+        { k: '14K', v: r.oro.k14 },
+      ]
+    : [];
+
   return (
     <main>
       <section className="d-hero">
         <div className="d-hero-txt">
           <small>PANEL DE ADMINISTRACIÓN · JOYERÍA JKS</small>
           <h1>
-            <Saludo />, <em>Karen.</em>
+            <SaludoUsuario />
           </h1>
           <p>Aquí está el pulso de su joyería: ventas, pedidos, bóveda y domicilios.</p>
           <div className="d-acciones">
@@ -61,10 +96,10 @@ export default function Inicio() {
         <div className="d-precios" aria-label="Precio del oro por gramo">
           <small>PRECIO DEL GRAMO DE ORO</small>
           <div>
-            {(Object.keys(PRECIOS_ORO) as Array<keyof typeof PRECIOS_ORO>).map((k) => (
-              <span key={k}>
-                <em>{k}</em>
-                <strong>{PRECIOS_ORO[k] ? cop(PRECIOS_ORO[k] as number) : '—'}</strong>
+            {oro.map((o) => (
+              <span key={o.k}>
+                <em>{o.k}</em>
+                <strong>{o.v ? cop(o.v) : '—'}</strong>
               </span>
             ))}
           </div>
@@ -73,12 +108,18 @@ export default function Inicio() {
       </section>
 
       <div className="d-cont">
+        {r.fallos.length > 0 && (
+          <p className="d-aviso" role="status">
+            No se pudo leer: {r.fallos.join(', ')}. Los números de abajo pueden estar incompletos.
+          </p>
+        )}
+
         <div className="d-kpis">
-          {KPIS.map((k) => (
-            <div key={k.t} className="d-card d-kpi">
-              <small>{k.t}</small>
-              <strong>{k.v}</strong>
-              <span className="d-nada">Sin datos aún</span>
+          {KPIS.map((x) => (
+            <div key={x.t} className="d-card d-kpi">
+              <small>{x.t}</small>
+              <strong>{x.v}</strong>
+              <span className="d-nada">{x.sub}</span>
             </div>
           ))}
         </div>
@@ -86,17 +127,28 @@ export default function Inicio() {
         <div className="d-duo">
           <section className="d-card">
             <h3>Ventas de los últimos 7 días</h3>
-            <div className="d-barras" role="img" aria-label="Sin ventas registradas">
-              {DIAS.map((d) => (
-                <div key={d}><i className="vacia" />{d}</div>
+            <div className="d-serie" role="img" aria-label={`Ventas de los últimos 7 días: ${dinero(totalSemana)} en total`}>
+              {r.semana.map((d, i) => (
+                <div key={i}>
+                  <small>{d.total > 0 ? corto(d.total) : ''}</small>
+                  <span className="d-barra">
+                    <i className={d.total > 0 ? '' : 'cero'} style={{ height: d.total > 0 ? `${Math.max((d.total / maxSemana) * 100, 6)}%` : undefined }} />
+                  </span>
+                  <b>{d.letra}</b>
+                </div>
               ))}
             </div>
+            <p className="d-nada">Total de la semana: {dinero(totalSemana)}</p>
           </section>
           <section className="d-card">
-            <h3>Ventas por categoría</h3>
+            <h3>Catálogo por categoría</h3>
             <ul className="d-cats">
-              {CATEGORIAS.map((c) => (
-                <li key={c}><span>{c}</span><b>0%</b><i><u /></i></li>
+              {categorias.map((c) => (
+                <li key={c.nombre}>
+                  <span>{c.nombre}</span>
+                  <b>{c.pct}%</b>
+                  <i><u style={{ width: `${c.pct}%` }} /></i>
+                </li>
               ))}
             </ul>
           </section>
@@ -105,32 +157,76 @@ export default function Inicio() {
         <div className="d-trio">
           <section className="d-card">
             <h3>Pedidos recientes</h3>
-            <Vacio texto="Aún no hay pedidos." href="/dashboard/pedidos" accion="Crear el primero" />
+            {r.recientes.length === 0 ? (
+              <Vacio texto="Aún no hay pedidos." href="/dashboard/hans" accion="Ir a pedidos" />
+            ) : (
+              <ul className="d-lista">
+                {r.recientes.map((p) => (
+                  <li key={p.id}>
+                    <Link href="/dashboard/hans">
+                      <span className="d-l-main">
+                        <b>{p.cliente || 'Cliente'}</b>
+                        <small>{p.codigo} · {p.cuando}</small>
+                      </span>
+                      <span className="d-l-der">
+                        <b>{dinero(p.total)}</b>
+                        <em className={`d-est e-${p.estado}`}>{ESTADO[p.estado] ?? p.estado}</em>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
           <section className="d-card">
             <h3>Por atender</h3>
             <ul className="d-atender">
               {ATENDER.map((a) => (
                 <li key={a.t}>
-                  <Link href={a.href}><span>{a.t}</span><b>0</b></Link>
+                  <Link href={a.href}><span>{a.t}</span><b>{a.n}</b></Link>
                 </li>
               ))}
             </ul>
           </section>
           <section className="d-card">
             <h3>Domiciliarios en turno</h3>
-            <Vacio texto="Ningún domiciliario registrado." href="/dashboard/domiciliarios" accion="Agregar" />
+            {r.domiciliarios.length === 0 ? (
+              <Vacio texto="Ningún domiciliario en ruta ahora." href="/dashboard/domiciliarios" accion="Ver domiciliarios" />
+            ) : (
+              <ul className="d-feed">
+                {r.domiciliarios.map((d) => (
+                  <li key={d.nombre}>
+                    <span className="d-l-main">
+                      <b>{d.nombre}</b>
+                      {d.telefono && <small>{d.telefono}</small>}
+                    </span>
+                    <span className="d-l-der"><b>{plural(d.pedidos, 'entrega', 'entregas')}</b><small>en ruta</small></span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
 
         <div className="d-duo inv">
           <section className="d-card">
             <h3>Prendas más vendidas</h3>
-            <Vacio texto="Se mostrarán cuando registre sus primeras ventas." />
+            <Vacio texto="Se mostrarán cuando los pedidos registren qué prendas se vendieron." />
           </section>
           <section className="d-card">
             <h3>Actividad reciente</h3>
-            <Vacio texto="Aquí verá cada movimiento: ventas, retiros y entregas." />
+            {r.actividad.length === 0 ? (
+              <Vacio texto="Aquí verá cada movimiento: ventas, retiros y entregas." />
+            ) : (
+              <ul className="d-feed">
+                {r.actividad.map((a, i) => (
+                  <li key={i}>
+                    <span className="d-l-main"><b>{a.texto}</b></span>
+                    <small>{a.cuando}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       </div>

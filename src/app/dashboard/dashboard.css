@@ -811,3 +811,80 @@
   .d-modal-pie .d-btn{width:100%;justify-content:center;min-height:48px}
 }
 
+/* 📁 AGREGAR AL FINAL del CSS donde están las clases d-* del dashboard (no reemplaza nada) */
+
+/* ── Inicio con datos reales ── */
+.d-aviso {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 10px;
+  background: rgba(200, 70, 60, 0.1);
+  border: 1px solid rgba(200, 70, 60, 0.35);
+}
+
+/* Gráfico de barras de los últimos 7 días */
+.d-serie {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  height: 190px;
+  margin-top: 8px;
+}
+.d-serie > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.d-serie small { min-height: 14px; font-size: 11px; opacity: 0.75; white-space: nowrap; }
+.d-serie b { font-weight: 600; }
+.d-barra { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.d-barra i {
+  display: block;
+  width: 100%;
+  max-width: 38px;
+  min-height: 4px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #e3c673, #b98f35);
+}
+.d-barra i.cero { height: 4px; background: rgba(127, 127, 127, 0.28); }
+
+/* Listas: pedidos recientes, domiciliarios y actividad */
+.d-lista, .d-feed { list-style: none; margin: 0; padding: 0; }
+.d-lista li + li, .d-feed li + li { border-top: 1px solid rgba(127, 127, 127, 0.2); }
+.d-lista a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.d-lista a:hover { background: rgba(127, 127, 127, 0.08); }
+.d-feed li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; }
+.d-l-main, .d-l-der { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.d-l-der { align-items: flex-end; flex: none; }
+.d-l-main small, .d-l-der small, .d-feed > li > small { font-size: 12px; opacity: 0.7; }
+.d-feed > li > small { flex: none; white-space: nowrap; }
+
+/* Insignias de estado del pedido */
+.d-est {
+  padding: 2px 9px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.14);
+}
+.d-est.e-nuevo { background: rgba(217, 180, 90, 0.2); border-color: rgba(217, 180, 90, 0.55); }
+.d-est.e-recibido { background: rgba(70, 140, 220, 0.18); border-color: rgba(110, 170, 240, 0.5); }
+.d-est.e-en_camino { background: rgba(120, 90, 220, 0.18); border-color: rgba(150, 120, 240, 0.5); }
+.d-est.e-entregado { background: rgba(50, 180, 110, 0.18); border-color: rgba(80, 210, 140, 0.5); }
+.d-est.e-cancelado { background: rgba(200, 70, 60, 0.18); border-color: rgba(230, 100, 90, 0.5); }
+
