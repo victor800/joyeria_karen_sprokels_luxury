@@ -22,11 +22,11 @@ export default function PanelDomi({ slug, nombre, foto }: Props) {
 }
 
 /* Los logos se piden a Next en tamaño grande para que salgan nítidos en pantallas retina */
-function Logos({ mini = false }: { mini?: boolean }) {
-  const lado = mini ? 240 : 400;
-  const sizes = mini ? '(max-width: 600px) 16vw, 84px' : '(max-width: 600px) 34vw, 168px';
+function Logos({ hero = false }: { hero?: boolean }) {
+  const lado = hero ? 320 : 400;
+  const sizes = hero ? '(max-width: 600px) 88px, 132px' : '(max-width: 600px) 34vw, 168px';
   return (
-    <div className={`dm-logos ${mini ? 'dm-logos-mini' : ''}`}>
+    <div className={`dm-logos ${hero ? 'dm-logos-hero' : ''}`}>
       <Image src="/logo-jks.jpeg" alt="Karen Sprockel's Luxury" width={lado} height={lado} quality={95} sizes={sizes} priority />
       <Image src="/hans.jpeg" alt="Joyería Hans" width={lado} height={lado} quality={95} sizes={sizes} priority />
     </div>
@@ -159,8 +159,8 @@ const ICO = {
   cal: 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
   tel: 'M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z',
   chat: 'M4 20l1.3-4.2A8 8 0 114 20z M9 9.5c0 3 2.5 5.5 5.5 5.5',
-  mapa: 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z M9 4v14 M15 6v14',
   ruta: 'M5 19a2 2 0 100-4 2 2 0 000 4z M19 9a2 2 0 100-4 2 2 0 000 4z M7 17h7a3 3 0 000-6h-4a3 3 0 010-6h7',
+  ojo: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 15a3 3 0 100-6 3 3 0 000 6z',
 } as const;
 
 function Ico({ n }: { n: keyof typeof ICO }) {
@@ -190,7 +190,6 @@ const coincide = (p: PedidoDomi, f: Filtro) =>
 
 function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: string | null }) {
   const router = useRouter();
-  const detRef = useRef<HTMLElement>(null);
 
   const [pedidos, setPedidos] = useState<PedidoDomi[] | null>(null);
   const [error, setError] = useState('');
@@ -203,7 +202,7 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
   const [tienda, setTienda] = useState<'todas' | 'hans' | 'jks'>('todas');
   const [orden, setOrden] = useState<{ col: Col; asc: boolean }>({ col: 'estado', asc: true });
 
-  const [selId, setSelId] = useState<string | null>(null);
+  const [detId, setDetId] = useState<string | null>(null); // pedido abierto en "Ver detalles"
   const [trab, setTrab] = useState<Accion>(null); // acción en curso (el botón gira)
   const [errAcc, setErrAcc] = useState<{ id: string; msg: string } | null>(null);
   const [novedadId, setNovedadId] = useState<string | null>(null);
@@ -255,7 +254,7 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
     }
   }
 
-  /** Cambia el estado: sin ventanas emergentes, el propio botón muestra el giro mientras guarda */
+  /** Cambia el estado: sin ventanas emergentes, el propio botón gira mientras guarda */
   async function ir(id: string, estado: Estado, novedad = '') {
     if (trab) return;
     setTrab({ id, estado });
@@ -271,16 +270,13 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
     router.refresh();
   }
 
-  /** Selecciona el pedido y, en pantallas chicas, sube al mapa */
-  function ver(id: string) {
-    setSelId(id);
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 999px)').matches) {
-      requestAnimationFrame(() => detRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    }
-  }
+  const abrir = useCallback((id: string) => setDetId(id), []);
+  const cerrar = useCallback(() => {
+    setDetId(null);
+    setNovedadId(null);
+  }, []);
 
-  function abrirNovedad(id: string) {
-    ver(id);
+  function alternarNovedad(id: string) {
     setNovedadId((v) => (v === id ? null : id));
   }
 
@@ -307,47 +303,38 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
       });
   }, [pedidos, filtro, busca, tienda, orden]);
 
-  // Siempre hay un pedido seleccionado si existe alguno visible: así el mapa nunca queda vacío
-  const sel = visibles.find((p) => p.id === selId) ?? visibles[0] ?? null;
+  // El pedido abierto se busca en todos los pedidos (no solo en los visibles), así sigue abierto al marcarlo entregado
+  const det = detId ? pedidos?.find((p) => p.id === detId) ?? null : null;
 
   return (
     <main className="dm-panel">
-      <header className="dm-top">
-        {foto && !fotoMala ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="dm-avatar" src={foto} alt={nombre} referrerPolicy="no-referrer" onError={() => setFotoMala(true)} />
-        ) : (
-          <div className="dm-avatar dm-ini">{iniciales(nombre)}</div>
-        )}
-        <div className="dm-hola">
-          <small>Bienvenido</small>
-          <strong>{nombre}</strong>
+      <header className="dm-hero">
+        <Logos hero />
+
+        <div className="dm-hero-txt">
+          <div className="dm-marca">Karen Sprockel&apos;s <span>◆</span> Joyería Hans</div>
+          <h1>Mis entregas</h1>
+          {pedidos && (
+            <p className="dm-resumen">
+              <b>{conteos.pend}</b> por entregar · <b>{conteos.entregado}</b> entregados
+            </p>
+          )}
         </div>
-        <button className="dm-salir" onClick={salir}>Salir</button>
+
+        <div className="dm-user">
+          {foto && !fotoMala ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="dm-avatar" src={foto} alt={nombre} referrerPolicy="no-referrer" onError={() => setFotoMala(true)} />
+          ) : (
+            <div className="dm-avatar dm-ini">{iniciales(nombre)}</div>
+          )}
+          <div className="dm-hola">
+            <small>Bienvenido</small>
+            <strong>{nombre}</strong>
+          </div>
+          <button className="dm-salir" onClick={salir}>Salir</button>
+        </div>
       </header>
-
-      <Logos mini />
-
-      <div className="dm-herr">
-        <input
-          className="dm-input dm-buscar"
-          type="search"
-          placeholder="Buscar cliente, dirección o producto"
-          aria-label="Buscar pedidos"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-        <select className="dm-input dm-select" aria-label="Filtrar por tienda" value={tienda} onChange={(e) => setTienda(e.target.value as typeof tienda)}>
-          <option value="todas">Todas las tiendas</option>
-          <option value="hans">Joyería Hans</option>
-          <option value="jks">Karen Sprockel&apos;s</option>
-        </select>
-        <button className="dm-act" onClick={cargar} disabled={cargando} aria-busy={cargando}>
-          {cargando && <span className="dm-spin" aria-hidden="true" />}
-          {cargando ? 'Actualizando…' : 'Actualizar'}
-        </button>
-      </div>
-      {hora && <p className="dm-hora">Actualizado a las {hora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>}
 
       <nav className="dm-filtros" aria-label="Filtrar por estado">
         {FILTROS.map((f) => (
@@ -358,66 +345,74 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
         ))}
       </nav>
 
-      {error && <div className="dm-error">{error}</div>}
-      {!pedidos && !error && <p className="dm-vacio">Cargando pedidos…</p>}
-
-      {pedidos && (
-        <div className="dm-main">
-          <div className="dm-tabla-wrap">
-            {visibles.length === 0 ? (
-              <p className="dm-vacio">
-                {busca || tienda !== 'todas'
-                  ? 'Ningún pedido coincide con la búsqueda. Pruebe con otro filtro.'
-                  : filtro === 'entregado'
-                    ? 'Aún no ha entregado pedidos.'
-                    : 'No tiene pedidos en este estado por ahora.'}
-              </p>
-            ) : (
-              <table className="dm-tabla">
-                <thead>
-                  <tr>
-                    <Th col="cliente" orden={orden} onOrden={ordenar}>Cliente</Th>
-                    <th>Dirección</th>
-                    <Th col="fecha" orden={orden} onOrden={ordenar} className="c-fecha">Entrega</Th>
-                    <th className="c-pago">Pago</th>
-                    <Th col="estado" orden={orden} onOrden={ordenar}>Estado</Th>
-                    <th className="c-acc">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibles.map((p) => (
-                    <Fila
-                      key={p.id}
-                      p={p}
-                      activa={sel?.id === p.id}
-                      trab={trab}
-                      novedadAbierta={novedadId === p.id}
-                      onVer={ver}
-                      onIr={ir}
-                      onNovedad={abrirNovedad}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <aside className="dm-det" ref={detRef} aria-label="Detalle y mapa del pedido">
-            {sel ? (
-              <Detalle
-                key={sel.id}
-                p={sel}
-                trab={trab}
-                errMsg={errAcc?.id === sel.id ? errAcc.msg : ''}
-                novedadAbierta={novedadId === sel.id}
-                onIr={ir}
-                onNovedad={abrirNovedad}
-              />
-            ) : (
-              <p className="dm-det-vacio">Elija un pedido de la tabla para ver su ubicación en el mapa.</p>
-            )}
-          </aside>
+      <section className="dm-tabla-wrap" aria-label="Pedidos">
+        <div className="dm-herr">
+          <input
+            className="dm-input dm-buscar"
+            type="search"
+            placeholder="Buscar cliente, dirección o producto"
+            aria-label="Buscar pedidos"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+          <select className="dm-input dm-select" aria-label="Filtrar por tienda" value={tienda} onChange={(e) => setTienda(e.target.value as typeof tienda)}>
+            <option value="todas">Todas las tiendas</option>
+            <option value="hans">Joyería Hans</option>
+            <option value="jks">Karen Sprockel&apos;s</option>
+          </select>
+          <button className="dm-act" onClick={cargar} disabled={cargando} aria-busy={cargando}>
+            {cargando && <span className="dm-spin" aria-hidden="true" />}
+            {cargando ? 'Actualizando…' : 'Actualizar'}
+          </button>
+          {hora && <span className="dm-hora">Actualizado a las {hora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>}
         </div>
+
+        {error && <div className="dm-error" style={{ margin: 16 }}>{error}</div>}
+        {!pedidos && !error && <p className="dm-vacio">Cargando pedidos…</p>}
+
+        {pedidos && visibles.length === 0 && (
+          <p className="dm-vacio">
+            {busca || tienda !== 'todas'
+              ? 'Ningún pedido coincide con la búsqueda. Pruebe con otro filtro.'
+              : filtro === 'entregado'
+                ? 'Aún no ha entregado pedidos.'
+                : 'No tiene pedidos en este estado por ahora.'}
+          </p>
+        )}
+
+        {pedidos && visibles.length > 0 && (
+          <table className="dm-tabla">
+            <thead>
+              <tr>
+                <Th col="cliente" orden={orden} onOrden={ordenar}>Pedido</Th>
+                <th>Dirección</th>
+                <Th col="fecha" orden={orden} onOrden={ordenar} className="c-fecha">Entrega</Th>
+                <th className="c-pago">Pago</th>
+                <Th col="estado" orden={orden} onOrden={ordenar}>Estado</Th>
+                <th className="c-acc">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((p) => (
+                <Fila key={p.id} p={p} trab={trab} onAbrir={abrir} onIr={ir} />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {det && (
+        <Drawer onCerrar={cerrar}>
+          <Detalle
+            key={det.id}
+            p={det}
+            trab={trab}
+            errMsg={errAcc?.id === det.id ? errAcc.msg : ''}
+            novedadAbierta={novedadId === det.id}
+            onIr={ir}
+            onNovedad={alternarNovedad}
+          />
+        </Drawer>
       )}
     </main>
   );
@@ -444,6 +439,44 @@ function Th({
   );
 }
 
+/* ═════════ Panel emergente (detalles) ═════════ */
+function Drawer({ onCerrar, children }: { onCerrar: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const cerrarRef = useRef(onCerrar);
+
+  useEffect(() => {
+    cerrarRef.current = onCerrar;
+  });
+
+  useEffect(() => {
+    const previo = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cerrarRef.current();
+    };
+    document.addEventListener('keydown', tecla);
+    ref.current?.focus();
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener('keydown', tecla);
+      previo?.focus?.();
+    };
+  }, []);
+
+  return (
+    <div className="dm-overlay" onClick={onCerrar}>
+      <aside className="dm-drawer" role="dialog" aria-modal="true" aria-label="Detalle del pedido" tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
+        <div className="dm-dr-top">
+          <span>Detalle del pedido</span>
+          <button type="button" className="dm-cerrar" aria-label="Cerrar detalles" onClick={onCerrar}>✕</button>
+        </div>
+        <div className="dm-dr-body">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
 /* ═════════ Progreso ═════════ */
 const PASOS = ['Asignado', 'En ruta', 'Entregado'];
 const pasoActual = (e: Estado) => (e === 'asignado' ? 0 : e === 'entregado' ? 2 : 1);
@@ -460,7 +493,7 @@ function Barra({ estado }: { estado: Estado }) {
   );
 }
 
-/** Barra grande del panel de detalle: siempre arranca en "Asignado" */
+/** Barra grande del detalle: siempre arranca en "Asignado" */
 function Progreso({ estado }: { estado: Estado }) {
   const actual = pasoActual(estado);
   const nov = estado === 'novedad';
@@ -519,15 +552,12 @@ function BtnEstado({
 
 /* ═════════ Fila de la tabla ═════════ */
 function Fila({
-  p, activa, trab, novedadAbierta, onVer, onIr, onNovedad,
+  p, trab, onAbrir, onIr,
 }: {
   p: PedidoDomi;
-  activa: boolean;
   trab: Accion;
-  novedadAbierta: boolean;
-  onVer: (id: string) => void;
+  onAbrir: (id: string) => void;
   onIr: (id: string, estado: Estado) => void;
-  onNovedad: (id: string) => void;
 }) {
   const dir = direccionDe(p);
   const cerrado = p.estado === 'entregado';
@@ -535,14 +565,13 @@ function Fila({
 
   return (
     <tr
-      className={`dm-trow e-${p.estado} ${activa ? 'sel' : ''} ${cerrado ? 'cerrado' : ''}`}
+      className={`dm-trow e-${p.estado} ${cerrado ? 'cerrado' : ''}`}
       tabIndex={0}
-      aria-current={activa ? 'true' : undefined}
-      onClick={() => onVer(p.id)}
+      onClick={() => onAbrir(p.id)}
       onKeyDown={(e) => {
         if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          onVer(p.id);
+          onAbrir(p.id);
         }
       }}
     >
@@ -566,47 +595,26 @@ function Fila({
           {p.estado === 'asignado' && (
             <BtnEstado p={p} estado="en_ruta" trab={trab} onIr={onIr} mini>Salir a ruta</BtnEstado>
           )}
-          {p.estado === 'en_ruta' && (
-            <>
-              <BtnEstado p={p} estado="entregado" trab={trab} onIr={onIr} mini>Entregado</BtnEstado>
-              <button
-                type="button"
-                className={`dm-mini sec ${novedadAbierta ? 'on' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNovedad(p.id);
-                }}
-              >
-                Novedad
-              </button>
-            </>
+          {(p.estado === 'en_ruta' || p.estado === 'novedad') && (
+            <BtnEstado p={p} estado="entregado" trab={trab} onIr={onIr} mini>Entregado</BtnEstado>
           )}
-          {p.estado === 'novedad' && (
-            <>
-              <BtnEstado p={p} estado="en_ruta" trab={trab} onIr={onIr} mini sec>Retomar</BtnEstado>
-              <BtnEstado p={p} estado="entregado" trab={trab} onIr={onIr} mini>Entregado</BtnEstado>
-            </>
-          )}
-          {!cerrado && dir && (
-            <button
-              type="button"
-              className={`dm-mini sec ${activa ? 'on' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onVer(p.id);
-              }}
-            >
-              <Ico n="mapa" />Mapa
-            </button>
-          )}
-          {cerrado && <span className="dm-hora">Completado</span>}
+          <button
+            type="button"
+            className="dm-mini sec"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAbrir(p.id);
+            }}
+          >
+            <Ico n="ojo" />Ver detalles
+          </button>
         </div>
       </td>
     </tr>
   );
 }
 
-/* ═════════ Detalle del pedido seleccionado + mapa ═════════ */
+/* ═════════ Detalle del pedido + mapa ═════════ */
 function Detalle({
   p, trab, errMsg, novedadAbierta, onIr, onNovedad,
 }: {
@@ -634,15 +642,15 @@ function Detalle({
       <div className="dm-pad">
         <div className="dm-det-head">
           <div>
-            <div className="dm-tienda">{p.tienda === 'hans' ? 'Joyería Hans' : "Karen Sprockel's"}</div>
+            <span className="dm-tienda">{p.tienda === 'hans' ? 'Joyería Hans' : "Karen Sprockel's"}</span>
             <h3 className="dm-cliente">{p.cliente || 'Cliente'}</h3>
           </div>
           <span className={`dm-badge ${CLASE[p.estado]}`}>{ETIQUETA[p.estado]}</span>
         </div>
       </div>
 
-      {q ? (
-        <div className="dm-mapa">
+      <div className="dm-mapa">
+        {q ? (
           <iframe
             key={q}
             title={`Mapa de ${p.cliente || 'la entrega'}`}
@@ -650,12 +658,10 @@ function Detalle({
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
           />
-        </div>
-      ) : (
-        <div className="dm-mapa">
+        ) : (
           <p className="dm-mapa-vacio">Este pedido no tiene dirección para mostrar en el mapa.</p>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="dm-pad">
         <Progreso estado={p.estado} />
