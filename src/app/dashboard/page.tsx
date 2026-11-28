@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { SaludoUsuario } from '@/components/dashboard/SaludoUsuario';
 import { PedidosRecientes, ActividadReciente } from '@/components/dashboard/TarjetasDashboard';
+import GraficoVentas from '@/components/dashboard/GraficoVentas';
 import { cop } from '@/lib/datos-dashboard';
 import { obtenerResumen } from '@/lib/resumen-dashboard';
 
@@ -16,9 +17,6 @@ const ACCIONES = [
 ];
 
 const dinero = (n: number) => (n > 0 ? cop(n) : '$0');
-/** Etiqueta corta para las barras: 1,2M · 350k */
-const corto = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n);
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 function Vacio({ texto, href, accion }: { texto: string; href?: string; accion?: string }) {
@@ -36,6 +34,8 @@ function Vacio({ texto, href, accion }: { texto: string; href?: string; accion?:
 export default async function Inicio() {
   const r = await obtenerResumen();
   const k = r.kpis;
+  // Fecha de hoy en Bogotá (AAAA-MM-DD) para rotular los días del gráfico
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
   const KPIS = [
     { t: 'Ventas de hoy', v: dinero(k.ventasHoy), sub: plural(k.pedidosHoy, 'pedido', 'pedidos'), href: '/dashboard/hans' },
@@ -55,8 +55,6 @@ export default async function Inicio() {
     { t: 'Domicilios sin asignar', href: '/dashboard/hans', n: String(k.sinAsignar) },
   ];
 
-  const maxSemana = Math.max(...r.semana.map((d) => d.total), 1);
-  const totalSemana = r.semana.reduce((a, d) => a + d.total, 0);
   const categorias = r.categorias.length
     ? r.categorias
     : CATEGORIAS_VACIAS.map((nombre) => ({ nombre, n: 0, pct: 0 }));
@@ -129,26 +127,14 @@ export default async function Inicio() {
 
         <div className="d-duo">
           <section className="d-card">
-            <h3>Ventas de los últimos 7 días</h3>
-            <div className="d-serie" role="img" aria-label={`Ventas de los últimos 7 días: ${dinero(totalSemana)} en total`}>
-              {r.semana.map((d, i) => (
-                <div key={i} title={`${d.letra}: ${dinero(d.total)}`}>
-                  <small>{d.total > 0 ? corto(d.total) : ''}</small>
-                  <span className="d-barra">
-                    <i className={d.total > 0 ? '' : 'cero'} style={{ height: d.total > 0 ? `${Math.max((d.total / maxSemana) * 100, 6)}%` : undefined }} />
-                  </span>
-                  <b>{d.letra}</b>
-                </div>
-              ))}
-            </div>
-            <p className="d-nada">Total de la semana: {dinero(totalSemana)}</p>
+            <GraficoVentas datos={r.semana.map((d) => ({ letra: d.letra, total: d.total }))} hoy={hoy} />
           </section>
           <section className="d-card">
             <h3>Catálogo por categoría</h3>
             <ul className="d-cats">
               {categorias.map((c) => (
-                <li key={c.nombre}>
-                  <span>{c.nombre}</span>
+                <li key={c.nombre} title={`${c.nombre}: ${plural(c.n, 'prenda', 'prendas')} (${c.pct}%)`}>
+                  <span>{c.nombre} <small className="gr-n">· {c.n}</small></span>
                   <b>{c.pct}%</b>
                   <i><u style={{ width: `${c.pct}%` }} /></i>
                 </li>

@@ -1,6 +1,6 @@
-/* 📁 RUTA: src/components/dashboard/extras-dashboard.css   (REEMPLAZA TODO EL ARCHIVO)
+/* 📁 RUTA: src/components/dashboard/extras-dashboard.css   (ARCHIVO NUEVO)
    Usa variables con valores de respaldo: si su tema ya define --oro / --verde / --crema, los toma. */
-.n-wrap, .n-panel, .n-toasts, .av-menu, .pg, .tb-head, .tb-filtros {
+.n-wrap, .n-panel, .n-toasts, .av-menu, .gr, .pg, .tb-head, .tb-filtros {
   --x-oro: var(--oro, #b8923a);
   --x-oro-claro: var(--oro-claro, #f3e7c4);
   --x-verde: var(--verde, #0f3b2e);
@@ -149,4 +149,70 @@
   .pg-tam select { height: 32px; }
   .av-menu { width: 220px; }
   .av-menu button { height: 40px; font-size: 13px; }
+}
+
+/* ───────── Tarjeta "Precio del gramo de oro": todo alineado al mismo borde izquierdo ─────────
+   Selector largo (.dash .d-hero .d-precios) para ganarle a las reglas de dashboard.css. */
+.dash .d-hero .d-precios {
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+  box-sizing: border-box; max-width: 100%; padding: 16px 20px; text-align: left;
+}
+.dash .d-hero .d-precios > small { margin: 0; padding: 0; text-align: left; }
+.dash .d-hero .d-precios > div {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px;
+  margin: 0; padding: 0; width: 100%;
+}
+.dash .d-hero .d-precios > div > span {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  min-width: 0; margin: 0; padding: 0;
+}
+.dash .d-hero .d-precios em { font-style: normal; font-size: 11px; letter-spacing: .08em; color: var(--texto-suave, #7a7566); }
+.dash .d-hero .d-precios strong { font-size: clamp(17px, 5vw, 22px); line-height: 1.1; white-space: nowrap; }
+.dash .d-hero .d-precios > a {
+  align-self: stretch; margin: 0; padding: 10px 0 0; text-align: left;
+  border-top: 1px solid var(--borde, #e3dcc8);
+}
+
+/* ───────── Gráfico de ventas ───────── */
+.gr-modos { display: inline-flex; border: 1px solid var(--x-borde); border-radius: 999px; padding: 2px; background: #fff; }
+.gr-modos button { border: 0; background: none; padding: 4px 12px; border-radius: 999px; font-size: 11px; color: var(--x-suave); cursor: pointer; }
+.gr-modos button[aria-pressed='true'] { background: var(--x-verde); color: #fff; }
+.gr-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 10px; padding: 0; }
+.gr-stats > div { padding: 8px 10px; border: 1px solid var(--x-borde); border-radius: 8px; background: var(--x-fondo); min-width: 0; }
+.gr-stats dt { margin: 0; font-size: 10px; color: var(--x-suave); }
+.gr-stats dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; color: var(--x-verde); display: flex; flex-direction: column; }
+.gr-stats dd small { font-size: 10px; font-weight: 400; color: var(--x-suave); }
+.gr-lienzo { position: relative; width: 100%; touch-action: pan-y; outline: none; }
+.gr-lienzo:focus-visible { outline: 2px solid var(--x-oro); outline-offset: 2px; border-radius: 6px; }
+.gr-lienzo svg { display: block; overflow: visible; cursor: crosshair; }
+.gr-grid { stroke: var(--x-borde); stroke-width: 1; }
+.gr-grid.base { stroke: #cfc6ad; }
+.gr-eje, .gr-eje2, .gr-prom-t { font-family: var(--d-sans, system-ui, sans-serif); font-size: 10px; fill: var(--x-suave); }
+.gr-eje2 { font-weight: 600; fill: var(--x-texto); }
+.gr-eje.hoy, .gr-eje2.hoy { fill: var(--x-oro); }
+.gr-prom { stroke: var(--x-verde); stroke-width: 1; stroke-dasharray: 4 4; opacity: .55; }
+.gr-prom-t { fill: var(--x-verde); opacity: .8; }
+.gr-linea { fill: none; stroke: var(--x-oro); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.gr-punto { fill: #fff; stroke: var(--x-oro); stroke-width: 2; transition: r .12s; }
+.gr-punto.on { fill: var(--x-oro); }
+.gr-cruz { stroke: var(--x-verde); stroke-width: 1; stroke-dasharray: 3 3; opacity: .5; }
+.gr-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 170px; max-width: 220px;
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 12px;
+  background: var(--x-verde); color: #fff; border-radius: 8px; box-shadow: 0 12px 26px -10px rgba(15, 59, 46, .5);
+  font-family: var(--d-sans, system-ui, sans-serif);
+}
+.gr-tip small { font-size: 10px; opacity: .75; }
+.gr-tip strong { font-size: 17px; line-height: 1.2; }
+.gr-tip span { font-size: 11px; opacity: .9; }
+.gr-tip .sube { color: #9be3b4; }
+.gr-tip .baja { color: #f3b4ad; }
+.gr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+.d-cats li { cursor: default; }
+.d-cats li:hover u { filter: brightness(1.12); }
+.gr-n { opacity: .6; font-weight: 400; }
+@media (max-width: 640px) {
+  .gr-stats { gap: 6px; }
+  .gr-stats dd { font-size: 13px; }
+  .gr-modos button { padding: 6px 14px; font-size: 12px; }
 }
