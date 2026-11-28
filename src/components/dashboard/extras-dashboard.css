@@ -1,6 +1,6 @@
-/* 📁 RUTA: src/components/dashboard/extras-dashboard.css   (ARCHIVO NUEVO)
+/* 📁 RUTA: src/components/dashboard/extras-dashboard.css   (REEMPLAZA TODO EL ARCHIVO)
    Usa variables con valores de respaldo: si su tema ya define --oro / --verde / --crema, los toma. */
-.n-wrap, .pg, .tb-head, .tb-filtros {
+.n-wrap, .n-panel, .n-toasts, .av-menu, .pg, .tb-head, .tb-filtros {
   --x-oro: var(--oro, #b8923a);
   --x-oro-claro: var(--oro-claro, #f3e7c4);
   --x-verde: var(--verde, #0f3b2e);
@@ -27,8 +27,8 @@
 }
 
 .n-panel {
-  position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
-  width: min(380px, calc(100vw - 24px)); max-height: min(520px, 80vh);
+  position: fixed; z-index: 60; /* top/right los calcula el componente según la campana */
+  width: min(380px, calc(100vw - 16px)); max-height: min(520px, calc(100dvh - 120px));
   display: flex; flex-direction: column; overflow: hidden;
   background: #fff; border: 1px solid var(--x-borde); border-radius: 10px;
   box-shadow: 0 18px 40px -12px rgba(15, 59, 46, .28);
@@ -109,3 +109,44 @@
 .pg-nums button.on { background: var(--x-verde); border-color: var(--x-verde); color: #fff; }
 .pg-nums button:disabled { opacity: .4; cursor: default; }
 .pg-gap { padding: 0 2px; }
+
+/* ───────── Avatar de perfil ───────── */
+.av-wrap { position: relative; display: inline-flex; }
+.av-btn { border: 0; padding: 0; overflow: hidden; cursor: pointer; font-family: inherit; }
+.av-btn:focus-visible { outline: 2px solid var(--x-oro); outline-offset: 2px; }
+.av-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
+.av-menu {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 60; width: 200px;
+  display: flex; flex-direction: column; gap: 6px; padding: 12px;
+  background: #fff; border: 1px solid var(--x-borde); border-radius: 10px;
+  box-shadow: 0 18px 40px -12px rgba(15, 59, 46, .28);
+}
+.av-prev { width: 84px; height: 84px; margin: 0 auto 4px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--x-oro-claro); color: var(--x-verde); font-weight: 600; }
+.av-prev img { width: 100%; height: 100%; object-fit: cover; }
+.av-menu button {
+  height: 34px; border: 1px solid var(--x-borde); border-radius: 6px; background: #fff; color: var(--x-texto); font-size: 12px; cursor: pointer;
+}
+.av-menu button:hover:not(:disabled) { border-color: var(--x-oro); background: var(--x-fondo); }
+.av-menu button:disabled { opacity: .6; cursor: default; }
+.av-menu .av-quitar { color: #b3261e; }
+.av-error { margin: 2px 0 0; font-size: 11px; color: #b3261e; text-align: center; }
+
+/* ───────── Celular ───────── */
+@media (max-width: 640px) {
+  .n-btn { width: 38px; height: 38px; }
+  /* Panel a lo ancho de la pantalla, debajo del encabezado y sin tapar la barra inferior */
+  .n-panel { left: 8px !important; right: 8px !important; width: auto; max-height: calc(100dvh - 150px); }
+  .n-toasts { left: 8px; right: 8px; width: auto; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+  .n-txt b { font-size: 13px; }
+  .n-txt small { font-size: 12px; }
+  .n-acc button { width: 36px; height: 36px; font-size: 18px; }
+  .n-tabs [role='tab'], .n-link { padding: 8px 10px; font-size: 12px; }
+  .tb-filtros input, .tb-filtros select { height: 38px; font-size: 16px; } /* 16px evita el zoom automático en iPhone */
+  .tb-btn, .tb-chip { height: 34px; padding: 0 14px; font-size: 12px; }
+  .pg { justify-content: center; }
+  .pg-info { width: 100%; margin: 0; text-align: center; }
+  .pg-nums button { min-width: 34px; height: 34px; }
+  .pg-tam select { height: 32px; }
+  .av-menu { width: 220px; }
+  .av-menu button { height: 40px; font-size: 13px; }
+}

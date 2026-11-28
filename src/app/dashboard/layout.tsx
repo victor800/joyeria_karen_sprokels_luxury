@@ -7,6 +7,7 @@ import Reloj from '@/components/dashboard/Reloj';
 import TablasMovil from '@/components/dashboard/TablasMovil';
 import BarraInferior from '@/components/dashboard/BarraInferior';
 import { CampanaNotificaciones } from '@/components/dashboard/Notificaciones';
+import AvatarPerfil from '@/components/dashboard/AvatarPerfil';
 import './dashboard.css';
 
 const sans = Inter({ subsets: ['latin'], variable: '--d-sans', display: 'swap' });
@@ -33,7 +34,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Reloj />
             {/* Campana con contador, sonido, popup y avisos emergentes */}
             <CampanaNotificaciones />
-            <span className="d-avatar" aria-label="Administradora">KS</span>
+            {/* Al tocar la foto: subir, cambiar o quitar */}
+            <AvatarPerfil iniciales="KS" />
           </div>
         </header>
         {children}
