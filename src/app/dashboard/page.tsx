@@ -65,7 +65,6 @@ export default async function Inicio() {
     ? [
         { k: '24K', v: r.oro.k24 },
         { k: '18K', v: r.oro.k18 },
-        { k: '14K', v: r.oro.k14 },
       ]
     : [];
 
