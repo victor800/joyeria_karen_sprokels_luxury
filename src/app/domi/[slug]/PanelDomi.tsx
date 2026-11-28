@@ -207,6 +207,9 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
   const [errAcc, setErrAcc] = useState<{ id: string; msg: string } | null>(null);
   const [novedadId, setNovedadId] = useState<string | null>(null);
 
+  const [pag, setPag] = useState(1);
+  const [tam, setTam] = useState(10);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
@@ -303,6 +306,15 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
       });
   }, [pedidos, filtro, busca, tienda, orden]);
 
+  // Al cambiar filtro, búsqueda, tienda, orden o tamaño, se vuelve a la primera página
+  useEffect(() => {
+    setPag(1);
+  }, [filtro, busca, tienda, orden, tam]);
+
+  const totalPag = Math.max(1, Math.ceil(visibles.length / tam));
+  const pagActual = Math.min(pag, totalPag); // si al entregar un pedido sobran páginas, se ajusta sola
+  const pagina = visibles.slice((pagActual - 1) * tam, pagActual * tam);
+
   // El pedido abierto se busca en todos los pedidos (no solo en los visibles), así sigue abierto al marcarlo entregado
   const det = detId ? pedidos?.find((p) => p.id === detId) ?? null : null;
 
@@ -381,6 +393,7 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
         )}
 
         {pedidos && visibles.length > 0 && (
+          <>
           <table className="dm-tabla">
             <thead>
               <tr>
@@ -393,11 +406,13 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
               </tr>
             </thead>
             <tbody>
-              {visibles.map((p) => (
+              {pagina.map((p) => (
                 <Fila key={p.id} p={p} trab={trab} onAbrir={abrir} onIr={ir} />
               ))}
             </tbody>
           </table>
+          <Paginacion total={visibles.length} pagina={pagActual} totalPag={totalPag} tam={tam} onPagina={setPag} onTam={setTam} />
+          </>
         )}
       </section>
 
@@ -415,6 +430,79 @@ function Panel({ slug, nombre, foto }: { slug: string; nombre: string; foto: str
         </Drawer>
       )}
     </main>
+  );
+}
+
+/* ═════════ Paginación ═════════ */
+const TAMANOS = [10, 25, 50];
+
+/** Números de página con puntos suspensivos: 1 … 4 5 6 … 12 */
+function numerosPagina(actual: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const base = Array.from(new Set([1, total, actual - 1, actual, actual + 1]))
+    .filter((n) => n >= 1 && n <= total)
+    .sort((a, b) => a - b);
+  const out: (number | '…')[] = [];
+  base.forEach((n, i) => {
+    if (i > 0 && n - base[i - 1] > 1) out.push('…');
+    out.push(n);
+  });
+  return out;
+}
+
+function Paginacion({
+  total, pagina, totalPag, tam, onPagina, onTam,
+}: {
+  total: number;
+  pagina: number;
+  totalPag: number;
+  tam: number;
+  onPagina: (n: number) => void;
+  onTam: (n: number) => void;
+}) {
+  const desde = (pagina - 1) * tam + 1;
+  const hasta = Math.min(pagina * tam, total);
+
+  return (
+    <div className="dm-pag">
+      <span className="dm-pag-info">
+        Mostrando <b>{desde}–{hasta}</b> de <b>{total}</b>
+      </span>
+
+      {total > TAMANOS[0] && (
+        <label className="dm-pag-tam">
+          Filas por página
+          <select value={tam} onChange={(e) => onTam(Number(e.target.value))}>
+            {TAMANOS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {totalPag > 1 && (
+        <nav className="dm-pag-nav" aria-label="Paginación">
+          <button type="button" className="dm-pag-b" disabled={pagina === 1} onClick={() => onPagina(pagina - 1)} aria-label="Página anterior">‹</button>
+          {numerosPagina(pagina, totalPag).map((n, i) =>
+            n === '…' ? (
+              <span key={`p${i}`} className="dm-pag-pt" aria-hidden="true">…</span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                className={`dm-pag-b ${n === pagina ? 'on' : ''}`}
+                aria-current={n === pagina ? 'page' : undefined}
+                aria-label={`Página ${n}`}
+                onClick={() => onPagina(n)}
+              >
+                {n}
+              </button>
+            ),
+          )}
+          <button type="button" className="dm-pag-b" disabled={pagina === totalPag} onClick={() => onPagina(pagina + 1)} aria-label="Página siguiente">›</button>
+        </nav>
+      )}
+    </div>
   );
 }
 
