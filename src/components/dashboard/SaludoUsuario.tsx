@@ -1,12 +1,12 @@
-// 📁 RUTA: src/components/dashboard/SaludoUsuario.tsx   (ARCHIVO NUEVO)
+// 📁 RUTA: src/components/dashboard/SaludoUsuario.tsx   (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useEffect, useState } from 'react';
 import { getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-// ⚠️ Esta línea debe apuntar al archivo que inicializa Firebase EN EL NAVEGADOR (el mismo que usa tu login).
-// Sin ella, al recargar /dashboard la sesión todavía no está inicializada y el nombre no aparece.
-import '@/lib/firebase';
+// Inicializa Firebase en el navegador (el mismo archivo que usa tu login).
+// Sin esta línea, al recargar /dashboard la sesión todavía no está inicializada y el nombre no aparece.
+import '@/lib/firebase/client';
 import { Saludo } from '@/components/dashboard/Reloj';
 
 /** "victor.sky2023@gmail.com" → "Victor" · "karen_sprockel@..." → "Karen" */
