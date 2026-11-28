@@ -1,6 +1,7 @@
 // 📁 RUTA: src/app/dashboard/page.tsx   (REEMPLAZA TODO EL ARCHIVO)
 import Link from 'next/link';
 import { SaludoUsuario } from '@/components/dashboard/SaludoUsuario';
+import { PedidosRecientes, ActividadReciente } from '@/components/dashboard/TarjetasDashboard';
 import { cop } from '@/lib/datos-dashboard';
 import { obtenerResumen } from '@/lib/resumen-dashboard';
 
@@ -13,13 +14,6 @@ const ACCIONES = [
   { t: 'Nueva prenda', href: '/dashboard/prendas' },
   { t: 'Registrar custodia', href: '/dashboard/boveda' },
 ];
-const ESTADO: Record<string, string> = {
-  nuevo: 'Nuevo',
-  recibido: 'Recibido',
-  en_camino: 'En camino',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-};
 
 const dinero = (n: number) => (n > 0 ? cop(n) : '$0');
 /** Etiqueta corta para las barras: 1,2M · 350k */
@@ -44,14 +38,14 @@ export default async function Inicio() {
   const k = r.kpis;
 
   const KPIS = [
-    { t: 'Ventas de hoy', v: dinero(k.ventasHoy), sub: plural(k.pedidosHoy, 'pedido', 'pedidos') },
-    { t: 'Ventas del mes', v: dinero(k.ventasMes), sub: plural(k.pedidosMes, 'pedido', 'pedidos') },
-    { t: 'Pedidos activos', v: String(k.activos), sub: `${k.porDespachar} por despachar` },
+    { t: 'Ventas de hoy', v: dinero(k.ventasHoy), sub: plural(k.pedidosHoy, 'pedido', 'pedidos'), href: '/dashboard/hans' },
+    { t: 'Ventas del mes', v: dinero(k.ventasMes), sub: plural(k.pedidosMes, 'pedido', 'pedidos'), href: '/dashboard/hans' },
+    { t: 'Pedidos activos', v: String(k.activos), sub: `${k.porDespachar} por despachar`, href: '/dashboard/hans' },
     { t: 'Ticket promedio', v: dinero(k.ticket), sub: 'Promedio del mes' },
-    { t: 'Oro en bóveda', v: '—', sub: 'Sin conectar aún' },
-    { t: 'Retiros pendientes', v: '—', sub: 'Sin conectar aún' },
-    { t: 'Domicilios en ruta', v: String(k.enRuta), sub: plural(r.domiciliarios.length, 'domiciliario', 'domiciliarios') },
-    { t: 'Stock bajo', v: String(k.stockBajo), sub: 'Quedan 1 o menos unidades' },
+    { t: 'Oro en bóveda', v: '—', sub: 'Sin conectar aún', href: '/dashboard/boveda' },
+    { t: 'Retiros pendientes', v: '—', sub: 'Sin conectar aún', href: '/dashboard/boveda' },
+    { t: 'Domicilios en ruta', v: String(k.enRuta), sub: plural(r.domiciliarios.length, 'domiciliario', 'domiciliarios'), href: '/dashboard/domiciliarios' },
+    { t: 'Stock bajo', v: String(k.stockBajo), sub: 'Quedan 1 o menos unidades', href: '/dashboard/prendas' },
   ];
 
   const ATENDER = [
@@ -115,13 +109,23 @@ export default async function Inicio() {
         )}
 
         <div className="d-kpis">
-          {KPIS.map((x) => (
-            <div key={x.t} className="d-card d-kpi">
-              <small>{x.t}</small>
-              <strong>{x.v}</strong>
-              <span className="d-nada">{x.sub}</span>
-            </div>
-          ))}
+          {KPIS.map((x) => {
+            const cuerpo = (
+              <>
+                <small>{x.t}</small>
+                <strong>{x.v}</strong>
+                <span className="d-nada">{x.sub}</span>
+              </>
+            );
+            // Las tarjetas con destino son clicables
+            return x.href ? (
+              <Link key={x.t} href={x.href} className="d-card d-kpi" style={{ textDecoration: 'none', color: 'inherit' }}>
+                {cuerpo}
+              </Link>
+            ) : (
+              <div key={x.t} className="d-card d-kpi">{cuerpo}</div>
+            );
+          })}
         </div>
 
         <div className="d-duo">
@@ -129,7 +133,7 @@ export default async function Inicio() {
             <h3>Ventas de los últimos 7 días</h3>
             <div className="d-serie" role="img" aria-label={`Ventas de los últimos 7 días: ${dinero(totalSemana)} en total`}>
               {r.semana.map((d, i) => (
-                <div key={i}>
+                <div key={i} title={`${d.letra}: ${dinero(d.total)}`}>
                   <small>{d.total > 0 ? corto(d.total) : ''}</small>
                   <span className="d-barra">
                     <i className={d.total > 0 ? '' : 'cero'} style={{ height: d.total > 0 ? `${Math.max((d.total / maxSemana) * 100, 6)}%` : undefined }} />
@@ -155,29 +159,8 @@ export default async function Inicio() {
         </div>
 
         <div className="d-trio">
-          <section className="d-card">
-            <h3>Pedidos recientes</h3>
-            {r.recientes.length === 0 ? (
-              <Vacio texto="Aún no hay pedidos." href="/dashboard/hans" accion="Ir a pedidos" />
-            ) : (
-              <ul className="d-lista">
-                {r.recientes.map((p) => (
-                  <li key={p.id}>
-                    <Link href="/dashboard/hans">
-                      <span className="d-l-main">
-                        <b>{p.cliente || 'Cliente'}</b>
-                        <small>{p.codigo} · {p.cuando}</small>
-                      </span>
-                      <span className="d-l-der">
-                        <b>{dinero(p.total)}</b>
-                        <em className={`d-est e-${p.estado}`}>{ESTADO[p.estado] ?? p.estado}</em>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {/* Con búsqueda, filtro por estado, paginación y exportar CSV */}
+          <PedidosRecientes pedidos={r.recientes} />
           <section className="d-card">
             <h3>Por atender</h3>
             <ul className="d-atender">
@@ -213,21 +196,7 @@ export default async function Inicio() {
             <h3>Prendas más vendidas</h3>
             <Vacio texto="Se mostrarán cuando los pedidos registren qué prendas se vendieron." />
           </section>
-          <section className="d-card">
-            <h3>Actividad reciente</h3>
-            {r.actividad.length === 0 ? (
-              <Vacio texto="Aquí verá cada movimiento: ventas, retiros y entregas." />
-            ) : (
-              <ul className="d-feed">
-                {r.actividad.map((a, i) => (
-                  <li key={i}>
-                    <span className="d-l-main"><b>{a.texto}</b></span>
-                    <small>{a.cuando}</small>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <ActividadReciente actividad={r.actividad} />
         </div>
       </div>
     </main>

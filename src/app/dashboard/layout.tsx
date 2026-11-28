@@ -1,4 +1,4 @@
-// 📁 RUTA: src/app/dashboard/layout.tsx
+// 📁 RUTA: src/app/dashboard/layout.tsx   (REEMPLAZA TODO EL ARCHIVO)
 import type { Metadata } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { MARCA } from '@/lib/marca';
@@ -6,6 +6,7 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import Reloj from '@/components/dashboard/Reloj';
 import TablasMovil from '@/components/dashboard/TablasMovil';
 import BarraInferior from '@/components/dashboard/BarraInferior';
+import { CampanaNotificaciones } from '@/components/dashboard/Notificaciones';
 import './dashboard.css';
 
 const sans = Inter({ subsets: ['latin'], variable: '--d-sans', display: 'swap' });
@@ -30,11 +31,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="d-top-der">
             <span className="d-estado"><i /> Tienda abierta</span>
             <Reloj />
-            <button type="button" className="d-campana" aria-label="Notificaciones">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9zM10 20a2 2 0 0 0 4 0" />
-              </svg>
-            </button>
+            {/* Campana con contador, sonido, popup y avisos emergentes */}
+            <CampanaNotificaciones />
             <span className="d-avatar" aria-label="Administradora">KS</span>
           </div>
         </header>
