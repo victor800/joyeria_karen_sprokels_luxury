@@ -1,4 +1,4 @@
-// 📁 RUTA: src/components/dashboard/SaludoUsuario.tsx   (ARCHIVO NUEVO)
+// 📁 RUTA: src/components/dashboard/SaludoUsuario.tsx   (REEMPLAZA TODO EL ARCHIVO)
 'use client';
 
 import { useEffect, useState } from 'react';
